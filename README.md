@@ -65,6 +65,22 @@ toppers like "Club Soda", garnish/method lines) and strips description noise
 (chapters, gear links, socials). `Recipe.source` records provenance (and the
 YouTube URL/video id when present in the pasted text).
 
+### Optional: Smart parse with Gemini (bring-your-own-key)
+
+For messier descriptions you can enable AI parsing: **Settings → AI parsing**,
+paste your own Google **Gemini** API key. It's stored **only in your browser's
+localStorage** — never committed to this repo and never sent anywhere except
+Google's API when you parse. The Import screen then offers **✨ Smart parse**
+(Gemini structured output → the same `StructuredImport` pipeline), with the
+offline heuristic always available as a fallback. All client-side; no backend.
+
+Security: create a key **restricted to the Generative Language API** so a leak
+is low-impact. The whole feature is a **kill switch** — set `FEATURES.cloudAI`
+to `false` in `src/config.ts` and redeploy to remove every AI entry point
+(Settings gear, AI section, Smart-parse button), leaving the app exactly as it
+was. Code is isolated to `src/import/gemini.ts`, `src/screens/SettingsScreen.tsx`,
+and flag-gated blocks, so it also reverts cleanly with `git revert`.
+
 ### Roadmap: one-tap URL import (phase 2b)
 
 Paste just a URL and have it auto-fetch + AI-parse. A browser can't fetch a

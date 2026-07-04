@@ -1,12 +1,22 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronLeftIcon, FlaskIcon, PlayIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  ChevronLeftIcon,
+  FlaskIcon,
+  PlayIcon,
+  PlusIcon,
+  SparkleIcon,
+  TrashIcon,
+} from '../components/icons'
+import { FEATURES } from '../config'
 import type { Unit } from '../db/schema'
 import { UNIT_ORDER, UNITS } from '../domain/units'
+import { GeminiError, geminiParse } from '../import/gemini'
 import { importRecipe } from '../import/importRecipe'
 import { parseRecipeText, type ParseResult } from '../import/parseRecipeText'
 import type { IngredientDraft, RecipeDraft } from '../import/types'
 import { useKnownIngredients } from '../hooks/useRecipes'
+import { useGeminiSettings } from '../hooks/useSettings'
 import styles from './ImportScreen.module.css'
 
 const INGREDIENT_LIST_ID = 'known-ingredients'
@@ -14,15 +24,36 @@ const INGREDIENT_LIST_ID = 'known-ingredients'
 export function ImportScreen() {
   const navigate = useNavigate()
   const knownIngredients = useKnownIngredients()
+  const gemini = useGeminiSettings()
+  const aiEnabled = FEATURES.cloudAI && gemini.hasKey
   const [text, setText] = useState('')
   const [draft, setDraft] = useState<ParseResult | null>(null)
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const parse = () => {
+    setAiError(null)
     const result = parseRecipeText(text)
     setExcluded(new Set())
     setDraft(result)
+  }
+
+  const smartParse = async () => {
+    if (aiBusy) return
+    setAiError(null)
+    setAiBusy(true)
+    try {
+      const result = await geminiParse(text, gemini.apiKey, gemini.model)
+      setExcluded(new Set())
+      setDraft({ ...result, ok: true })
+    } catch (err) {
+      // Fall back gracefully to the offline parser; keep the user on this screen.
+      setAiError(err instanceof GeminiError ? err.message : 'AI parse failed. Try Basic parse.')
+    } finally {
+      setAiBusy(false)
+    }
   }
 
   const pasteFromClipboard = async () => {
@@ -119,14 +150,51 @@ export function ImportScreen() {
             rows={12}
             autoFocus
           />
-          <div className={styles.actions}>
-            <button className={styles.ghostBtn} onClick={pasteFromClipboard}>
-              Paste
-            </button>
-            <button className={styles.solidBtn} disabled={!text.trim()} onClick={parse}>
-              Parse recipe
-            </button>
-          </div>
+          {aiError && (
+            <p className={styles.warn}>
+              {aiError} <span className={styles.warnDim}>Basic parse still works below.</span>
+            </p>
+          )}
+
+          {aiEnabled ? (
+            <>
+              <div className={styles.actions}>
+                <button className={styles.ghostBtn} onClick={pasteFromClipboard} disabled={aiBusy}>
+                  Paste
+                </button>
+                <button
+                  className={styles.solidBtn}
+                  disabled={!text.trim() || aiBusy}
+                  onClick={smartParse}
+                >
+                  <SparkleIcon size={18} /> {aiBusy ? 'Parsing with Gemini…' : 'Smart parse'}
+                </button>
+              </div>
+              <button
+                className={styles.textBtn}
+                disabled={!text.trim() || aiBusy}
+                onClick={parse}
+              >
+                Use basic parser instead
+              </button>
+            </>
+          ) : (
+            <>
+              <div className={styles.actions}>
+                <button className={styles.ghostBtn} onClick={pasteFromClipboard}>
+                  Paste
+                </button>
+                <button className={styles.solidBtn} disabled={!text.trim()} onClick={parse}>
+                  Parse recipe
+                </button>
+              </div>
+              {FEATURES.cloudAI && (
+                <Link className={styles.aiNudge} to="/settings">
+                  <SparkleIcon size={15} /> Want smarter parsing? Add a Gemini key in Settings
+                </Link>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <div className={styles.body}>

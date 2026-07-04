@@ -85,6 +85,10 @@
 
 .solidBtn {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   padding: 13px 20px;
   border-radius: var(--radius-sm);
   background: var(--accent);
@@ -106,6 +110,34 @@
   font-size: 14px;
   line-height: 1.5;
   margin: 0 0 16px;
+}
+
+.warnDim {
+  color: var(--text-faint);
+}
+
+.textBtn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.aiNudge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 16px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.aiNudge svg {
+  flex: 0 0 auto;
 }
 
 .label {

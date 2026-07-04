@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FlaskIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
+import { FlaskIcon, GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
+import { FEATURES } from '../config'
 import type { Recipe } from '../db/schema'
 import { formatAmount } from '../domain/units'
 import { useCocktails, useComponents } from '../hooks/useRecipes'
@@ -55,10 +56,17 @@ export function HomeScreen() {
       <header className={styles.header}>
         <div className={styles.brandRow}>
           <h1 className={styles.brand}>Cocktails</h1>
-          <Link className={styles.importBtn} to="/import">
-            <ImportIcon size={17} />
-            Import
-          </Link>
+          <div className={styles.headerActions}>
+            <Link className={styles.importBtn} to="/import">
+              <ImportIcon size={17} />
+              Import
+            </Link>
+            {FEATURES.cloudAI && (
+              <Link className={styles.gearBtn} to="/settings" aria-label="Settings">
+                <GearIcon size={20} />
+              </Link>
+            )}
+          </div>
         </div>
         <div className={styles.search}>
           <SearchIcon size={18} className={styles.searchIcon} />
