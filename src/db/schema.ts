@@ -41,6 +41,7 @@ export type SpiritCategory =
   | 'liqueur'
   | 'wine'
   | 'other'
+  | 'mocktail'
   | 'none'
 
 export interface Ingredient {

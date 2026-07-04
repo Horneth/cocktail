@@ -58,8 +58,8 @@ Return JSON matching the schema. Rules:
 - "kind": "cocktail" for a mixed drink, OR "component" if the ENTIRE description is just a syrup/cordial/orgeat/infusion/mix recipe with no cocktail build.
 - "ingredients": each line of the main build. Keep the amount as a number in the unit as written (oz, ml, cl, dash, barspoon, tsp, tbsp, part). Use amount null for "to taste", garnishes, or "top with" items. Strip any parenthetical unit conversion like "(30 ml)" from the name.
 - "subRecipes": any syrups/cordials/orgeat/etc. described as their OWN ingredient block. Use unit "part" for ratio recipes ("1 part sugar"). Give each the EXACT name used in the main ingredient list so they can be linked. Always split these out rather than leaving them as one ingredient.
-- "spirit": the primary base spirit, EXACTLY one of: gin, vodka, rum, whiskey, tequila, agave, brandy, liqueur, wine, other, none. Map mezcal->agave, bourbon/rye/scotch->whiskey, cognac/pisco/calvados->brandy, sparkling/vermouth/sherry/port->wine, and zero-proof/mocktail->none. Use "none" for a component.
-- "tags": 2 to 4 short lowercase tags describing style and flavor. Choose from ideas like: sour, spirit-forward, stirred, shaken, built, tiki, citrusy, refreshing, bitter, herbal, creamy, fruity, boozy, low-abv, hot, classic, dry. No "#".
+- "spirit": the primary base spirit, EXACTLY one of: gin, vodka, rum, whiskey, tequila, agave, brandy, liqueur, wine, other, mocktail, none. Map mezcal->agave, bourbon/rye/scotch->whiskey, cognac/pisco/calvados->brandy, sparkling/vermouth/sherry/port->wine. Use "mocktail" for any non-alcoholic / zero-proof / "virgin" drink (including ones built on N/A spirits like Seedlip). Use "none" only for a component/syrup.
+- "tags": 2 to 4 short lowercase tags describing style and flavor. Choose from ideas like: sour, spirit-forward, stirred, shaken, built, tiki, citrusy, refreshing, bitter, herbal, creamy, fruity, boozy, low-abv, zero-proof, mocktail, hot, classic, dry. No "#".
 - Ignore non-recipe text: links, chapters/timestamps, gear lists, socials, sponsorships.
 - If a value is unknown, omit it. Do not invent ingredients.`
 
@@ -98,7 +98,7 @@ function normalize(name: string): string {
 
 const SPIRITS: SpiritCategory[] = [
   'gin', 'vodka', 'rum', 'whiskey', 'tequila', 'agave',
-  'brandy', 'liqueur', 'wine', 'other', 'none',
+  'brandy', 'liqueur', 'wine', 'other', 'mocktail', 'none',
 ]
 const SPIRIT_SYNONYMS: Record<string, SpiritCategory> = {
   mezcal: 'agave',
@@ -107,6 +107,9 @@ const SPIRIT_SYNONYMS: Record<string, SpiritCategory> = {
   sparkling: 'wine', champagne: 'wine', prosecco: 'wine', vermouth: 'wine',
   sherry: 'wine', port: 'wine',
   cachaca: 'rum', rhum: 'rum',
+  // zero-proof
+  virgin: 'mocktail', 'non-alcoholic': 'mocktail', nonalcoholic: 'mocktail',
+  'zero-proof': 'mocktail', zeroproof: 'mocktail', 'na': 'mocktail', seedlip: 'mocktail',
 }
 
 function coerceSpirit(raw: string | undefined): SpiritCategory | undefined {

@@ -75,6 +75,23 @@ describe('mapGeminiRecipe', () => {
   })
 })
 
+describe('mapGeminiRecipe — mocktail', () => {
+  it('accepts mocktail as a spirit', () => {
+    const r = mapGeminiRecipe({
+      name: 'No-Groni',
+      kind: 'cocktail',
+      spirit: 'mocktail',
+      ingredients: [{ amount: 1, unit: 'oz', name: 'Seedlip Spice' }],
+    })
+    expect(r.main.spirit).toBe('mocktail')
+  })
+
+  it('maps zero-proof synonyms (virgin, non-alcoholic) to mocktail', () => {
+    expect(mapGeminiRecipe({ spirit: 'virgin', ingredients: [{ name: 'x', unit: 'oz' }] }).main.spirit).toBe('mocktail')
+    expect(mapGeminiRecipe({ spirit: 'non-alcoholic', ingredients: [{ name: 'x', unit: 'oz' }] }).main.spirit).toBe('mocktail')
+  })
+})
+
 describe('mapGeminiRecipe — standalone syrup', () => {
   const syrup: GeminiRecipe = {
     name: 'Orgeat',

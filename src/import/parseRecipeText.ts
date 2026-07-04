@@ -110,6 +110,8 @@ const COMPONENT_KEYWORDS =
   /\b(syrup|cordial|orgeat|grenadine|shrub|tincture|puree|purée|foam|oleo|sherbet|honey|falernum|mix|reduction|infusion|bitters?\b(?! ?$))\b/i
 
 const SPIRIT_HINTS: [RegExp, SpiritCategory][] = [
+  // zero-proof first, so "non-alcoholic gin" reads as mocktail, not gin
+  [/\b(non-?alcoholic|zero-?proof|virgin|mocktail|seedlip|lyre'?s|ritual zero|athletic brewing)\b/i, 'mocktail'],
   [/\bgin\b/i, 'gin'],
   [/\b(rye|bourbon|whiskey|whisky|scotch)\b/i, 'whiskey'],
   [/\bmezcal\b/i, 'agave'],
@@ -220,7 +222,7 @@ function normalize(name: string): string {
 }
 
 function detectSpirit(main: RecipeDraft): SpiritCategory | undefined {
-  const hay = main.ingredients.map((i) => i.name).join(' ')
+  const hay = [main.name, ...main.ingredients.map((i) => i.name)].join(' ')
   for (const [re, spirit] of SPIRIT_HINTS) if (re.test(hay)) return spirit
   return undefined
 }

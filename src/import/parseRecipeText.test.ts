@@ -155,6 +155,24 @@ describe('parseRecipeText — dual-unit conversions', () => {
   })
 })
 
+describe('parseRecipeText — mocktail detection', () => {
+  it('detects a non-alcoholic base as mocktail', () => {
+    const r = parseRecipeText(`Garden Spritz
+2 oz Seedlip Garden
+0.75 oz Lime Juice
+Soda Water`)
+    expect(r.main.spirit).toBe('mocktail')
+  })
+
+  it('detects a "virgin" drink by name over its spirit-like ingredients', () => {
+    const r = parseRecipeText(`Virgin Mojito
+2 oz Non-Alcoholic Rum
+1 oz Lime Juice
+Mint`)
+    expect(r.main.spirit).toBe('mocktail')
+  })
+})
+
 describe('parseRecipeText — resilience', () => {
   it('never throws on empty or junk input', () => {
     expect(() => parseRecipeText('')).not.toThrow()

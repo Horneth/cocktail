@@ -18,7 +18,7 @@ import styles from './EditRecipeScreen.module.css'
 
 const SPIRITS: SpiritCategory[] = [
   'gin', 'vodka', 'rum', 'whiskey', 'tequila', 'agave',
-  'brandy', 'liqueur', 'wine', 'other', 'none',
+  'brandy', 'liqueur', 'wine', 'other', 'mocktail', 'none',
 ]
 
 const METHODS = ['Shake', 'Stir', 'Build', 'Blend', 'Throw', 'Swizzle']
