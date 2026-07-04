@@ -13,7 +13,7 @@ import type {
 import { newId } from '../domain/ids'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
-import { useComponents, useRecipe } from '../hooks/useRecipes'
+import { useComponents, useKnownIngredients, useRecipe } from '../hooks/useRecipes'
 import styles from './EditRecipeScreen.module.css'
 
 const SPIRITS: SpiritCategory[] = [
@@ -49,6 +49,7 @@ export function EditRecipeScreen() {
   const isNew = !id
   const existing = useRecipe(id)
   const components = useComponents()
+  const knownIngredients = useKnownIngredients()
 
   const [form, setForm] = useState<Recipe | null>(isNew ? emptyRecipe('cocktail') : null)
   const [tagInput, setTagInput] = useState('')
@@ -165,6 +166,7 @@ export function EditRecipeScreen() {
               ingredient={ing}
               partsMode={form.measureBasis === 'parts'}
               components={components ?? []}
+              knownNames={knownIngredients}
               currentRecipeId={form.id}
               onChange={(patch) => updateIngredient(ing.id, patch)}
               onRemove={() => removeRow(ing.id)}
@@ -264,6 +266,7 @@ interface IngEditorProps {
   ingredient: Ingredient
   partsMode: boolean
   components: Recipe[]
+  knownNames: string[]
   currentRecipeId: string
   onChange: (patch: Partial<Ingredient>) => void
   onRemove: () => void
@@ -273,6 +276,7 @@ function IngredientEditor({
   ingredient,
   partsMode,
   components,
+  knownNames,
   currentRecipeId,
   onChange,
   onRemove,
@@ -287,9 +291,28 @@ function IngredientEditor({
       .slice(0, 4)
   }, [components, ingredient.name, currentRecipeId])
 
+  const nameMatches = useMemo(() => {
+    const q = ingredient.name.trim().toLowerCase()
+    if (!q) return []
+    const compNames = new Set(components.map((c) => c.name.toLowerCase()))
+    return knownNames
+      .filter((n) => {
+        const l = n.toLowerCase()
+        return l.includes(q) && l !== q && !compNames.has(l)
+      })
+      .slice(0, 5)
+  }, [knownNames, ingredient.name, components])
+
   const exactMatch = components.some(
     (c) => c.name.toLowerCase() === ingredient.name.trim().toLowerCase(),
   )
+
+  const showLinkOptions = !partsMode && !ingredient.subRecipeId
+
+  const pickName = (name: string) => {
+    onChange({ name, subRecipeId: undefined })
+    setFocused(false)
+  }
 
   const linkTo = (comp: Recipe) => {
     onChange({ name: comp.name, subRecipeId: comp.id })
@@ -318,7 +341,9 @@ function IngredientEditor({
   }
 
   const showDropdown =
-    focused && ingredient.name.trim() !== '' && !ingredient.subRecipeId && !partsMode
+    focused &&
+    ingredient.name.trim() !== '' &&
+    (nameMatches.length > 0 || (showLinkOptions && (suggestions.length > 0 || !exactMatch)))
 
   return (
     <div className={styles.ingEditor}>
@@ -365,14 +390,20 @@ function IngredientEditor({
           </span>
         )}
 
-        {showDropdown && (suggestions.length > 0 || !exactMatch) && (
+        {showDropdown && (
           <div className={styles.dropdown}>
-            {suggestions.map((c) => (
-              <button key={c.id} className={styles.suggestion} onMouseDown={() => linkTo(c)}>
-                <FlaskIcon size={14} /> {c.name}
+            {nameMatches.map((n) => (
+              <button key={n} className={styles.suggestion} onMouseDown={() => pickName(n)}>
+                {n}
               </button>
             ))}
-            {!exactMatch && (
+            {showLinkOptions &&
+              suggestions.map((c) => (
+                <button key={c.id} className={styles.suggestion} onMouseDown={() => linkTo(c)}>
+                  <FlaskIcon size={14} /> {c.name}
+                </button>
+              ))}
+            {showLinkOptions && !exactMatch && (
               <button className={styles.suggestionNew} onMouseDown={makeSubRecipe}>
                 <PlusIcon size={14} /> Make “{ingredient.name.trim()}” a sub-recipe
               </button>

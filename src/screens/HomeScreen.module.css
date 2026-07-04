@@ -123,6 +123,23 @@
   border-color: var(--accent);
 }
 
+.tagChip {
+  flex: 0 0 auto;
+  padding: 6px 13px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tagChipActive {
+  background: var(--link);
+  color: var(--accent-ink);
+  border-color: var(--link);
+}
+
 .list {
   list-style: none;
   margin: 6px 0 0;

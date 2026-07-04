@@ -23,6 +23,7 @@ export function HomeScreen() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('cocktail')
   const [spirit, setSpirit] = useState<string | null>(null)
+  const [tag, setTag] = useState<string | null>(null)
 
   const source = filter === 'cocktail' ? cocktails : components
 
@@ -32,12 +33,22 @@ export function HomeScreen() {
     return [...set].sort()
   }, [cocktails])
 
+  const tags = useMemo(() => {
+    const count = new Map<string, number>()
+    cocktails?.forEach((c) => c.tags.forEach((t) => count.set(t, (count.get(t) ?? 0) + 1)))
+    // most-used first, then alphabetical
+    return [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t)
+  }, [cocktails])
+
   const list = useMemo(() => {
     if (!source) return []
     return source.filter(
-      (r) => matches(r, query) && (filter === 'component' || !spirit || r.spirit === spirit),
+      (r) =>
+        matches(r, query) &&
+        (filter === 'component' || !spirit || r.spirit === spirit) &&
+        (filter === 'component' || !tag || r.tags.includes(tag)),
     )
-  }, [source, query, spirit, filter])
+  }, [source, query, spirit, tag, filter])
 
   return (
     <div className={styles.screen}>
@@ -101,14 +112,28 @@ export function HomeScreen() {
             ))}
           </div>
         )}
+
+        {filter === 'cocktail' && tags.length > 0 && (
+          <div className={styles.chips}>
+            {tags.map((t) => (
+              <button
+                key={t}
+                className={`${styles.tagChip} ${tag === t ? styles.tagChipActive : ''}`}
+                onClick={() => setTag(tag === t ? null : t)}
+              >
+                #{t}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       {source === undefined ? (
         <p className={styles.empty}>…</p>
       ) : list.length === 0 ? (
         <div className={styles.empty}>
-          {query ? (
-            <p>No matches for “{query}”.</p>
+          {query || spirit || tag ? (
+            <p>No matches{query ? ` for “${query}”` : ''}.</p>
           ) : filter === 'component' ? (
             <p>No sub-recipes yet. Syrups you create will show up here.</p>
           ) : (

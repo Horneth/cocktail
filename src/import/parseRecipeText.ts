@@ -138,7 +138,7 @@ function asIngredient(line: string): IngredientDraft | null {
 
   if (amount !== null) {
     const { unit, rest: afterUnit } = parseLeadingUnit(rest)
-    const name = cleanName(afterUnit)
+    const name = cleanName(stripMeasurementParens(afterUnit))
     if (!name) return null
     return { amount, unit: unit ?? 'each', name }
   }
@@ -153,6 +153,22 @@ function asIngredient(line: string): IngredientDraft | null {
 function cleanName(s: string): string {
   return s
     .replace(/^[\s\-–—:•*]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Drop a parenthetical secondary measurement like "(30 ml)" or "(1 1/2 oz)"
+ * that descriptions add after the primary amount, e.g.
+ *   "1 oz. (30 ml) Lemon Juice" -> "Lemon Juice"
+ * Non-measurement parentheses (e.g. a "(1.5:1)" ratio hint) are left intact.
+ */
+function stripMeasurementParens(s: string): string {
+  return s
+    .replace(
+      /\(\s*[\d.,/\s]*(?:ml|milliliters?|millilitres?|cl|oz|ounces?|grams?|g|parts?|dashes?)\b[^)]*\)/gi,
+      ' ',
+    )
     .replace(/\s+/g, ' ')
     .trim()
 }

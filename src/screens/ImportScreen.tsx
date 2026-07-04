@@ -6,10 +6,14 @@ import { UNIT_ORDER, UNITS } from '../domain/units'
 import { importRecipe } from '../import/importRecipe'
 import { parseRecipeText, type ParseResult } from '../import/parseRecipeText'
 import type { IngredientDraft, RecipeDraft } from '../import/types'
+import { useKnownIngredients } from '../hooks/useRecipes'
 import styles from './ImportScreen.module.css'
+
+const INGREDIENT_LIST_ID = 'known-ingredients'
 
 export function ImportScreen() {
   const navigate = useNavigate()
+  const knownIngredients = useKnownIngredients()
   const [text, setText] = useState('')
   const [draft, setDraft] = useState<ParseResult | null>(null)
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
@@ -85,6 +89,11 @@ export function ImportScreen() {
 
   return (
     <div className={styles.screen}>
+      <datalist id={INGREDIENT_LIST_ID}>
+        {knownIngredients.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
       <header className={styles.header}>
         <button className={styles.iconBtn} aria-label="Back" onClick={() => navigate(-1)}>
           <ChevronLeftIcon size={26} />
@@ -233,6 +242,7 @@ function IngredientList({
           </select>
           <input
             className={styles.ingName}
+            list={INGREDIENT_LIST_ID}
             value={ing.name}
             onChange={(e) => update(idx, { name: e.target.value })}
             placeholder="Ingredient"

@@ -120,6 +120,41 @@ describe('parseRecipeText — Old Fashioned', () => {
   })
 })
 
+const WITH_CONVERSIONS = `Whiskey Sour
+2 oz. (60 ml) Bourbon
+0.75 oz. (22 ml) Lemon Juice
+1/2 oz (15 ml) Rich Simple Syrup (2:1)
+Garnish: Orange peel
+
+Rich Simple Syrup
+2 parts sugar
+1 part water`
+
+describe('parseRecipeText — dual-unit conversions', () => {
+  const r = parseRecipeText(WITH_CONVERSIONS)
+
+  it('strips "(30 ml)"-style conversions from ingredient names', () => {
+    const names = r.main.ingredients.map((i) => i.name)
+    expect(names).toContain('Bourbon')
+    expect(names).toContain('Lemon Juice')
+    // no leftover "(NN ml)" / "(NN oz)" conversions
+    expect(names.join('|')).not.toMatch(/\(\s*\d+\s*(ml|oz)/i)
+  })
+
+  it('keeps the primary oz amount', () => {
+    expect(r.main.ingredients.find((i) => i.name === 'Bourbon')).toMatchObject({
+      amount: 2,
+      unit: 'oz',
+    })
+  })
+
+  it('keeps a non-measurement ratio hint and still links the syrup', () => {
+    const syrup = r.main.ingredients.find((i) => i.name.includes('Rich Simple Syrup'))
+    expect(syrup?.name).toContain('(2:1)') // ratio hint preserved
+    expect(syrup?.subRecipeRef).toBe(r.components[0].tempId)
+  })
+})
+
 describe('parseRecipeText — resilience', () => {
   it('never throws on empty or junk input', () => {
     expect(() => parseRecipeText('')).not.toThrow()

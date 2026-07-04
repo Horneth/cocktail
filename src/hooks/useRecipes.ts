@@ -20,6 +20,23 @@ export function useRecipe(id: string | undefined): Recipe | null | undefined {
   }, [id])
 }
 
+/** Distinct ingredient names seen across all recipes, for autocomplete. */
+export function useKnownIngredients(): string[] {
+  return (
+    useLiveQuery(async () => {
+      const all = await db.recipes.toArray()
+      const set = new Set<string>()
+      for (const r of all) {
+        for (const ing of r.ingredients) {
+          const n = ing.name.trim()
+          if (n) set.add(n)
+        }
+      }
+      return [...set].sort((a, b) => a.localeCompare(b))
+    }, []) ?? []
+  )
+}
+
 /** Cocktails (or other recipes) that reference the given sub-recipe. */
 export function useBacklinks(childId: string | undefined): Recipe[] | undefined {
   return useLiveQuery(async () => {
