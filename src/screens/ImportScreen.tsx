@@ -205,12 +205,19 @@ export function ImportScreen() {
             </p>
           )}
 
-          <label className={styles.label}>Cocktail name</label>
+          {draft.main.kind === 'component' && (
+            <p className={styles.kindNote}>
+              <FlaskIcon size={14} /> Detected as a sub-recipe (syrup / cordial)
+            </p>
+          )}
+          <label className={styles.label}>
+            {draft.main.kind === 'component' ? 'Sub-recipe name' : 'Cocktail name'}
+          </label>
           <input
             className={styles.nameInput}
             value={draft.main.name}
             onChange={(e) => patchMain({ name: e.target.value })}
-            placeholder="Cocktail name"
+            placeholder="Name"
           />
 
           <h2 className={styles.h2}>Ingredients</h2>
@@ -225,6 +232,19 @@ export function ImportScreen() {
               {draft.main.method && draft.main.garnish ? ' · ' : ''}
               {draft.main.garnish && <span>Garnish: {draft.main.garnish}</span>}
             </p>
+          )}
+
+          {(draft.main.spirit || (draft.main.tags?.length ?? 0) > 0) && (
+            <div className={styles.chipsRow}>
+              {draft.main.spirit && draft.main.spirit !== 'none' && (
+                <span className={styles.spiritChip}>{draft.main.spirit}</span>
+              )}
+              {(draft.main.tags ?? []).map((t) => (
+                <span key={t} className={styles.tagChip}>
+                  #{t}
+                </span>
+              ))}
+            </div>
           )}
 
           {draft.components.length > 0 && (

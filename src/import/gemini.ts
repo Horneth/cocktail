@@ -1,4 +1,5 @@
 import { coerceUnit } from '../domain/units'
+import type { RecipeKind, SpiritCategory } from '../db/schema'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
 
 // Optional cloud parsing via the Gemini API. The user supplies their own API
@@ -28,6 +29,7 @@ const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
     name: { type: 'string' },
+    kind: { type: 'string' },
     method: { type: 'string' },
     glassware: { type: 'string' },
     garnish: { type: 'string' },
@@ -50,11 +52,14 @@ const RESPONSE_SCHEMA = {
   required: ['name', 'ingredients'],
 }
 
-const PROMPT = `You extract a cocktail recipe from a video description (often from the Anders Erickson channel).
+const PROMPT = `You extract a drink recipe from a video description (often from the Anders Erickson channel).
 Return JSON matching the schema. Rules:
-- "name": the cocktail's name only (no channel or video title fluff).
+- "name": the drink's name only (no channel or video title fluff).
+- "kind": "cocktail" for a mixed drink, OR "component" if the ENTIRE description is just a syrup/cordial/orgeat/infusion/mix recipe with no cocktail build.
 - "ingredients": each line of the main build. Keep the amount as a number in the unit as written (oz, ml, cl, dash, barspoon, tsp, tbsp, part). Use amount null for "to taste", garnishes, or "top with" items. Strip any parenthetical unit conversion like "(30 ml)" from the name.
-- "subRecipes": any syrups/cordials/orgeat/etc. described as their own ingredient block. Use unit "part" for ratio recipes ("1 part sugar"). Give each the exact name used in the main ingredient list so they can be linked.
+- "subRecipes": any syrups/cordials/orgeat/etc. described as their OWN ingredient block. Use unit "part" for ratio recipes ("1 part sugar"). Give each the EXACT name used in the main ingredient list so they can be linked. Always split these out rather than leaving them as one ingredient.
+- "spirit": the primary base spirit, EXACTLY one of: gin, vodka, rum, whiskey, tequila, agave, brandy, liqueur, wine, other, none. Map mezcal->agave, bourbon/rye/scotch->whiskey, cognac/pisco/calvados->brandy, sparkling/vermouth/sherry/port->wine, and zero-proof/mocktail->none. Use "none" for a component.
+- "tags": 2 to 4 short lowercase tags describing style and flavor. Choose from ideas like: sour, spirit-forward, stirred, shaken, built, tiki, citrusy, refreshing, bitter, herbal, creamy, fruity, boozy, low-abv, hot, classic, dry. No "#".
 - Ignore non-recipe text: links, chapters/timestamps, gear lists, socials, sponsorships.
 - If a value is unknown, omit it. Do not invent ingredients.`
 
@@ -67,6 +72,7 @@ interface GeminiIngredient {
 }
 export interface GeminiRecipe {
   name?: string
+  kind?: string
   method?: string
   glassware?: string
   garnish?: string
@@ -88,6 +94,40 @@ function normalize(name: string): string {
     .replace(/[^a-z0-9 ]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+const SPIRITS: SpiritCategory[] = [
+  'gin', 'vodka', 'rum', 'whiskey', 'tequila', 'agave',
+  'brandy', 'liqueur', 'wine', 'other', 'none',
+]
+const SPIRIT_SYNONYMS: Record<string, SpiritCategory> = {
+  mezcal: 'agave',
+  bourbon: 'whiskey', rye: 'whiskey', scotch: 'whiskey', whisky: 'whiskey',
+  cognac: 'brandy', pisco: 'brandy', calvados: 'brandy', armagnac: 'brandy',
+  sparkling: 'wine', champagne: 'wine', prosecco: 'wine', vermouth: 'wine',
+  sherry: 'wine', port: 'wine',
+  cachaca: 'rum', rhum: 'rum',
+}
+
+function coerceSpirit(raw: string | undefined): SpiritCategory | undefined {
+  if (!raw) return undefined
+  const w = raw.trim().toLowerCase()
+  if ((SPIRITS as string[]).includes(w)) return w as SpiritCategory
+  return SPIRIT_SYNONYMS[w]
+}
+
+function normalizeTags(tags: string[] | undefined): string[] {
+  if (!tags) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const t of tags) {
+    const v = t.trim().toLowerCase().replace(/^#/, '')
+    if (v && !seen.has(v)) {
+      seen.add(v)
+      out.push(v)
+    }
+  }
+  return out.slice(0, 6)
 }
 
 function toDraftIngredient(g: GeminiIngredient): IngredientDraft {
@@ -135,18 +175,21 @@ export function mapGeminiRecipe(r: GeminiRecipe, sourceUrl?: string): Structured
   }
 
   const videoId = sourceUrl?.match(/(?:v=|youtu\.be\/)([\w-]{11})/)?.[1]
+  const kind: RecipeKind = r.kind === 'component' ? 'component' : 'cocktail'
   const main: RecipeDraft = {
     tempId: tempId('main'),
-    kind: 'cocktail',
-    name: (r.name ?? '').trim() || 'Imported cocktail',
+    kind,
+    name: (r.name ?? '').trim() || (kind === 'component' ? 'Imported syrup' : 'Imported cocktail'),
     ingredients,
-    measureBasis: 'absolute',
+    // a component described in "1 part" ratios is a parts recipe
+    measureBasis:
+      kind === 'component' && ingredients.some((i) => i.unit === 'part') ? 'parts' : 'absolute',
     method: r.method,
     glassware: r.glassware,
     garnish: r.garnish,
     instructions: r.instructions,
-    tags: r.tags ?? [],
-    spirit: undefined, // spirit is a constrained enum; leave for the user/editor
+    tags: normalizeTags(r.tags),
+    spirit: kind === 'component' ? undefined : coerceSpirit(r.spirit),
     source: {
       type: sourceUrl ? 'youtube' : 'web',
       ...(sourceUrl ? { url: sourceUrl, videoId } : {}),

@@ -169,6 +169,48 @@
   font-size: 14px;
 }
 
+.kindNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.spiritChip {
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.tagChip {
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .ings {
   display: flex;
   flex-direction: column;
