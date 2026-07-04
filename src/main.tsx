@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createHashRouter, RouterProvider } from 'react-router-dom'
 import './theme.css'
 import { seedIfEmpty } from './db/seed'
 import { App } from './App'
@@ -8,7 +8,9 @@ import { HomeScreen } from './screens/HomeScreen'
 import { RecipeDetailScreen } from './screens/RecipeDetailScreen'
 import { EditRecipeScreen } from './screens/EditRecipeScreen'
 
-const router = createBrowserRouter([
+// Hash routing keeps GitHub Pages happy: deep links and refreshes never 404,
+// and offline navigation stays entirely client-side.
+const router = createHashRouter([
   {
     path: '/',
     element: <App />,
