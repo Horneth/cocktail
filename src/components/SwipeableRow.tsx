@@ -103,6 +103,9 @@ export function SwipeableRow({ children, onDelete }: Props) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onClickCapture={onClickCapture}
+        // stop the browser's native drag-and-drop on links/images, which would
+        // otherwise cancel the swipe pointer stream mid-gesture
+        onDragStart={(e) => e.preventDefault()}
       >
         {children}
       </div>

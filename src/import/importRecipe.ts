@@ -130,11 +130,39 @@ export async function setFavorite(recipeId: string, favorite: boolean): Promise<
   await db.recipes.update(recipeId, { favorite })
 }
 
-/** Delete a recipe and any link rows that reference it (as parent or child). */
+/**
+ * Delete a recipe. If it was a sub-recipe used by other recipes, those parents
+ * keep the ingredient but lose the (now-dangling) sub-recipe link, so nothing
+ * points at a deleted record.
+ */
 export async function deleteRecipe(recipeId: string): Promise<void> {
   await db.transaction('rw', db.recipes, db.recipeLinks, async () => {
+    // strip the dangling subRecipeId from any parent that referenced this child
+    const parentLinks = await db.recipeLinks.where('childId').equals(recipeId).toArray()
+    for (const pid of [...new Set(parentLinks.map((l) => l.parentId))]) {
+      const parent = await db.recipes.get(pid)
+      if (!parent) continue
+      let changed = false
+      const ingredients = parent.ingredients.map((i) => {
+        if (i.subRecipeId === recipeId) {
+          changed = true
+          const copy = { ...i }
+          delete copy.subRecipeId
+          return copy
+        }
+        return i
+      })
+      if (changed) await db.recipes.update(pid, { ingredients })
+    }
+
     await db.recipes.delete(recipeId)
     await db.recipeLinks.where('parentId').equals(recipeId).delete()
     await db.recipeLinks.where('childId').equals(recipeId).delete()
   })
+}
+
+/** How many recipes reference this one as a sub-recipe. */
+export async function countUsage(recipeId: string): Promise<number> {
+  const links = await db.recipeLinks.where('childId').equals(recipeId).toArray()
+  return new Set(links.map((l) => l.parentId)).size
 }

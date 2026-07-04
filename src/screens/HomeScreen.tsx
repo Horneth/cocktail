@@ -12,7 +12,7 @@ import { SwipeableRow } from '../components/SwipeableRow'
 import { FEATURES } from '../config'
 import type { Recipe } from '../db/schema'
 import { formatAmount } from '../domain/units'
-import { deleteRecipe, setFavorite } from '../import/importRecipe'
+import { countUsage, deleteRecipe, setFavorite } from '../import/importRecipe'
 import { useCocktails, useComponents } from '../hooks/useRecipes'
 import styles from './HomeScreen.module.css'
 
@@ -208,13 +208,9 @@ export function HomeScreen() {
             )
             return (
               <li key={r.id}>
-                {filter === 'cocktail' ? (
-                  <SwipeableRow onDelete={() => void deleteRecipe(r.id)}>
-                    <div className={styles.card}>{body}</div>
-                  </SwipeableRow>
-                ) : (
+                <SwipeableRow onDelete={() => void handleDelete(r)}>
                   <div className={styles.card}>{body}</div>
-                )}
+                </SwipeableRow>
               </li>
             )
           })}
@@ -226,6 +222,23 @@ export function HomeScreen() {
       </Link>
     </div>
   )
+}
+
+async function handleDelete(r: Recipe): Promise<void> {
+  // deleting a shared syrup would unlink it from the cocktails that use it —
+  // confirm first, then those cocktails keep it as a plain ingredient.
+  if (r.kind === 'component') {
+    const uses = await countUsage(r.id)
+    if (
+      uses > 0 &&
+      !confirm(
+        `“${r.name}” is used in ${uses} cocktail${uses > 1 ? 's' : ''}. Delete it? They'll keep it as a plain ingredient.`,
+      )
+    ) {
+      return
+    }
+  }
+  await deleteRecipe(r.id)
 }
 
 function summarize(r: Recipe): string {

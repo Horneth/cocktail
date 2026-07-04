@@ -25,4 +25,7 @@
   transition: transform 0.18s ease;
   touch-action: pan-y;
   will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }

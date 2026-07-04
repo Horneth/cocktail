@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/db'
-import { importRecipe, saveRecipe } from './importRecipe'
+import { countUsage, deleteRecipe, importRecipe, saveRecipe } from './importRecipe'
 import type { StructuredImport } from './types'
 
 function drinkSharingSyrup(name: string): StructuredImport {
@@ -73,5 +73,26 @@ describe('importRecipe', () => {
 
     const backlinks = await db.recipeLinks.where('childId').equals(componentIds[0]).toArray()
     expect(backlinks).toHaveLength(0)
+  })
+
+  it('deleting a shared syrup unlinks it from the cocktails that used it', async () => {
+    const a = await importRecipe(drinkSharingSyrup('Daiquiri'))
+    const b = await importRecipe(drinkSharingSyrup('Whiskey Sour'))
+    const syrupId = a.componentIds[0]
+
+    expect(await countUsage(syrupId)).toBe(2)
+    await deleteRecipe(syrupId)
+
+    // the component is gone, its links are gone
+    expect(await db.recipes.get(syrupId)).toBeUndefined()
+    expect(await db.recipeLinks.where('childId').equals(syrupId).count()).toBe(0)
+
+    // the cocktails still have the ingredient, but no dangling subRecipeId
+    for (const id of [a.mainId, b.mainId]) {
+      const c = await db.recipes.get(id)
+      const ing = c!.ingredients.find((i) => i.name === 'Simple Syrup')
+      expect(ing).toBeTruthy()
+      expect(ing!.subRecipeId).toBeUndefined()
+    }
   })
 })
