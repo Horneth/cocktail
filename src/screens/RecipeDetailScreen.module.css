@@ -1,0 +1,260 @@
+.screen {
+  padding: calc(var(--safe-top) + 8px) 18px 0;
+  min-height: 100%;
+}
+
+.loading,
+.notFound {
+  padding: 40px 18px;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -6px 6px;
+}
+
+.iconBtn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  border-radius: 50%;
+}
+
+.iconBtn:active {
+  background: var(--line-soft);
+}
+
+.prefBtn {
+  height: 36px;
+  min-width: 56px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+
+.titleBlock {
+  margin: 8px 0 18px;
+}
+
+.kindTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.title {
+  font-family: var(--serif);
+  font-size: 34px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.meta {
+  margin: 8px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stepperWrap,
+.partsControl {
+  margin-bottom: 6px;
+}
+
+.partsControl {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  flex-wrap: wrap;
+}
+
+.partsLabel {
+  font-weight: 700;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preset {
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.presetActive {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.ingredients {
+  margin-top: 14px;
+}
+
+.tweakBar {
+  position: sticky;
+  bottom: calc(var(--safe-bottom) + 12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 10px 12px 10px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.tweakActions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.ghostBtn {
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.solidBtn {
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.garnish {
+  margin: 16px 0 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.garnishLabel {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  margin-right: 8px;
+}
+
+.section {
+  margin-top: 28px;
+}
+
+.h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+
+.instructions {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.usedInList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.usedInChip {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  color: var(--link);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.note p {
+  margin: 0;
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.noteDel {
+  color: var(--text-faint);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.noteAdd {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.noteAddBtn {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+}
+
+.bottomSpace {
+  height: calc(var(--safe-bottom) + 40px);
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+dev-dist
+coverage
+*.log
+*.tsbuildinfo
+scripts/shots

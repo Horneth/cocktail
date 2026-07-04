@@ -1,0 +1,116 @@
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.optional {
+  opacity: 0.72;
+}
+
+/* amount pill (tap to tweak) */
+.amount {
+  flex: 0 0 auto;
+  min-width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-strong);
+  padding: 4px 6px;
+  border-radius: 8px;
+  position: relative;
+  line-height: 1.2;
+}
+
+.amount:active {
+  background: var(--line-soft);
+}
+
+.amountMod {
+  color: var(--accent);
+}
+
+.dot {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* inline tweaker */
+.tweaker {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+
+.tweakBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--bg-card);
+}
+
+.tweakBtn:active {
+  transform: scale(0.9);
+}
+
+.tweakVal {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 3px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.linkName {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--link);
+  font-size: 16px;
+  font-weight: 600;
+  align-self: flex-start;
+}
+
+.chev {
+  color: var(--link);
+  opacity: 0.8;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--text-faint);
+}

@@ -1,0 +1,194 @@
+.screen {
+  min-height: 100%;
+  padding-bottom: calc(var(--safe-bottom) + 90px);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(var(--bg) 78%, transparent);
+  padding: calc(var(--safe-top) + 14px) 18px 10px;
+}
+
+.brand {
+  font-family: var(--serif);
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  margin-bottom: 14px;
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 14px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.searchInput {
+  padding-left: 42px;
+  padding-right: 40px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-pill);
+}
+
+.clear {
+  position: absolute;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--text-faint);
+  font-size: 22px;
+  display: grid;
+  place-items: center;
+}
+
+.segment {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-pill);
+  padding: 4px;
+}
+
+.segBtn {
+  flex: 1;
+  padding: 9px;
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.segActive {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.chip {
+  flex: 0 0 auto;
+  padding: 7px 15px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-soft);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.chipActive {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 16px;
+  transition: transform 0.08s ease, border-color 0.15s ease;
+}
+
+.card:active {
+  transform: scale(0.985);
+  border-color: var(--line);
+}
+
+.cardMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardName {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cardFlask {
+  color: var(--accent);
+}
+
+.cardSub {
+  font-size: 13px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spiritTag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--bg-elevated);
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.empty {
+  padding: 60px 30px;
+  text-align: center;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+
+.fab {
+  position: fixed;
+  right: max(18px, calc(50% - 320px + 18px));
+  bottom: calc(var(--safe-bottom) + 22px);
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+  transition: transform 0.1s ease;
+}
+
+.fab:active {
+  transform: scale(0.9);
+}
