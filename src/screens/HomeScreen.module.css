@@ -11,11 +11,34 @@
   padding: calc(var(--safe-top) + 14px) 18px 10px;
 }
 
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
 .brand {
   font-family: var(--serif);
   font-size: 30px;
   letter-spacing: -0.01em;
-  margin-bottom: 14px;
+}
+
+.importBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.importBtn:active {
+  background: var(--line-soft);
 }
 
 .search {

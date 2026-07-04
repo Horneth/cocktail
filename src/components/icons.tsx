@@ -77,3 +77,18 @@ export const CheckIcon = ({ size = 24, className }: IconProps) => (
     <path d="M20 6L9 17l-5-5" />
   </svg>
 )
+
+export const ImportIcon = ({ size = 24, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 3v12" />
+    <path d="M7 10l5 5 5-5" />
+    <path d="M5 21h14" />
+  </svg>
+)
+
+export const PlayIcon = ({ size = 24, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="2.5" y="5" width="19" height="14" rx="4" />
+    <path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none" />
+  </svg>
+)

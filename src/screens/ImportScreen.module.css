@@ -1,0 +1,242 @@
+.screen {
+  min-height: 100%;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--safe-top) + 8px) 12px 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.iconBtn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  border-radius: 50%;
+}
+
+.headTitle {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.headSpacer {
+  width: 44px;
+}
+
+.body {
+  padding: 16px 18px calc(var(--safe-bottom) + 40px);
+}
+
+.intro {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.introIcon {
+  flex: 0 0 auto;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.intro p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.paste {
+  width: 100%;
+  line-height: 1.5;
+  resize: vertical;
+  font-size: 15px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ghostBtn {
+  flex: 0 0 auto;
+  padding: 13px 20px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.solidBtn {
+  flex: 1;
+  padding: 13px 20px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.solidBtn:disabled {
+  background: var(--line);
+  color: var(--text-faint);
+}
+
+.warn {
+  background: rgba(226, 104, 107, 0.12);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-bottom: 7px;
+}
+
+.nameInput {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--serif);
+}
+
+.h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  margin: 24px 0 12px;
+}
+
+.meta {
+  margin: 12px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.ings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ingRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.amt {
+  flex: 0 0 64px;
+  text-align: center;
+  font-weight: 700;
+  padding: 10px 6px;
+}
+
+.unit {
+  flex: 0 0 82px;
+  padding: 10px 6px;
+}
+
+.ingName {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.del {
+  flex: 0 0 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  border-radius: var(--radius-sm);
+}
+
+.del:active {
+  background: var(--line-soft);
+}
+
+.addRow {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px dashed var(--line);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.compCard {
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.compOff {
+  opacity: 0.55;
+}
+
+.compHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.compFlask {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.compName {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  padding: 9px 12px;
+}
+
+.compToggle {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text-dim);
+  width: auto;
+}
+
+.compToggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}

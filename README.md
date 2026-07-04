@@ -50,12 +50,24 @@ that points at a component; a denormalized `recipeLinks` table indexes that
 relationship both ways (for fast *Used in* back-links and shared components).
 See `src/db/schema.ts`.
 
-## Roadmap: YouTube import (phase 2)
+## Import from a video (phase 2 — shipped)
 
-The seam is already in place. Every recipe — including the seed data — is
-written through `importRecipe(StructuredImport)` (`src/import/importRecipe.ts`).
-Adding YouTube import (e.g. the Anders Erickson channel, whose descriptions hold
-the main cocktail plus labelled syrup blocks) is just implementing one pure
-function, `parseRecipe(text) -> StructuredImport`, in
-`src/import/parsers/andersErickson.ts`. It requires no schema change: the
-`Recipe.source` provenance fields are already defined and optional.
+Tap **Import** on the home screen, paste a video's **description** (tuned for
+the Anders Erickson channel), and an on-device parser
+(`src/import/parseRecipeText.ts`) turns it into the cocktail plus any
+syrups/cordials — **cross-linked** automatically by name. An editable preview
+lets you fix anything before saving. It runs entirely client-side: no backend,
+no API keys, works offline. Everything funnels through the same
+`importRecipe(StructuredImport)` seam the seed data uses.
+
+The parser is forgiving (handles `oz`, parts, dashes, `¾`/`3/4`/`.75`, no-amount
+toppers like "Club Soda", garnish/method lines) and strips description noise
+(chapters, gear links, socials). `Recipe.source` records provenance (and the
+YouTube URL/video id when present in the pasted text).
+
+### Roadmap: one-tap URL import (phase 2b)
+
+Paste just a URL and have it auto-fetch + AI-parse. A browser can't fetch a
+YouTube description directly (CORS), so this needs a small backend (e.g. a
+Cloudflare Worker) plus an Anthropic API key. It reuses the same
+`StructuredImport` contract — only the text-acquisition + parse step changes.
