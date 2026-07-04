@@ -1,9 +1,18 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FlaskIcon, GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
+import {
+  FlaskIcon,
+  GearIcon,
+  HeartIcon,
+  ImportIcon,
+  PlusIcon,
+  SearchIcon,
+} from '../components/icons'
+import { SwipeableRow } from '../components/SwipeableRow'
 import { FEATURES } from '../config'
 import type { Recipe } from '../db/schema'
 import { formatAmount } from '../domain/units'
+import { deleteRecipe, setFavorite } from '../import/importRecipe'
 import { useCocktails, useComponents } from '../hooks/useRecipes'
 import styles from './HomeScreen.module.css'
 
@@ -25,8 +34,10 @@ export function HomeScreen() {
   const [filter, setFilter] = useState<Filter>('cocktail')
   const [spirit, setSpirit] = useState<string | null>(null)
   const [tag, setTag] = useState<string | null>(null)
+  const [favOnly, setFavOnly] = useState(false)
 
   const source = filter === 'cocktail' ? cocktails : components
+  const hasFavorites = useMemo(() => cocktails?.some((c) => c.favorite) ?? false, [cocktails])
 
   const spirits = useMemo(() => {
     const set = new Set<string>()
@@ -43,13 +54,18 @@ export function HomeScreen() {
 
   const list = useMemo(() => {
     if (!source) return []
-    return source.filter(
+    const filtered = source.filter(
       (r) =>
         matches(r, query) &&
         (filter === 'component' || !spirit || r.spirit === spirit) &&
-        (filter === 'component' || !tag || r.tags.includes(tag)),
+        (filter === 'component' || !tag || r.tags.includes(tag)) &&
+        (filter === 'component' || !favOnly || r.favorite),
     )
-  }, [source, query, spirit, tag, filter])
+    // pin favorites to the top (stable sort keeps the alphabetical order within groups)
+    return filter === 'cocktail'
+      ? filtered.slice().sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0))
+      : filtered
+  }, [source, query, spirit, tag, favOnly, filter])
 
   return (
     <div className={styles.screen}>
@@ -101,8 +117,16 @@ export function HomeScreen() {
           </button>
         </div>
 
-        {filter === 'cocktail' && spirits.length > 0 && (
+        {filter === 'cocktail' && (spirits.length > 0 || hasFavorites) && (
           <div className={styles.chips}>
+            {hasFavorites && (
+              <button
+                className={`${styles.chip} ${styles.favChip} ${favOnly ? styles.favChipActive : ''}`}
+                onClick={() => setFavOnly((v) => !v)}
+              >
+                <HeartIcon size={13} filled={favOnly} /> Favorites
+              </button>
+            )}
             <button
               className={`${styles.chip} ${spirit === null ? styles.chipActive : ''}`}
               onClick={() => setSpirit(null)}
@@ -140,7 +164,7 @@ export function HomeScreen() {
         <p className={styles.empty}>…</p>
       ) : list.length === 0 ? (
         <div className={styles.empty}>
-          {query || spirit || tag ? (
+          {query || spirit || tag || favOnly ? (
             <p>No matches{query ? ` for “${query}”` : ''}.</p>
           ) : filter === 'component' ? (
             <p>No sub-recipes yet. Syrups you create will show up here.</p>
@@ -150,22 +174,50 @@ export function HomeScreen() {
         </div>
       ) : (
         <ul className={styles.list}>
-          {list.map((r) => (
-            <li key={r.id}>
-              <Link className={styles.card} to={`/recipe/${r.id}`}>
-                <div className={styles.cardMain}>
-                  <span className={styles.cardName}>
-                    {r.kind === 'component' && <FlaskIcon size={15} className={styles.cardFlask} />}
-                    {r.name}
-                  </span>
-                  <span className={styles.cardSub}>{summarize(r)}</span>
-                </div>
-                {r.spirit && r.spirit !== 'none' && filter === 'cocktail' && (
-                  <span className={styles.spiritTag}>{r.spirit}</span>
+          {list.map((r) => {
+            const body = (
+              <>
+                <Link className={styles.cardBody} to={`/recipe/${r.id}`}>
+                  <div className={styles.cardMain}>
+                    <span className={styles.cardName}>
+                      {r.kind === 'component' && (
+                        <FlaskIcon size={15} className={styles.cardFlask} />
+                      )}
+                      {r.name}
+                    </span>
+                    <span className={styles.cardSub}>{summarize(r)}</span>
+                  </div>
+                  {r.spirit && r.spirit !== 'none' && filter === 'cocktail' && (
+                    <span className={styles.spiritTag}>{r.spirit}</span>
+                  )}
+                </Link>
+                {filter === 'cocktail' && (
+                  <button
+                    className={`${styles.heart} ${r.favorite ? styles.heartOn : ''}`}
+                    aria-label={r.favorite ? 'Unfavorite' : 'Favorite'}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      void setFavorite(r.id, !r.favorite)
+                    }}
+                  >
+                    <HeartIcon size={20} filled={!!r.favorite} />
+                  </button>
                 )}
-              </Link>
-            </li>
-          ))}
+              </>
+            )
+            return (
+              <li key={r.id}>
+                {filter === 'cocktail' ? (
+                  <SwipeableRow onDelete={() => void deleteRecipe(r.id)}>
+                    <div className={styles.card}>{body}</div>
+                  </SwipeableRow>
+                ) : (
+                  <div className={styles.card}>{body}</div>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
 

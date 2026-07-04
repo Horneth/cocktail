@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IngredientRow, type Override } from '../components/IngredientRow'
 import { ServingStepper } from '../components/ServingStepper'
-import { ChevronLeftIcon, EditIcon, FlaskIcon, PlusIcon } from '../components/icons'
+import { ChevronLeftIcon, EditIcon, FlaskIcon, HeartIcon, PlusIcon } from '../components/icons'
 import type { Ingredient, Recipe } from '../db/schema'
 import { scaleFactor, type ScaleSettings } from '../domain/scaling'
 import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
-import { saveRecipe } from '../import/importRecipe'
+import { saveRecipe, setFavorite } from '../import/importRecipe'
 import { useBacklinks, useRecipe } from '../hooks/useRecipes'
 import { useVolumePreference } from '../hooks/useSettings'
 import styles from './RecipeDetailScreen.module.css'
@@ -120,12 +120,23 @@ export function RecipeDetailScreen() {
         <button className={styles.iconBtn} aria-label="Back" onClick={() => navigate(-1)}>
           <ChevronLeftIcon size={26} />
         </button>
-        <button className={styles.prefBtn} onClick={togglePref} aria-label="Toggle units">
-          {pref}
-        </button>
-        <Link className={styles.iconBtn} to={`/recipe/${recipe.id}/edit`} aria-label="Edit">
-          <EditIcon size={22} />
-        </Link>
+        <div className={styles.headerRight}>
+          <button className={styles.prefBtn} onClick={togglePref} aria-label="Toggle units">
+            {pref}
+          </button>
+          {recipe.kind === 'cocktail' && (
+            <button
+              className={`${styles.iconBtn} ${recipe.favorite ? styles.favActive : ''}`}
+              aria-label={recipe.favorite ? 'Unfavorite' : 'Favorite'}
+              onClick={() => void setFavorite(recipe.id, !recipe.favorite)}
+            >
+              <HeartIcon size={23} filled={!!recipe.favorite} />
+            </button>
+          )}
+          <Link className={styles.iconBtn} to={`/recipe/${recipe.id}/edit`} aria-label="Edit">
+            <EditIcon size={22} />
+          </Link>
+        </div>
       </header>
 
       <div className={styles.titleBlock}>

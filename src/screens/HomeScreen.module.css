@@ -144,6 +144,20 @@
   border-color: var(--accent);
 }
 
+.favChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--danger);
+  border-color: var(--line);
+}
+
+.favChipActive {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
 .tagChip {
   flex: 0 0 auto;
   padding: 6px 13px;
@@ -172,18 +186,40 @@
 
 .card {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: stretch;
   background: var(--bg-card);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
-  padding: 16px;
-  transition: transform 0.08s ease, border-color 0.15s ease;
+  overflow: hidden;
 }
 
-.card:active {
-  transform: scale(0.985);
-  border-color: var(--line);
+.cardBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.cardBody:active {
+  background: var(--line-soft);
+}
+
+.heart {
+  flex: 0 0 auto;
+  width: 52px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+.heart:active {
+  background: var(--line-soft);
+}
+
+.heartOn {
+  color: var(--danger);
 }
 
 .cardMain {

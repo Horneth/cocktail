@@ -30,6 +30,16 @@
   background: var(--line-soft);
 }
 
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.favActive {
+  color: var(--danger);
+}
+
 .prefBtn {
   height: 36px;
   min-width: 56px;

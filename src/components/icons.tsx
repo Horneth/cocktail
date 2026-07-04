@@ -93,6 +93,16 @@ export const PlayIcon = ({ size = 24, className }: IconProps) => (
   </svg>
 )
 
+export const HeartIcon = ({
+  size = 24,
+  className,
+  filled = false,
+}: IconProps & { filled?: boolean }) => (
+  <svg {...base(size)} className={className} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+  </svg>
+)
+
 export const GearIcon = ({ size = 24, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <circle cx="12" cy="12" r="3" />

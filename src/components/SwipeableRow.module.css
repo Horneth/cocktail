@@ -1,0 +1,28 @@
+.row {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fg {
+  position: relative;
+  transition: transform 0.18s ease;
+  touch-action: pan-y;
+  will-change: transform;
+}

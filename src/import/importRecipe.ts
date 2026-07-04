@@ -125,6 +125,11 @@ export async function saveRecipe(recipe: Recipe): Promise<void> {
   })
 }
 
+/** Toggle a recipe's favorite flag (lightweight field update). */
+export async function setFavorite(recipeId: string, favorite: boolean): Promise<void> {
+  await db.recipes.update(recipeId, { favorite })
+}
+
 /** Delete a recipe and any link rows that reference it (as parent or child). */
 export async function deleteRecipe(recipeId: string): Promise<void> {
   await db.transaction('rw', db.recipes, db.recipeLinks, async () => {

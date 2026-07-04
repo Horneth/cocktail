@@ -90,6 +90,9 @@ export interface Recipe {
   tags: string[]
   spirit?: SpiritCategory
 
+  /** pinned to the top of the list and filterable */
+  favorite?: boolean
+
   notes: Note[]
 
   /** provenance — all optional, unused in phase 1, no migration needed to fill later */
