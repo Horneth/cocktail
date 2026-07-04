@@ -106,6 +106,36 @@ function trimZeros(n: number): string {
   return String(Number(n.toFixed(2)))
 }
 
+// Map free-text unit strings (e.g. from an LLM or pasted text) to our Unit set.
+const UNIT_ALIASES: Record<string, Unit> = {
+  oz: 'oz', ozs: 'oz', ounce: 'oz', ounces: 'oz',
+  ml: 'ml', milliliter: 'ml', milliliters: 'ml', millilitre: 'ml', millilitres: 'ml',
+  cl: 'cl', centiliter: 'cl', centiliters: 'cl',
+  dash: 'dash', dashes: 'dash',
+  drop: 'drop', drops: 'drop',
+  barspoon: 'barspoon', barspoons: 'barspoon', bsp: 'barspoon',
+  tsp: 'tsp', teaspoon: 'tsp', teaspoons: 'tsp',
+  tbsp: 'tbsp', tablespoon: 'tbsp', tablespoons: 'tbsp',
+  part: 'part', parts: 'part', cup: 'part', cups: 'part',
+  pinch: 'pinch', pinches: 'pinch',
+  sprig: 'sprig', sprigs: 'sprig',
+  leaf: 'leaf', leaves: 'leaf',
+  wedge: 'wedge', wedges: 'wedge',
+  slice: 'slice', slices: 'slice',
+  piece: 'piece', pieces: 'piece',
+  gram: 'g', grams: 'g', g: 'g',
+  top: 'top', rinse: 'rinse', each: 'each',
+}
+
+/** Best-effort coercion of an arbitrary unit string to a known Unit. */
+export function coerceUnit(raw: string | undefined | null, fallback: Unit = 'each'): Unit {
+  if (!raw) return fallback
+  const w = raw.trim().toLowerCase().replace(/\.$/, '')
+  if (UNIT_ALIASES[w]) return UNIT_ALIASES[w]
+  if (w in UNITS) return w as Unit
+  return fallback
+}
+
 export type VolumePreference = 'oz' | 'ml'
 
 /**
