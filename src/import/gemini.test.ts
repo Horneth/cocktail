@@ -86,6 +86,12 @@ describe('mapGeminiRecipe — mocktail', () => {
     expect(r.main.spirit).toBe('mocktail')
   })
 
+  it('keeps specific spirits (cachaça, mezcal) instead of collapsing them', () => {
+    expect(mapGeminiRecipe({ spirit: 'cachaça', ingredients: [{ name: 'Cachaça', unit: 'oz' }] }).main.spirit).toBe('cachaça')
+    expect(mapGeminiRecipe({ spirit: 'cachaca', ingredients: [{ name: 'x', unit: 'oz' }] }).main.spirit).toBe('cachaça')
+    expect(mapGeminiRecipe({ spirit: 'mezcal', ingredients: [{ name: 'x', unit: 'oz' }] }).main.spirit).toBe('mezcal')
+  })
+
   it('maps zero-proof synonyms (virgin, non-alcoholic) to mocktail', () => {
     expect(mapGeminiRecipe({ spirit: 'virgin', ingredients: [{ name: 'x', unit: 'oz' }] }).main.spirit).toBe('mocktail')
     expect(mapGeminiRecipe({ spirit: 'non-alcoholic', ingredients: [{ name: 'x', unit: 'oz' }] }).main.spirit).toBe('mocktail')

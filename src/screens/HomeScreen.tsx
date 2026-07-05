@@ -4,7 +4,7 @@ import { GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
 import { RecipeCard } from '../components/RecipeCard'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { matchesQuery } from '../domain/search'
-import { SPIRIT_TILES, tileKeyForRecipe, tileMeta } from '../domain/spirits'
+import { spiritSortIndex, tileKeyForRecipe, tileMeta } from '../domain/spirits'
 import { useCocktails, useComponents } from '../hooks/useRecipes'
 import styles from './HomeScreen.module.css'
 
@@ -29,10 +29,11 @@ export function HomeScreen() {
     const out: Tile[] = []
     if (cocktails.length) out.push({ key: 'all', count: cocktails.length })
     if (favs) out.push({ key: 'favorites', count: favs })
-    for (const t of SPIRIT_TILES) {
-      const n = counts.get(t.key) ?? 0
-      if (n) out.push({ key: t.key, count: n })
-    }
+    // one tile per distinct base spirit present (known spirits first, then custom)
+    const spiritKeys = [...counts.keys()].sort(
+      (a, b) => spiritSortIndex(a) - spiritSortIndex(b) || a.localeCompare(b),
+    )
+    for (const k of spiritKeys) out.push({ key: k, count: counts.get(k)! })
     if (components.length) out.push({ key: 'components', count: components.length })
     return out
   }, [cocktails, components])

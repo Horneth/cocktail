@@ -30,19 +30,11 @@ export type Unit =
 
 export type MeasureBasis = 'absolute' | 'parts'
 
-export type SpiritCategory =
-  | 'gin'
-  | 'vodka'
-  | 'rum'
-  | 'whiskey'
-  | 'tequila'
-  | 'agave'
-  | 'brandy'
-  | 'liqueur'
-  | 'wine'
-  | 'other'
-  | 'mocktail'
-  | 'none'
+// Free-form so users can add any base spirit (cachaça, pisco, sake, …).
+// The app ships metadata for a set of "known" spirits (see domain/spirits.ts);
+// anything else is treated as a custom spirit with generated tile art.
+// 'none' is a sentinel meaning "no base spirit" (e.g. a component).
+export type SpiritCategory = string
 
 export interface Ingredient {
   /** stable within the recipe, so notes/edits/links survive reordering */

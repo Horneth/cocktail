@@ -15,7 +15,7 @@ import { GeminiError, geminiParse } from '../import/gemini'
 import { importRecipe } from '../import/importRecipe'
 import { parseRecipeText, type ParseResult } from '../import/parseRecipeText'
 import type { IngredientDraft, RecipeDraft } from '../import/types'
-import { useKnownIngredients } from '../hooks/useRecipes'
+import { useKnownIngredients, useSpiritSuggestions } from '../hooks/useRecipes'
 import { useGeminiSettings } from '../hooks/useSettings'
 import styles from './ImportScreen.module.css'
 
@@ -24,6 +24,7 @@ const INGREDIENT_LIST_ID = 'known-ingredients'
 export function ImportScreen() {
   const navigate = useNavigate()
   const knownIngredients = useKnownIngredients()
+  const spiritSuggestions = useSpiritSuggestions()
   const gemini = useGeminiSettings()
   const aiEnabled = FEATURES.cloudAI && gemini.hasKey
   const [text, setText] = useState('')
@@ -234,11 +235,28 @@ export function ImportScreen() {
             </p>
           )}
 
-          {(draft.main.spirit || (draft.main.tags?.length ?? 0) > 0) && (
+          {draft.main.kind !== 'component' && (
+            <div className={styles.spiritRow}>
+              <label className={styles.spiritLabel}>Base spirit</label>
+              <input
+                className={styles.spiritInput}
+                list="import-spirits"
+                value={draft.main.spirit ?? ''}
+                onChange={(e) => patchMain({ spirit: e.target.value || undefined })}
+                placeholder="gin, cachaça…"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              <datalist id="import-spirits">
+                {spiritSuggestions.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </div>
+          )}
+
+          {(draft.main.tags?.length ?? 0) > 0 && (
             <div className={styles.chipsRow}>
-              {draft.main.spirit && draft.main.spirit !== 'none' && (
-                <span className={styles.spiritChip}>{draft.main.spirit}</span>
-              )}
               {(draft.main.tags ?? []).map((t) => (
                 <span key={t} className={styles.tagChip}>
                   #{t}

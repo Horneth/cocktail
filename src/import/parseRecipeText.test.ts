@@ -164,6 +164,14 @@ Soda Water`)
     expect(r.main.spirit).toBe('mocktail')
   })
 
+  it('detects cachaça as its own spirit (not rum)', () => {
+    const r = parseRecipeText(`Caipirinha
+2 oz Cachaça
+0.5 Lime
+2 tsp Sugar`)
+    expect(r.main.spirit).toBe('cachaça')
+  })
+
   it('detects a "virgin" drink by name over its spirit-like ingredients', () => {
     const r = parseRecipeText(`Virgin Mojito
 2 oz Non-Alcoholic Rum

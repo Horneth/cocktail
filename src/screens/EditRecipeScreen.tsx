@@ -2,24 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeftIcon, FlaskIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { db } from '../db/db'
-import type {
-  Ingredient,
-  MeasureBasis,
-  Recipe,
-  RecipeKind,
-  SpiritCategory,
-  Unit,
-} from '../db/schema'
+import type { Ingredient, MeasureBasis, Recipe, RecipeKind, Unit } from '../db/schema'
 import { newId } from '../domain/ids'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
-import { useComponents, useKnownIngredients, useRecipe } from '../hooks/useRecipes'
+import {
+  useComponents,
+  useKnownIngredients,
+  useRecipe,
+  useSpiritSuggestions,
+} from '../hooks/useRecipes'
 import styles from './EditRecipeScreen.module.css'
-
-const SPIRITS: SpiritCategory[] = [
-  'gin', 'vodka', 'rum', 'whiskey', 'tequila', 'agave',
-  'brandy', 'liqueur', 'wine', 'other', 'mocktail', 'none',
-]
 
 const METHODS = ['Shake', 'Stir', 'Build', 'Blend', 'Throw', 'Swizzle']
 
@@ -50,6 +43,7 @@ export function EditRecipeScreen() {
   const existing = useRecipe(id)
   const components = useComponents()
   const knownIngredients = useKnownIngredients()
+  const spiritSuggestions = useSpiritSuggestions()
 
   const [form, setForm] = useState<Recipe | null>(isNew ? emptyRecipe('cocktail') : null)
   const [tagInput, setTagInput] = useState('')
@@ -86,6 +80,7 @@ export function EditRecipeScreen() {
     const cleaned: Recipe = {
       ...form,
       name: form.name.trim(),
+      spirit: form.spirit?.trim().toLowerCase() || undefined,
       tags: tagInput
         .split(',')
         .map((t) => t.trim())
@@ -183,17 +178,19 @@ export function EditRecipeScreen() {
             <h2 className={styles.h2}>Build</h2>
             <div className={styles.grid2}>
               <Field label="Spirit">
-                <select
+                <input
+                  list="spirit-suggestions"
                   value={form.spirit ?? ''}
-                  onChange={(e) => update({ spirit: (e.target.value || undefined) as SpiritCategory })}
-                >
-                  <option value="">—</option>
-                  {SPIRITS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
+                  onChange={(e) => update({ spirit: e.target.value || undefined })}
+                  placeholder="gin, cachaça…"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+                <datalist id="spirit-suggestions">
+                  {spiritSuggestions.map((s) => (
+                    <option key={s} value={s} />
                   ))}
-                </select>
+                </datalist>
               </Field>
               <Field label="Method">
                 <select

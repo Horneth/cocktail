@@ -15,7 +15,10 @@ offline with all data stored locally on your device. No accounts, no server.
   (`scope` + `tags`): a spirit tile scopes to that spirit, a tag pill filters
   across *all* spirits, and the wrapping tag picker is **multi-select** (AND) —
   e.g. all *refreshing + citrusy* drinks. A search bar is always available;
-  "All", "Favorites", and "Syrups & more" get their own tiles.
+  "All", "Favorites", and "Syrups & more" get their own tiles. **Spirits are
+  free-form** — type any base spirit (cachaça, pisco, sake…) in the editor or
+  import preview and it gets its own tile with generated art; the import keeps
+  the specific spirit a recipe names rather than collapsing it.
 - **Instant, offline** — recipes live in IndexedDB and the app shell is cached
   by a service worker, so cold-open to recipe is sub-second and works with no
   network.

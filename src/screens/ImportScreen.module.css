@@ -183,6 +183,27 @@
   font-weight: 600;
 }
 
+.spiritRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.spiritLabel {
+  flex: 0 0 auto;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 700;
+}
+
+.spiritInput {
+  flex: 1;
+  min-width: 0;
+}
+
 .chipsRow {
   display: flex;
   flex-wrap: wrap;

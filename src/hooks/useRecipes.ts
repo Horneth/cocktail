@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Recipe } from '../db/schema'
+import { KNOWN_SPIRITS } from '../domain/spirits'
 
 /** All cocktails, alphabetical. Components are excluded from the main list. */
 export function useCocktails(): Recipe[] | undefined {
@@ -34,6 +35,21 @@ export function useKnownIngredients(): string[] {
       }
       return [...set].sort((a, b) => a.localeCompare(b))
     }, []) ?? []
+  )
+}
+
+/** Known + previously-used spirit names, for the spirit input's suggestions. */
+export function useSpiritSuggestions(): string[] {
+  return (
+    useLiveQuery(async () => {
+      const all = await db.recipes.toArray()
+      const set = new Set<string>(KNOWN_SPIRITS)
+      for (const r of all) {
+        const s = r.spirit?.trim().toLowerCase()
+        if (s && s !== 'none') set.add(s)
+      }
+      return [...set].sort()
+    }, []) ?? KNOWN_SPIRITS
   )
 }
 

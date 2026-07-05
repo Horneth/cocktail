@@ -112,13 +112,17 @@ const COMPONENT_KEYWORDS =
 const SPIRIT_HINTS: [RegExp, SpiritCategory][] = [
   // zero-proof first, so "non-alcoholic gin" reads as mocktail, not gin
   [/\b(non-?alcoholic|zero-?proof|virgin|mocktail|seedlip|lyre'?s|ritual zero|athletic brewing)\b/i, 'mocktail'],
+  // specific spirits kept distinct (checked before broader families)
+  [/\bcacha[çc]a\b/i, 'cachaça'],
+  [/\bmezcal\b/i, 'mezcal'],
+  [/\bpisco\b/i, 'pisco'],
   [/\bgin\b/i, 'gin'],
   [/\b(rye|bourbon|whiskey|whisky|scotch)\b/i, 'whiskey'],
-  [/\bmezcal\b/i, 'agave'],
   [/\btequila\b/i, 'tequila'],
-  [/\b(rum|rhum|cacha[çc]a)\b/i, 'rum'],
+  [/\b(rum|rhum)\b/i, 'rum'],
   [/\bvodka\b/i, 'vodka'],
-  [/\b(cognac|brandy|pisco|armagnac|calvados)\b/i, 'brandy'],
+  [/\b(cognac|armagnac)\b/i, 'cognac'],
+  [/\b(brandy|calvados)\b/i, 'brandy'],
   [/\b(wine|vermouth|sherry|port|prosecco|champagne)\b/i, 'wine'],
 ]
 
