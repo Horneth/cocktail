@@ -84,6 +84,24 @@ Google's API when you parse. The Import screen then offers **✨ Smart parse**
 (Gemini structured output → the same `StructuredImport` pipeline), with the
 offline heuristic always available as a fallback. All client-side; no backend.
 
+A single video description usually holds **several cocktails**, so Smart parse
+returns *all* of them: the preview becomes a **pick-list** ("N cocktails found")
+where you tick which drinks to save. Syrups shared across drinks dedupe to a
+single component automatically (name+kind) via the same `importRecipe` seam.
+
+### Share a video straight to the app (Android)
+
+On Android, "Add to Home Screen" installs the PWA as a real
+[Web Share Target](https://developer.mozilla.org/docs/Web/Manifest/share_target):
+tap **Share** on a YouTube video (or on selected description text) and pick
+**Cocktail**. The share lands on the app's start URL as `?title&text&url`
+params; `src/main.tsx` captures them at boot, stashes them
+(`src/import/shared.ts`), and drops you into **Import** with the text prefilled
+and auto-parsed. Sharing the bare video *link* only yields the URL/title (a
+browser can't fetch a YouTube description — CORS), so for full ingredients share
+the selected description text, or paste it. iOS Safari doesn't implement Web
+Share Target, so there it stays copy-paste.
+
 Security: create a key **restricted to the Generative Language API** so a leak
 is low-impact. The whole feature is a **kill switch** — set `FEATURES.cloudAI`
 to `false` in `src/config.ts` and redeploy to remove every AI entry point

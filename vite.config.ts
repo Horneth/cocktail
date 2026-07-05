@@ -29,6 +29,14 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: base,
         scope: base,
+        // Android Web Share Target: lets you hit "Share" on a YouTube video and
+        // pick this app. The browser GETs the start URL with the shared fields as
+        // query params; main.tsx picks them up and routes into Import.
+        share_target: {
+          action: base,
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },

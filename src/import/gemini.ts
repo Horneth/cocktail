@@ -25,7 +25,8 @@ const INGREDIENT_SCHEMA = {
   required: ['name', 'unit'],
 }
 
-const RESPONSE_SCHEMA = {
+// One drink (cocktail or standalone syrup) plus its own sub-recipes.
+const RECIPE_SCHEMA = {
   type: 'object',
   properties: {
     name: { type: 'string' },
@@ -52,16 +53,26 @@ const RESPONSE_SCHEMA = {
   required: ['name', 'ingredients'],
 }
 
-const PROMPT = `You extract a drink recipe from a video description (often from the Anders Erickson channel).
-Return JSON matching the schema. Rules:
+// A single video description often contains SEVERAL cocktails, so we ask for a
+// list. Each entry is a full recipe with its own sub-recipes.
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    recipes: { type: 'array', items: RECIPE_SCHEMA },
+  },
+  required: ['recipes'],
+}
+
+const PROMPT = `You extract EVERY drink recipe from a video description (often from the Anders Erickson channel). A single description frequently contains SEVERAL cocktails — return all of them.
+Return JSON matching the schema: a "recipes" array with one entry per drink, in the order they appear. Rules per recipe:
 - "name": the drink's name only (no channel or video title fluff).
-- "kind": "cocktail" for a mixed drink, OR "component" if the ENTIRE description is just a syrup/cordial/orgeat/infusion/mix recipe with no cocktail build.
-- "ingredients": each line of the main build. Keep the amount as a number in the unit as written (oz, ml, cl, dash, barspoon, tsp, tbsp, part). Use amount null for "to taste", garnishes, or "top with" items. Strip any parenthetical unit conversion like "(30 ml)" from the name.
-- "subRecipes": any syrups/cordials/orgeat/etc. described as their OWN ingredient block. Use unit "part" for ratio recipes ("1 part sugar"). Give each the EXACT name used in the main ingredient list so they can be linked. Always split these out rather than leaving them as one ingredient.
+- "kind": "cocktail" for a mixed drink, OR "component" if the entry is purely a syrup/cordial/orgeat/infusion/mix recipe with no cocktail build. Prefer attaching syrups as "subRecipes" of the cocktail that uses them; only emit a top-level "component" recipe when a syrup stands entirely on its own.
+- "ingredients": each line of that drink's build. Keep the amount as a number in the unit as written (oz, ml, cl, dash, barspoon, tsp, tbsp, part). Use amount null for "to taste", garnishes, or "top with" items. Strip any parenthetical unit conversion like "(30 ml)" from the name.
+- "subRecipes": any syrups/cordials/orgeat/etc. that drink relies on, described as their OWN ingredient block. Use unit "part" for ratio recipes ("1 part sugar"). Give each the EXACT name used in that drink's ingredient list so they can be linked. If two cocktails share the same syrup, include it under each. Always split these out rather than leaving them as one ingredient.
 - "spirit": the primary base spirit as a short lowercase word. Use the SPECIFIC spirit the recipe names — e.g. gin, vodka, rum, cachaça, whiskey, tequila, mezcal, brandy, cognac, pisco, sake, wine, liqueur. Do NOT collapse a specific spirit into a broader one (a Caipirinha is "cachaça", not "rum"). Only normalize spelling/family: bourbon/rye/scotch/whisky -> whiskey. Use "mocktail" for any non-alcoholic / zero-proof / "virgin" drink. Omit spirit for a component/syrup.
 - "tags": 2 to 4 short lowercase tags describing style and flavor. Choose from ideas like: sour, spirit-forward, stirred, shaken, built, tiki, citrusy, refreshing, bitter, herbal, creamy, fruity, boozy, low-abv, zero-proof, mocktail, hot, classic, dry. No "#".
 - Ignore non-recipe text: links, chapters/timestamps, gear lists, socials, sponsorships.
-- If a value is unknown, omit it. Do not invent ingredients.`
+- If a value is unknown, omit it. Do not invent ingredients. If the description has exactly one drink, return a one-element "recipes" array.`
 
 interface GeminiIngredient {
   amount?: number | null
@@ -199,12 +210,32 @@ export function mapGeminiRecipe(r: GeminiRecipe, sourceUrl?: string): Structured
 
 export class GeminiError extends Error {}
 
-/** Call Gemini and return a StructuredImport. Throws GeminiError on failure. */
+// mapGeminiRecipe resets its tempId counter per call, so ids collide across the
+// recipes of one batch. Re-namespace each import's tempIds (and the matching
+// subRecipeRefs) so a multi-recipe preview can key everything uniquely.
+function namespaceTempIds(imp: StructuredImport, i: number): StructuredImport {
+  const rename = (id: string) => `r${i}.${id}`
+  return {
+    main: {
+      ...imp.main,
+      tempId: rename(imp.main.tempId),
+      ingredients: imp.main.ingredients.map((ing) =>
+        ing.subRecipeRef ? { ...ing, subRecipeRef: rename(ing.subRecipeRef) } : ing,
+      ),
+    },
+    components: imp.components.map((c) => ({ ...c, tempId: rename(c.tempId) })),
+  }
+}
+
+/**
+ * Call Gemini and return one StructuredImport per drink found in the text.
+ * A description commonly holds several cocktails. Throws GeminiError on failure.
+ */
 export async function geminiParse(
   text: string,
   apiKey: string,
   model = DEFAULT_GEMINI_MODEL,
-): Promise<StructuredImport> {
+): Promise<StructuredImport[]> {
   if (!apiKey.trim()) throw new GeminiError('No API key set.')
 
   let res: Response
@@ -241,15 +272,26 @@ export async function geminiParse(
   const jsonText: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text
   if (!jsonText) throw new GeminiError('Gemini returned no content.')
 
-  let parsed: GeminiRecipe
+  let parsed: unknown
   try {
     parsed = JSON.parse(jsonText)
   } catch {
     throw new GeminiError('Gemini returned malformed JSON.')
   }
 
+  // Accept the multi-recipe shape ({ recipes: [...] }) or a bare single recipe.
+  const raw = parsed as { recipes?: GeminiRecipe[] } & GeminiRecipe
+  const list: GeminiRecipe[] = Array.isArray(raw?.recipes)
+    ? raw.recipes
+    : raw?.ingredients
+      ? [raw]
+      : []
+
   const url = text.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}/i)?.[0]
-  const result = mapGeminiRecipe(parsed, url)
-  if (!result.main.ingredients.length) throw new GeminiError('Gemini found no ingredients.')
-  return result
+  const results = list
+    .map((r, i) => namespaceTempIds(mapGeminiRecipe(r, url), i))
+    .filter((r) => r.main.ingredients.length > 0)
+
+  if (!results.length) throw new GeminiError('Gemini found no recipes.')
+  return results
 }

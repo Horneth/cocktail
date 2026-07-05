@@ -335,3 +335,102 @@
   height: 18px;
   accent-color: var(--accent);
 }
+
+/* ---- multi-cocktail pick list ---- */
+.foundNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 16px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pickCard {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.pickCard:active {
+  background: var(--bg-elevated);
+}
+
+.pickOn {
+  border-color: var(--accent);
+}
+
+.pickCheck {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 2px solid var(--line);
+  color: var(--accent-ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pickCheckOn {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pickBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pickName {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pickMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.pickSpirit {
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.pickIngs {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+.pickTags {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
