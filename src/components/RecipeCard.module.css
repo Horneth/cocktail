@@ -1,0 +1,78 @@
+.card {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cardBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.cardBody:active {
+  background: var(--line-soft);
+}
+
+.cardMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardName {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cardFlask {
+  color: var(--accent);
+}
+
+.cardSub {
+  font-size: 13px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spiritTag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--bg-elevated);
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.heart {
+  flex: 0 0 auto;
+  width: 52px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+.heart:active {
+  background: var(--line-soft);
+}
+
+.heartOn {
+  color: var(--danger);
+}

@@ -9,6 +9,10 @@ offline with all data stored locally on your device. No accounts, no server.
 
 ## Highlights
 
+- **Browse by spirit** — the home screen is a mosaic of base-spirit tiles
+  (gin, rum, whiskey, tequila, mocktails, …). Tap one to see its cocktails and
+  filter further by tag. A global search bar is always available; "All",
+  "Favorites", and "Syrups & more" get their own tiles.
 - **Instant, offline** — recipes live in IndexedDB and the app shell is cached
   by a service worker, so cold-open to recipe is sub-second and works with no
   network.

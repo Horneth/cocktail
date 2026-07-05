@@ -7,8 +7,8 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: linear-gradient(var(--bg) 78%, transparent);
-  padding: calc(var(--safe-top) + 14px) 18px 10px;
+  background: linear-gradient(var(--bg) 82%, transparent);
+  padding: calc(var(--safe-top) + 14px) 18px 12px;
 }
 
 .brandRow {
@@ -94,87 +94,57 @@
   place-items: center;
 }
 
-.segment {
+/* mosaic of spirit tiles */
+.mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 6px 18px;
+}
+
+.tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius);
+  padding: 16px;
   display: flex;
-  gap: 4px;
-  margin-top: 12px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-pill);
-  padding: 4px;
-}
-
-.segBtn {
-  flex: 1;
-  padding: 9px;
-  border-radius: var(--radius-pill);
-  color: var(--text-dim);
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.segActive {
-  background: var(--bg-card);
-  color: var(--text);
-  box-shadow: var(--shadow);
-}
-
-.chips {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.chip {
-  flex: 0 0 auto;
-  padding: 7px 15px;
-  border-radius: var(--radius-pill);
-  background: var(--bg-elevated);
-  border: 1px solid var(--line-soft);
-  color: var(--text-dim);
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: capitalize;
-}
-
-.chipActive {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
-}
-
-.favChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--danger);
-  border-color: var(--line);
-}
-
-.favChipActive {
-  background: var(--danger);
+  flex-direction: column;
+  justify-content: flex-end;
   color: #fff;
-  border-color: var(--danger);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow);
+  transition: transform 0.09s ease;
 }
 
-.tagChip {
-  flex: 0 0 auto;
-  padding: 6px 13px;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--text-faint);
+.tile:active {
+  transform: scale(0.97);
+}
+
+.tileEmoji {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 40px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+.tileLabel {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+}
+
+.tileCount {
   font-size: 13px;
   font-weight: 600;
+  opacity: 0.85;
+  margin-top: 2px;
 }
 
-.tagChipActive {
-  background: var(--link);
-  color: var(--accent-ink);
-  border-color: var(--link);
-}
-
+/* search results list */
 .list {
   list-style: none;
   margin: 6px 0 0;
@@ -184,90 +154,16 @@
   gap: 10px;
 }
 
-.card {
-  display: flex;
-  align-items: stretch;
-  background: var(--bg-card);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.cardBody {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-}
-
-.cardBody:active {
-  background: var(--line-soft);
-}
-
-.heart {
-  flex: 0 0 auto;
-  width: 52px;
-  display: grid;
-  place-items: center;
-  color: var(--text-faint);
-}
-
-.heart:active {
-  background: var(--line-soft);
-}
-
-.heartOn {
-  color: var(--danger);
-}
-
-.cardMain {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.cardName {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.cardFlask {
-  color: var(--accent);
-}
-
-.cardSub {
-  font-size: 13px;
-  color: var(--text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.spiritTag {
-  flex: 0 0 auto;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-  color: var(--accent);
-  background: var(--bg-elevated);
-  padding: 5px 10px;
-  border-radius: var(--radius-pill);
-}
-
 .empty {
   padding: 60px 30px;
   text-align: center;
   color: var(--text-faint);
   line-height: 1.6;
+}
+
+.emptyHint {
+  font-size: 14px;
+  margin-top: 4px;
 }
 
 .fab {

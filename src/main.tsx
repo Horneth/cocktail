@@ -9,6 +9,7 @@ import { RecipeDetailScreen } from './screens/RecipeDetailScreen'
 import { EditRecipeScreen } from './screens/EditRecipeScreen'
 import { ImportScreen } from './screens/ImportScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+import { SpiritScreen } from './screens/SpiritScreen'
 
 // Hash routing keeps GitHub Pages happy: deep links and refreshes never 404,
 // and offline navigation stays entirely client-side.
@@ -18,6 +19,7 @@ const router = createHashRouter([
     element: <App />,
     children: [
       { index: true, element: <HomeScreen /> },
+      { path: 'spirit/:key', element: <SpiritScreen /> },
       { path: 'recipe/:id', element: <RecipeDetailScreen /> },
       { path: 'recipe/:id/edit', element: <EditRecipeScreen /> },
       { path: 'new', element: <EditRecipeScreen /> },

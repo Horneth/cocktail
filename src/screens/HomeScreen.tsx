@@ -1,71 +1,48 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  FlaskIcon,
-  GearIcon,
-  HeartIcon,
-  ImportIcon,
-  PlusIcon,
-  SearchIcon,
-} from '../components/icons'
-import { SwipeableRow } from '../components/SwipeableRow'
-import { FEATURES } from '../config'
-import type { Recipe } from '../db/schema'
-import { formatAmount } from '../domain/units'
-import { countUsage, deleteRecipe, setFavorite } from '../import/importRecipe'
+import { GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
+import { RecipeCard } from '../components/RecipeCard'
+import { deleteRecipeWithConfirm } from '../domain/recipeActions'
+import { matchesQuery } from '../domain/search'
+import { SPIRIT_TILES, tileKeyForRecipe, tileMeta } from '../domain/spirits'
 import { useCocktails, useComponents } from '../hooks/useRecipes'
 import styles from './HomeScreen.module.css'
 
-type Filter = 'cocktail' | 'component'
-
-function matches(recipe: Recipe, q: string): boolean {
-  if (!q) return true
-  const needle = q.toLowerCase()
-  if (recipe.name.toLowerCase().includes(needle)) return true
-  if (recipe.spirit?.toLowerCase().includes(needle)) return true
-  if (recipe.tags.some((t) => t.toLowerCase().includes(needle))) return true
-  return recipe.ingredients.some((i) => i.name.toLowerCase().includes(needle))
+interface Tile {
+  key: string
+  count: number
 }
 
 export function HomeScreen() {
   const cocktails = useCocktails()
   const components = useComponents()
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('cocktail')
-  const [spirit, setSpirit] = useState<string | null>(null)
-  const [tag, setTag] = useState<string | null>(null)
-  const [favOnly, setFavOnly] = useState(false)
 
-  const source = filter === 'cocktail' ? cocktails : components
-  const hasFavorites = useMemo(() => cocktails?.some((c) => c.favorite) ?? false, [cocktails])
+  const tiles = useMemo<Tile[]>(() => {
+    if (!cocktails || !components) return []
+    const counts = new Map<string, number>()
+    let favs = 0
+    for (const c of cocktails) {
+      counts.set(tileKeyForRecipe(c), (counts.get(tileKeyForRecipe(c)) ?? 0) + 1)
+      if (c.favorite) favs++
+    }
+    const out: Tile[] = []
+    if (cocktails.length) out.push({ key: 'all', count: cocktails.length })
+    if (favs) out.push({ key: 'favorites', count: favs })
+    for (const t of SPIRIT_TILES) {
+      const n = counts.get(t.key) ?? 0
+      if (n) out.push({ key: t.key, count: n })
+    }
+    if (components.length) out.push({ key: 'components', count: components.length })
+    return out
+  }, [cocktails, components])
 
-  const spirits = useMemo(() => {
-    const set = new Set<string>()
-    cocktails?.forEach((c) => c.spirit && c.spirit !== 'none' && set.add(c.spirit))
-    return [...set].sort()
-  }, [cocktails])
+  const results = useMemo(() => {
+    if (!query.trim() || !cocktails || !components) return []
+    return [...cocktails, ...components].filter((r) => matchesQuery(r, query))
+  }, [query, cocktails, components])
 
-  const tags = useMemo(() => {
-    const count = new Map<string, number>()
-    cocktails?.forEach((c) => c.tags.forEach((t) => count.set(t, (count.get(t) ?? 0) + 1)))
-    // most-used first, then alphabetical
-    return [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t)
-  }, [cocktails])
-
-  const list = useMemo(() => {
-    if (!source) return []
-    const filtered = source.filter(
-      (r) =>
-        matches(r, query) &&
-        (filter === 'component' || !spirit || r.spirit === spirit) &&
-        (filter === 'component' || !tag || r.tags.includes(tag)) &&
-        (filter === 'component' || !favOnly || r.favorite),
-    )
-    // pin favorites to the top (stable sort keeps the alphabetical order within groups)
-    return filter === 'cocktail'
-      ? filtered.slice().sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0))
-      : filtered
-  }, [source, query, spirit, tag, favOnly, filter])
+  const searching = query.trim() !== ''
 
   return (
     <div className={styles.screen}>
@@ -77,11 +54,9 @@ export function HomeScreen() {
               <ImportIcon size={17} />
               Import
             </Link>
-            {FEATURES.cloudAI && (
-              <Link className={styles.gearBtn} to="/settings" aria-label="Settings">
-                <GearIcon size={20} />
-              </Link>
-            )}
+            <Link className={styles.gearBtn} to="/settings" aria-label="Settings">
+              <GearIcon size={20} />
+            </Link>
           </div>
         </div>
         <div className={styles.search}>
@@ -101,120 +76,44 @@ export function HomeScreen() {
             </button>
           )}
         </div>
-
-        <div className={styles.segment}>
-          <button
-            className={`${styles.segBtn} ${filter === 'cocktail' ? styles.segActive : ''}`}
-            onClick={() => setFilter('cocktail')}
-          >
-            Cocktails
-          </button>
-          <button
-            className={`${styles.segBtn} ${filter === 'component' ? styles.segActive : ''}`}
-            onClick={() => setFilter('component')}
-          >
-            Syrups & more
-          </button>
-        </div>
-
-        {filter === 'cocktail' && (spirits.length > 0 || hasFavorites) && (
-          <div className={styles.chips}>
-            {hasFavorites && (
-              <button
-                className={`${styles.chip} ${styles.favChip} ${favOnly ? styles.favChipActive : ''}`}
-                onClick={() => setFavOnly((v) => !v)}
-              >
-                <HeartIcon size={13} filled={favOnly} /> Favorites
-              </button>
-            )}
-            <button
-              className={`${styles.chip} ${spirit === null ? styles.chipActive : ''}`}
-              onClick={() => setSpirit(null)}
-            >
-              All
-            </button>
-            {spirits.map((s) => (
-              <button
-                key={s}
-                className={`${styles.chip} ${spirit === s ? styles.chipActive : ''}`}
-                onClick={() => setSpirit(spirit === s ? null : s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {filter === 'cocktail' && tags.length > 0 && (
-          <div className={styles.chips}>
-            {tags.map((t) => (
-              <button
-                key={t}
-                className={`${styles.tagChip} ${tag === t ? styles.tagChipActive : ''}`}
-                onClick={() => setTag(tag === t ? null : t)}
-              >
-                #{t}
-              </button>
-            ))}
-          </div>
-        )}
       </header>
 
-      {source === undefined ? (
-        <p className={styles.empty}>…</p>
-      ) : list.length === 0 ? (
+      {searching ? (
+        results.length === 0 ? (
+          <p className={styles.empty}>No matches for “{query}”.</p>
+        ) : (
+          <ul className={styles.list}>
+            {results.map((r) => (
+              <li key={r.id}>
+                <RecipeCard
+                  recipe={r}
+                  showSpirit
+                  onDelete={() => void deleteRecipeWithConfirm(r)}
+                />
+              </li>
+            ))}
+          </ul>
+        )
+      ) : tiles.length === 0 ? (
         <div className={styles.empty}>
-          {query || spirit || tag || favOnly ? (
-            <p>No matches{query ? ` for “${query}”` : ''}.</p>
-          ) : filter === 'component' ? (
-            <p>No sub-recipes yet. Syrups you create will show up here.</p>
-          ) : (
-            <p>No cocktails yet. Tap + to add your first.</p>
-          )}
+          <p>No cocktails yet.</p>
+          <p className={styles.emptyHint}>Tap ＋ to add one, or Import from a video.</p>
         </div>
       ) : (
-        <ul className={styles.list}>
-          {list.map((r) => {
-            const body = (
-              <>
-                <Link className={styles.cardBody} to={`/recipe/${r.id}`}>
-                  <div className={styles.cardMain}>
-                    <span className={styles.cardName}>
-                      {r.kind === 'component' && (
-                        <FlaskIcon size={15} className={styles.cardFlask} />
-                      )}
-                      {r.name}
-                    </span>
-                    <span className={styles.cardSub}>{summarize(r)}</span>
-                  </div>
-                  {r.spirit && r.spirit !== 'none' && filter === 'cocktail' && (
-                    <span className={styles.spiritTag}>{r.spirit}</span>
-                  )}
-                </Link>
-                {filter === 'cocktail' && (
-                  <button
-                    className={`${styles.heart} ${r.favorite ? styles.heartOn : ''}`}
-                    aria-label={r.favorite ? 'Unfavorite' : 'Favorite'}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      void setFavorite(r.id, !r.favorite)
-                    }}
-                  >
-                    <HeartIcon size={20} filled={!!r.favorite} />
-                  </button>
-                )}
-              </>
-            )
+        <div className={styles.mosaic}>
+          {tiles.map((t) => {
+            const m = tileMeta(t.key)
             return (
-              <li key={r.id}>
-                <SwipeableRow onDelete={() => void handleDelete(r)}>
-                  <div className={styles.card}>{body}</div>
-                </SwipeableRow>
-              </li>
+              <Link key={t.key} className={styles.tile} to={`/spirit/${t.key}`} style={{ background: m.gradient }}>
+                <span className={styles.tileEmoji}>{m.emoji}</span>
+                <span className={styles.tileLabel}>{m.label}</span>
+                <span className={styles.tileCount}>
+                  {t.count} {t.count === 1 ? 'recipe' : 'recipes'}
+                </span>
+              </Link>
             )
           })}
-        </ul>
+        </div>
       )}
 
       <Link className={styles.fab} to="/new" aria-label="New recipe">
@@ -222,36 +121,4 @@ export function HomeScreen() {
       </Link>
     </div>
   )
-}
-
-async function handleDelete(r: Recipe): Promise<void> {
-  // deleting a shared syrup would unlink it from the cocktails that use it —
-  // confirm first, then those cocktails keep it as a plain ingredient.
-  if (r.kind === 'component') {
-    const uses = await countUsage(r.id)
-    if (
-      uses > 0 &&
-      !confirm(
-        `“${r.name}” is used in ${uses} cocktail${uses > 1 ? 's' : ''}. Delete it? They'll keep it as a plain ingredient.`,
-      )
-    ) {
-      return
-    }
-  }
-  await deleteRecipe(r.id)
-}
-
-function summarize(r: Recipe): string {
-  const named = r.ingredients
-    .filter((i) => !i.optional)
-    .slice(0, 3)
-    .map((i) => i.name)
-  const extra = r.ingredients.filter((i) => !i.optional).length - named.length
-  const base = named.join(' · ')
-  if (r.kind === 'component' && r.measureBasis === 'parts') {
-    return r.ingredients
-      .map((i) => (i.amount !== null ? formatAmount(i.amount, i.unit) : i.name))
-      .join(' : ')
-  }
-  return extra > 0 ? `${base} +${extra}` : base
 }

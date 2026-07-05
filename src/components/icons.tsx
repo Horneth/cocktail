@@ -110,6 +110,21 @@ export const GearIcon = ({ size = 24, className }: IconProps) => (
   </svg>
 )
 
+export const FilterIcon = ({ size = 24, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <line x1="4" y1="8" x2="20" y2="8" />
+    <circle cx="9" cy="8" r="2.4" fill="var(--bg)" />
+    <line x1="4" y1="16" x2="20" y2="16" />
+    <circle cx="15" cy="16" r="2.4" fill="var(--bg)" />
+  </svg>
+)
+
+export const CloseIcon = ({ size = 24, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M18 6L6 18M6 6l12 12" />
+  </svg>
+)
+
 export const SparkleIcon = ({ size = 24, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
