@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Ingredient, Unit } from '../db/schema'
 import { scaledIngredient, type ScaleSettings } from '../domain/scaling'
-import { formatAmount, toPreferred, UNITS, type VolumePreference } from '../domain/units'
+import { formatAmount, toPreferred, unitDef, type VolumePreference } from '../domain/units'
 import { ChevronRightIcon, MinusIcon, PlusIcon, UndoIcon } from './icons'
 import styles from './IngredientRow.module.css'
 
@@ -45,7 +45,7 @@ export function IngredientRow({
   const shown: { amount: number | null; unit: Unit } = override ?? base
   const isModified = override !== undefined
 
-  const step = UNITS[shown.unit].step
+  const step = unitDef(shown.unit).step
   const bump = (dir: 1 | -1) => {
     const current = shown.amount ?? 0
     const next = Math.max(0, Math.round((current + dir * step) * 1000) / 1000)

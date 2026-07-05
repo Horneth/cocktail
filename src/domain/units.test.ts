@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { convert, formatAmount, formatNumber, isConvertible, toPreferred } from './units'
+import type { Unit } from '../db/schema'
+import { convert, formatAmount, formatNumber, isConvertible, toPreferred, unitDef } from './units'
+
+describe('unit lookups tolerate unknown/legacy units (never throw → never blank the screen)', () => {
+  const bogus = 'furlong' as Unit
+  it('unitDef falls back for an unknown unit', () => {
+    expect(unitDef(bogus)).toBe(unitDef('each'))
+  })
+  it('formatAmount / convert / isConvertible do not throw on an unknown unit', () => {
+    expect(() => formatAmount(2, bogus)).not.toThrow()
+    expect(() => convert(2, bogus, 'oz')).not.toThrow()
+    expect(convert(2, bogus, 'oz')).toBe(2) // non-convertible → unchanged
+    expect(isConvertible(bogus)).toBe(false)
+  })
+})
 
 describe('convert', () => {
   it('converts oz to ml at the 30ml bar convention', () => {

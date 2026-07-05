@@ -98,7 +98,7 @@ export function RecipeDetailScreen() {
     if (!trimmed) return
     const updated: Recipe = {
       ...recipe,
-      notes: [...recipe.notes, { id: newId(), text: trimmed, createdAt: Date.now() }],
+      notes: [...(recipe.notes ?? []), { id: newId(), text: trimmed, createdAt: Date.now() }],
     }
     await saveRecipe(updated)
   }
@@ -106,7 +106,7 @@ export function RecipeDetailScreen() {
   const removeNote = async (noteId: string) => {
     const updated: Recipe = {
       ...recipe,
-      notes: recipe.notes.filter((n) => n.id !== noteId),
+      notes: (recipe.notes ?? []).filter((n) => n.id !== noteId),
     }
     await saveRecipe(updated)
   }
@@ -252,10 +252,11 @@ function NotesSection({
   onRemove: (id: string) => void
 }) {
   const [draft, setDraft] = useState('')
+  const list = Array.isArray(notes) ? notes : []
   return (
     <section className={styles.section}>
       <h2 className={styles.h2}>Notes</h2>
-      {notes.map((n) => (
+      {list.map((n) => (
         <div key={n.id} className={styles.note}>
           <p>{n.text}</p>
           <button

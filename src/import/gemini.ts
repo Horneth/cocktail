@@ -239,10 +239,15 @@ export async function geminiParse(
   if (!apiKey.trim()) throw new GeminiError('No API key set.')
 
   let res: Response
+  // Abort a hung request so the Import screen can never freeze on the spinner
+  // forever — surface a retryable error instead.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 30_000)
   try {
     res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
+      signal: controller.signal,
       body: JSON.stringify({
         contents: [{ parts: [{ text: `${PROMPT}\n\nDESCRIPTION:\n${text}` }] }],
         generationConfig: {
@@ -252,11 +257,16 @@ export async function geminiParse(
         },
       }),
     })
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new GeminiError('Gemini took too long to respond — try again, or use Basic parse.')
+    }
     // network / CORS failure
     throw new GeminiError(
       'Could not reach Gemini from the browser (network or CORS). Use Basic parse, or set up a proxy.',
     )
+  } finally {
+    clearTimeout(timer)
   }
 
   if (!res.ok) {

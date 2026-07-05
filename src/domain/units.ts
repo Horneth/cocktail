@@ -42,8 +42,17 @@ export const UNIT_ORDER: Unit[] = [
   'piece', 'wedge', 'slice', 'sprig', 'leaf', 'pinch', 'top', 'rinse', 'g', 'each',
 ]
 
+/**
+ * Look up a unit definition, tolerating an unknown/legacy unit string by
+ * falling back to a bare count. A single stray unit (from an old record or an
+ * odd import) must never throw and blank the whole screen.
+ */
+export function unitDef(unit: Unit): UnitDef {
+  return UNITS[unit] ?? UNITS.each
+}
+
 export function isConvertible(unit: Unit): boolean {
-  return UNITS[unit].ml !== undefined
+  return unitDef(unit).ml !== undefined
 }
 
 /**
@@ -52,8 +61,8 @@ export function isConvertible(unit: Unit): boolean {
  * never turn "1 dash" into oz.
  */
 export function convert(amount: number, from: Unit, to: Unit): number {
-  const fromDef = UNITS[from]
-  const toDef = UNITS[to]
+  const fromDef = unitDef(from)
+  const toDef = unitDef(to)
   if (fromDef.ml === undefined || toDef.ml === undefined) return amount
   return (amount * fromDef.ml) / toDef.ml
 }
@@ -156,7 +165,7 @@ export function toPreferred(
 
 /** Pluralize + place the unit label for a rendered amount. */
 export function formatAmount(amount: number | null, unit: Unit): string {
-  const def = UNITS[unit]
+  const def = unitDef(unit)
   if (amount === null) {
     return def.label || ''
   }

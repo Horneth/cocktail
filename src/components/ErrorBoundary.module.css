@@ -1,0 +1,87 @@
+.wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.card {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 28px 22px;
+}
+
+.emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.title {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 14px 0 8px;
+}
+
+.body {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0 0 20px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.primary {
+  flex: 1;
+  padding: 13px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.ghost {
+  flex: 1;
+  padding: 13px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.details {
+  margin-top: 18px;
+  text-align: left;
+}
+
+.details summary {
+  font-size: 13px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.pre {
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-soft);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
