@@ -95,6 +95,45 @@
 }
 
 /* mosaic of spirit tiles */
+.makeBanner {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 4px 18px 10px;
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card));
+  border: 1px solid var(--accent);
+  color: var(--text);
+}
+
+.makeBanner:active {
+  transform: scale(0.99);
+}
+
+.makeBannerIcon {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.makeBannerText {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+}
+
+.makeBannerText strong {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.makeBannerArrow {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 700;
+}
+
 .mosaic {
   display: grid;
   grid-template-columns: 1fr 1fr;

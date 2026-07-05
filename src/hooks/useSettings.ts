@@ -5,6 +5,7 @@ import { DEFAULT_GEMINI_MODEL } from '../import/gemini'
 const KEY = 'cocktail.volumePref'
 const GEMINI_KEY = 'cocktail.geminiKey'
 const GEMINI_MODEL = 'cocktail.geminiModel'
+const ASSUME_STAPLES = 'cocktail.assumeStaples'
 
 function read(): VolumePreference {
   const v = localStorage.getItem(KEY)
@@ -24,6 +25,19 @@ export function useVolumePreference(): [VolumePreference, () => void] {
   }, [])
 
   return [pref, toggle]
+}
+
+/**
+ * "Assume I have common basics" for the makeable filter (water, ice, citrus,
+ * sugar, sodas, garnishes…). On by default so the bar only needs your bottles.
+ */
+export function useAssumeStaples(): [boolean, (v: boolean) => void] {
+  const [on, setOn] = useState<boolean>(() => localStorage.getItem(ASSUME_STAPLES) !== '0')
+  const set = useCallback((v: boolean) => {
+    setOn(v)
+    localStorage.setItem(ASSUME_STAPLES, v ? '1' : '0')
+  }, [])
+  return [on, set]
 }
 
 export interface GeminiSettings {

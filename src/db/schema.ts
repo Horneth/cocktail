@@ -96,6 +96,17 @@ export interface Recipe {
 }
 
 /**
+ * One bottle/ingredient the user has in their bar ("My Bar" inventory).
+ * `name` is the normalized match key (primary key); `label` keeps the nice
+ * casing they saw when adding it.
+ */
+export interface PantryItem {
+  name: string
+  label: string
+  addedAt: number
+}
+
+/**
  * Denormalized many-to-many index of which recipe references which sub-recipe.
  * Reconciled inside the save transaction from each recipe's ingredients.
  * Rebuildable from `recipes` alone — an index, not a second source of truth.

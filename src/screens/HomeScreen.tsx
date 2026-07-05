@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
+import { BottleIcon, GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
 import { RecipeCard } from '../components/RecipeCard'
+import { makeableIds } from '../domain/availability'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { matchesQuery } from '../domain/search'
 import { spiritSortIndex, tileKeyForRecipe, tileMeta } from '../domain/spirits'
-import { useCocktails, useComponents } from '../hooks/useRecipes'
+import { useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
+import { useAssumeStaples } from '../hooks/useSettings'
 import styles from './HomeScreen.module.css'
 
 interface Tile {
@@ -16,7 +18,16 @@ interface Tile {
 export function HomeScreen() {
   const cocktails = useCocktails()
   const components = useComponents()
+  const { have } = usePantry()
+  const [assumeStaples] = useAssumeStaples()
   const [query, setQuery] = useState('')
+
+  const makeableCount = useMemo(() => {
+    if (have.size === 0 || !cocktails) return 0
+    const all = [...cocktails, ...(components ?? [])]
+    const byId = new Map(all.map((r) => [r.id, r]))
+    return makeableIds(cocktails, byId, have, assumeStaples).size
+  }, [have, cocktails, components, assumeStaples])
 
   const tiles = useMemo<Tile[]>(() => {
     if (!cocktails || !components) return []
@@ -65,6 +76,9 @@ export function HomeScreen() {
               <ImportIcon size={17} />
               Import
             </Link>
+            <Link className={styles.gearBtn} to="/bar" aria-label="My Bar">
+              <BottleIcon size={20} />
+            </Link>
             <Link className={styles.gearBtn} to="/settings" aria-label="Settings">
               <GearIcon size={20} />
             </Link>
@@ -112,6 +126,25 @@ export function HomeScreen() {
         </div>
       ) : (
         <>
+          {have.size > 0 && (
+            <Link
+              className={styles.makeBanner}
+              to={makeableCount > 0 ? '/browse?makeable=1' : '/bar'}
+            >
+              <BottleIcon size={20} className={styles.makeBannerIcon} />
+              <span className={styles.makeBannerText}>
+                {makeableCount > 0 ? (
+                  <>
+                    <strong>{makeableCount}</strong> you can make right now
+                  </>
+                ) : (
+                  <>No drinks ready yet — add more bottles</>
+                )}
+              </span>
+              <span className={styles.makeBannerArrow}>→</span>
+            </Link>
+          )}
+
           <div className={styles.mosaic}>
             {tiles.map((t) => {
               const m = tileMeta(t.key)

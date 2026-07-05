@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronLeftIcon, SearchIcon } from '../components/icons'
+import { BottleIcon, ChevronLeftIcon, SearchIcon } from '../components/icons'
 import { RecipeCard } from '../components/RecipeCard'
 import type { Recipe } from '../db/schema'
+import { makeableIds } from '../domain/availability'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { matchesQuery } from '../domain/search'
 import { tileKeyForRecipe, tileMeta } from '../domain/spirits'
-import { useCocktails, useComponents } from '../hooks/useRecipes'
+import { useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
+import { useAssumeStaples } from '../hooks/useSettings'
 import styles from './BrowseScreen.module.css'
 
 const TAG_LIMIT = 16
@@ -16,12 +18,15 @@ export function BrowseScreen() {
   const navigate = useNavigate()
   const cocktails = useCocktails()
   const components = useComponents()
+  const { have } = usePantry()
+  const [assumeStaples] = useAssumeStaples()
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
 
   const scope = params.get('scope') || 'all'
   const selectedTags = (params.get('tags') || '').split(',').filter(Boolean)
+  const makeableOnly = params.get('makeable') === '1'
   const isComponents = scope === 'components'
 
   // base set for the current scope (spirit / all / favorites / components)
@@ -40,16 +45,37 @@ export function BrowseScreen() {
     return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   }, [base])
 
+  // recipes makeable from the current bar (needs all recipes for sub-recipe resolution)
+  const makeable = useMemo(() => {
+    if (!makeableOnly) return null
+    const all = [...(cocktails ?? []), ...(components ?? [])]
+    const byId = new Map(all.map((r) => [r.id, r]))
+    return makeableIds(base, byId, have, assumeStaples)
+  }, [makeableOnly, base, cocktails, components, have, assumeStaples])
+
   // AND semantics: a recipe must have every selected tag
   const list = useMemo(
-    () => base.filter((r) => matchesQuery(r, query) && selectedTags.every((t) => r.tags.includes(t))),
-    [base, query, selectedTags],
+    () =>
+      base.filter(
+        (r) =>
+          matchesQuery(r, query) &&
+          selectedTags.every((t) => r.tags.includes(t)) &&
+          (!makeable || makeable.has(r.id)),
+      ),
+    [base, query, selectedTags, makeable],
   )
 
+  const patchParam = (key: string, value: string | null) => {
+    const p = new URLSearchParams(params)
+    if (value) p.set(key, value)
+    else p.delete(key)
+    setParams(p, { replace: true })
+  }
+
   const setTags = (next: string[]) => {
-    const p = new URLSearchParams()
-    if (scope !== 'all') p.set('scope', scope)
+    const p = new URLSearchParams(params)
     if (next.length) p.set('tags', next.join(','))
+    else p.delete('tags')
     setParams(p, { replace: true })
   }
   const toggleTag = (t: string) =>
@@ -91,6 +117,25 @@ export function BrowseScreen() {
           )}
         </div>
       </header>
+
+      <div className={styles.makeableRow}>
+        <label className={styles.makeableToggle}>
+          <BottleIcon size={17} className={styles.makeableIcon} />
+          <span>Only what I can make</span>
+          <input
+            type="checkbox"
+            className={styles.switch}
+            checked={makeableOnly}
+            onChange={(e) => patchParam('makeable', e.target.checked ? '1' : null)}
+          />
+        </label>
+      </div>
+
+      {makeableOnly && have.size === 0 && (
+        <p className={styles.makeableHint}>
+          Your bar is empty. <Link to="/bar">Add your bottles</Link> to see what you can make.
+        </p>
+      )}
 
       {!isComponents && tagCounts.length > 0 && (
         <section className={styles.tagPicker}>

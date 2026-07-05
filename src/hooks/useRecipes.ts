@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
-import type { Recipe } from '../db/schema'
+import type { PantryItem, Recipe } from '../db/schema'
 import { KNOWN_SPIRITS } from '../domain/spirits'
+import { isStaple, normIngredient } from '../domain/availability'
 
 /** All cocktails, alphabetical. Components are excluded from the main list. */
 export function useCocktails(): Recipe[] | undefined {
@@ -50,6 +52,49 @@ export function useSpiritSuggestions(): string[] {
       }
       return [...set].sort()
     }, []) ?? KNOWN_SPIRITS
+  )
+}
+
+export interface Pantry {
+  items: PantryItem[]
+  /** normalized names currently in the bar */
+  have: Set<string>
+  loaded: boolean
+}
+
+/** The user's "My Bar" inventory, reactive. */
+export function usePantry(): Pantry {
+  const items = useLiveQuery(() => db.pantry.orderBy('name').toArray(), [])
+  const have = useMemo(() => new Set((items ?? []).map((i) => i.name)), [items])
+  return { items: items ?? [], have, loaded: items !== undefined }
+}
+
+export interface CatalogItem {
+  name: string
+  label: string
+}
+
+/**
+ * Distinct "bottle-like" ingredients seen across all recipes, for the My Bar
+ * picker — assumed staples (water, citrus, sugar, garnishes…) are excluded
+ * since those are covered by the "assume basics" switch.
+ */
+export function useIngredientCatalog(): CatalogItem[] {
+  return (
+    useLiveQuery(async () => {
+      const all = await db.recipes.toArray()
+      const byName = new Map<string, string>()
+      for (const r of all) {
+        for (const ing of r.ingredients ?? []) {
+          const name = normIngredient(ing.name)
+          if (!name || isStaple(name) || byName.has(name)) continue
+          byName.set(name, ing.name.trim())
+        }
+      }
+      return [...byName.entries()]
+        .map(([name, label]) => ({ name, label }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    }, []) ?? []
   )
 }
 

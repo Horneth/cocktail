@@ -131,3 +131,10 @@ export const SparkleIcon = ({ size = 24, className }: IconProps) => (
     <path d="M19 15l.7 1.8L21.5 17l-1.8.7L19 19.5l-.7-1.8L16.5 17l1.8-.7z" />
   </svg>
 )
+
+export const BottleIcon = ({ size = 24, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M10 2h4M10.5 2v3.2a3 3 0 0 1-.6 1.8L8.8 8.5a4 4 0 0 0-.8 2.4V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-9.1a4 4 0 0 0-.8-2.4l-1.1-1.5a3 3 0 0 1-.6-1.8V2" />
+    <path d="M8 13h8" />
+  </svg>
+)

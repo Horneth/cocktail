@@ -19,6 +19,13 @@ offline with all data stored locally on your device. No accounts, no server.
   free-form** — type any base spirit (cachaça, pisco, sake…) in the editor or
   import preview and it gets its own tile with generated art; the import keeps
   the specific spirit a recipe names rather than collapsing it.
+- **My Bar & "what can I make"** — tell the app which bottles you actually have
+  (a tap-to-toggle inventory at `/bar`), then flip **Only what I can make** on
+  the Browse screen to see just the drinks you can build right now. Home shows a
+  live *"N you can make right now"* banner. Matching is smart: an **Assume I have
+  the basics** switch (on by default) covers water/ice/citrus/sugar/sodas/
+  garnishes/egg so the bar only tracks *bottles*, and sub-recipes recurse — a
+  drink that needs Simple Syrup counts as makeable if you can make the syrup.
 - **Instant, offline** — recipes live in IndexedDB and the app shell is cached
   by a service worker, so cold-open to recipe is sub-second and works with no
   network.

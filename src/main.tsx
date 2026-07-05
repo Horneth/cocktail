@@ -10,6 +10,7 @@ import { EditRecipeScreen } from './screens/EditRecipeScreen'
 import { ImportScreen } from './screens/ImportScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { BrowseScreen } from './screens/BrowseScreen'
+import { BarScreen } from './screens/BarScreen'
 import { stashSharedImport } from './import/shared'
 
 // Hash routing keeps GitHub Pages happy: deep links and refreshes never 404,
@@ -25,6 +26,7 @@ const router = createHashRouter([
       { path: 'recipe/:id/edit', element: <EditRecipeScreen /> },
       { path: 'new', element: <EditRecipeScreen /> },
       { path: 'import', element: <ImportScreen /> },
+      { path: 'bar', element: <BarScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
     ],
   },
