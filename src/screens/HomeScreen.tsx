@@ -37,6 +37,16 @@ export function HomeScreen() {
     return out
   }, [cocktails, components])
 
+  const topTags = useMemo(() => {
+    if (!cocktails) return []
+    const count = new Map<string, number>()
+    cocktails.forEach((c) => c.tags.forEach((t) => count.set(t, (count.get(t) ?? 0) + 1)))
+    return [...count.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 12)
+      .map(([t]) => t)
+  }, [cocktails])
+
   const results = useMemo(() => {
     if (!query.trim() || !cocktails || !components) return []
     return [...cocktails, ...components].filter((r) => matchesQuery(r, query))
@@ -100,20 +110,43 @@ export function HomeScreen() {
           <p className={styles.emptyHint}>Tap ＋ to add one, or Import from a video.</p>
         </div>
       ) : (
-        <div className={styles.mosaic}>
-          {tiles.map((t) => {
-            const m = tileMeta(t.key)
-            return (
-              <Link key={t.key} className={styles.tile} to={`/spirit/${t.key}`} style={{ background: m.gradient }}>
-                <span className={styles.tileEmoji}>{m.emoji}</span>
-                <span className={styles.tileLabel}>{m.label}</span>
-                <span className={styles.tileCount}>
-                  {t.count} {t.count === 1 ? 'recipe' : 'recipes'}
-                </span>
-              </Link>
-            )
-          })}
-        </div>
+        <>
+          <div className={styles.mosaic}>
+            {tiles.map((t) => {
+              const m = tileMeta(t.key)
+              return (
+                <Link
+                  key={t.key}
+                  className={styles.tile}
+                  to={`/browse?scope=${t.key}`}
+                  style={{ background: m.gradient }}
+                >
+                  <span className={styles.tileEmoji}>{m.emoji}</span>
+                  <span className={styles.tileLabel}>{m.label}</span>
+                  <span className={styles.tileCount}>
+                    {t.count} {t.count === 1 ? 'recipe' : 'recipes'}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+
+          {topTags.length > 0 && (
+            <section className={styles.tagSection}>
+              <h2 className={styles.tagSectionTitle}>Browse by tag</h2>
+              <div className={styles.tagPills}>
+                {topTags.map((t) => (
+                  <Link key={t} className={styles.tagPill} to={`/browse?tags=${encodeURIComponent(t)}`}>
+                    #{t}
+                  </Link>
+                ))}
+                <Link className={styles.tagPillMore} to="/browse">
+                  All tags →
+                </Link>
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       <Link className={styles.fab} to="/new" aria-label="New recipe">

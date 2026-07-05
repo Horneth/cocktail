@@ -144,6 +144,49 @@
   margin-top: 2px;
 }
 
+/* browse-by-tag section */
+.tagSection {
+  padding: 22px 18px 6px;
+}
+
+.tagSectionTitle {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.tagPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.tagPill {
+  padding: 9px 15px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--link);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tagPill:active {
+  transform: scale(0.96);
+}
+
+.tagPillMore {
+  padding: 9px 15px;
+  border-radius: var(--radius-pill);
+  border: 1px dashed var(--line);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+
 /* search results list */
 .list {
   list-style: none;
