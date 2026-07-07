@@ -99,6 +99,14 @@ export function ImportScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Back to the previous screen, or home if Import is the first history entry
+  // (e.g. opened cold from an Android share) so Back is never a dead end.
+  const goBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
+    if (idx > 0) navigate(-1)
+    else navigate('/')
+  }
+
   const pasteFromClipboard = async () => {
     try {
       const t = await navigator.clipboard.readText()
@@ -207,7 +215,7 @@ export function ImportScreen() {
         ))}
       </datalist>
       <header className={styles.header}>
-        <button className={styles.iconBtn} aria-label="Back" onClick={() => navigate(-1)}>
+        <button className={styles.iconBtn} aria-label="Back" onClick={goBack}>
           <ChevronLeftIcon size={26} />
         </button>
         <span className={styles.headTitle}>Import from video</span>

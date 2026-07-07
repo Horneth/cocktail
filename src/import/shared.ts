@@ -36,6 +36,15 @@ export function stashSharedImport(search: string): boolean {
   return true
 }
 
+/** Peek whether shared text is waiting, without clearing it. */
+export function hasSharedImport(): boolean {
+  try {
+    return !!sessionStorage.getItem(KEY)
+  } catch {
+    return false
+  }
+}
+
 /** Import screen pulls (and clears) any pending shared text. */
 export function consumeSharedImport(): string | null {
   try {

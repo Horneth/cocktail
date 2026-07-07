@@ -33,14 +33,13 @@ const router = createHashRouter([
 ])
 
 // Android share target navigates to the start URL with ?title&text&url. Capture
-// that before React mounts, stash it, and drop into the Import screen. Also strip
-// the query so a manual refresh doesn't re-trigger the import.
+// that before React mounts and stash it. We deliberately leave the router at the
+// HOME route (just strip the query) — App then pushes /import via react-router so
+// there's a real home entry behind it and Back works after a cold-start share.
 function handleShareTarget() {
   if (!location.search) return
-  const stashed = stashSharedImport(location.search)
-  const clean = location.pathname + (location.hash || '')
-  history.replaceState(null, '', clean)
-  if (stashed) location.hash = '#/import'
+  stashSharedImport(location.search)
+  history.replaceState(null, '', location.pathname + (location.hash || ''))
 }
 
 async function bootstrap() {
