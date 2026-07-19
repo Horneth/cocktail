@@ -19,13 +19,19 @@ offline with all data stored locally on your device. No accounts, no server.
   free-form** — type any base spirit (cachaça, pisco, sake…) in the editor or
   import preview and it gets its own tile with generated art; the import keeps
   the specific spirit a recipe names rather than collapsing it.
-- **My Bar & "what can I make"** — tell the app which bottles you actually have
-  (a tap-to-toggle inventory at `/bar`), then flip **Only what I can make** on
-  the Browse screen to see just the drinks you can build right now. Home shows a
-  live *"N you can make right now"* banner. Matching is smart: an **Assume I have
-  the basics** switch (on by default) covers water/ice/citrus/sugar/sodas/
-  garnishes/egg so the bar only tracks *bottles*, and sub-recipes recurse — a
-  drink that needs Simple Syrup counts as makeable if you can make the syrup.
+- **My Bar(s) & "what can I make"** — tell the app which bottles you actually
+  have (a tap-to-toggle inventory at `/bar`, grouped by spirit), then flip
+  **Only what I can make** on the Browse screen to see just the drinks you can
+  build right now. Home shows a live *"N you can make right now"* banner. Keep
+  **several bars** — "My Bar" plus a friend's place or a travel kit — and switch
+  the active one; "what I can make" follows. You can even **scan your shelf**:
+  snap a photo of your bottles and AI adds them for you (opt-in, bring-your-own
+  key). Matching is smart: an **Assume I have the basics** switch (on by default)
+  covers water/ice/citrus/sugar/sodas/garnishes/egg so the bar only tracks
+  *bottles*; sub-recipes recurse (a drink that needs Simple Syrup counts if you
+  can make the syrup); and a **generic bottle covers a specific call** — any rum
+  satisfies a recipe that asks for "Jamaican rum", any whiskey covers "Woodford
+  Reserve".
 - **Instant, offline** — recipes live in IndexedDB and the app shell is cached
   by a service worker, so cold-open to recipe is sub-second and works with no
   network.
