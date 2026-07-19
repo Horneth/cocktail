@@ -161,6 +161,10 @@
   padding: 12px 16px 0;
 }
 
+.barSwitchRow {
+  margin-top: 10px;
+}
+
 .makeableToggle {
   display: flex;
   align-items: center;

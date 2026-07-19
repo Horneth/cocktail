@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BottleIcon, GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
+import { BarSwitcher } from '../components/BarSwitcher'
 import { RecipeCard } from '../components/RecipeCard'
 import { makeableIds } from '../domain/availability'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
@@ -18,7 +19,7 @@ interface Tile {
 export function HomeScreen() {
   const cocktails = useCocktails()
   const components = useComponents()
-  const { barId } = useActiveBar()
+  const { barId, bars, setBarId } = useActiveBar()
   const { have } = usePantry(barId)
   const [assumeStaples] = useAssumeStaples()
   const [query, setQuery] = useState('')
@@ -127,6 +128,13 @@ export function HomeScreen() {
         </div>
       ) : (
         <>
+          {bars.length > 1 && (
+            <div className={styles.barStrip}>
+              <span className={styles.barStripLabel}>Showing</span>
+              <BarSwitcher bars={bars} barId={barId} onChange={setBarId} />
+            </div>
+          )}
+
           {have.size > 0 && (
             <Link
               className={styles.makeBanner}

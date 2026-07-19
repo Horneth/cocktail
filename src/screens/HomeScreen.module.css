@@ -95,6 +95,21 @@
 }
 
 /* mosaic of spirit tiles */
+.barStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 18px 10px;
+}
+
+.barStripLabel {
+  font-size: 13px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
 .makeBanner {
   display: flex;
   align-items: center;
