@@ -1,7 +1,10 @@
 import { coerceUnit } from '../domain/units'
 import { normalizeComponentName } from '../domain/textNormalize'
+import { normIngredient } from '../domain/availability'
+import { categoryForName } from '../domain/spiritCategory'
 import type { RecipeKind, SpiritCategory } from '../db/schema'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
+import { splitDataUrl } from './image'
 
 // Optional cloud parsing via the Gemini API. The user supplies their own API
 // key (stored only in their browser); the call goes straight from the browser
@@ -294,4 +297,122 @@ export async function geminiParse(
 
   if (!results.length) throw new GeminiError('Gemini found no recipes.')
   return results
+}
+
+// ── Photo → bar (Gemini vision) ────────────────────────────────────────────
+
+export interface IdentifiedBottle {
+  name: string
+  category?: string
+}
+
+const BOTTLES_SCHEMA = {
+  type: 'object',
+  properties: {
+    bottles: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          category: { type: 'string' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  required: ['bottles'],
+}
+
+const VISION_PROMPT = `You are looking at photo(s) of a home bar or liquor shelf. List every distinct liquor, spirit, wine, or liqueur BOTTLE you can identify.
+- "name": the bottle's brand/label as printed (e.g. "Woodford Reserve", "Tanqueray", "Campari"). If the brand is unreadable but the type is clear, use the type (e.g. "London dry gin").
+- "category": a short lowercase base category — one of gin, vodka, rum, whiskey, tequila, mezcal, brandy, cognac, cachaça, pisco, wine, liqueur. Omit if unsure.
+- One entry per distinct bottle. Ignore glassware, mixers, garnishes and non-bottle items. Do not invent bottles you cannot clearly see.`
+
+type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
+
+/** Pure: clean + dedupe Gemini's bottle list, letting our categorizer win on category. */
+export function dedupeBottles(raw: { name?: string; category?: string }[]): IdentifiedBottle[] {
+  const seen = new Set<string>()
+  const out: IdentifiedBottle[] = []
+  for (const b of raw) {
+    const name = (b.name ?? '').trim()
+    const key = normIngredient(name)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    const fromModel = b.category?.trim().toLowerCase() || undefined
+    out.push({ name, category: categoryForName(name) ?? fromModel })
+  }
+  return out
+}
+
+/**
+ * Identify the bottles visible in one or more photos (data URLs). Returns a
+ * deduped list the user can review before adding to a bar. Throws GeminiError.
+ */
+export async function geminiIdentifyBottles(
+  images: string[],
+  apiKey: string,
+  model = DEFAULT_GEMINI_MODEL,
+): Promise<IdentifiedBottle[]> {
+  if (!apiKey.trim()) throw new GeminiError('No API key set.')
+  if (!images.length) throw new GeminiError('No photos to scan.')
+
+  const parts: ContentPart[] = [{ text: VISION_PROMPT }]
+  for (const dataUrl of images) {
+    const split = splitDataUrl(dataUrl)
+    if (!split) throw new GeminiError('One of the photos was in an unsupported format.')
+    parts.push({ inlineData: { mimeType: split.mimeType, data: split.data } })
+  }
+
+  let res: Response
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 30_000)
+  try {
+    res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: BOTTLES_SCHEMA,
+          temperature: 0.1,
+        },
+      }),
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new GeminiError('Gemini took too long to respond — try again.')
+    }
+    throw new GeminiError(
+      'Could not reach Gemini from the browser (network or CORS). Try again, or add bottles by hand.',
+    )
+  } finally {
+    clearTimeout(timer)
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    if (res.status === 400 || res.status === 403) {
+      throw new GeminiError('Gemini rejected the request — check that your API key is valid and enabled.')
+    }
+    if (res.status === 429) throw new GeminiError('Gemini rate limit reached — try again in a moment.')
+    throw new GeminiError(`Gemini error ${res.status}. ${detail.slice(0, 140)}`)
+  }
+
+  const data = await res.json()
+  const jsonText: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!jsonText) throw new GeminiError('Gemini returned no content.')
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonText)
+  } catch {
+    throw new GeminiError('Gemini returned malformed JSON.')
+  }
+
+  const raw = (parsed as { bottles?: { name?: string; category?: string }[] })?.bottles ?? []
+  return dedupeBottles(raw)
 }

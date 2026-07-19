@@ -1,14 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BottleIcon, ChevronLeftIcon, PlusIcon, SearchIcon } from '../components/icons'
+import { FEATURES } from '../config'
 import { normIngredient } from '../domain/availability'
 import { categoryForName } from '../domain/spiritCategory'
 import { createBar, deleteBar, renameBar } from '../domain/bars'
-import { addToPantry, clearPantry, removeFromPantry, setInPantry } from '../domain/pantry'
+import { addToPantry, bulkAddPantry, clearPantry, removeFromPantry, setInPantry } from '../domain/pantry'
 import { spiritSortIndex, tileMeta } from '../domain/spirits'
+import { GeminiError, geminiIdentifyBottles, type IdentifiedBottle } from '../import/gemini'
+import { downscaleDataUrl } from '../import/image'
 import { useActiveBar, useIngredientCatalog, usePantry } from '../hooks/useRecipes'
-import { useAssumeStaples } from '../hooks/useSettings'
+import { useAssumeStaples, useGeminiSettings } from '../hooks/useSettings'
 import styles from './BarScreen.module.css'
+
+const MAX_SCAN_IMAGES = 4
 
 interface Row {
   name: string
@@ -25,9 +30,16 @@ export function BarScreen() {
   const { barId, bars, setBarId } = useActiveBar()
   const { items, have } = usePantry(barId)
   const catalog = useIngredientCatalog()
+  const gemini = useGeminiSettings()
   const [assumeStaples, setAssumeStaples] = useAssumeStaples()
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [scanBusy, setScanBusy] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const [scanResults, setScanResults] = useState<IdentifiedBottle[] | null>(null)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
 
   // Merge the recipe-derived catalog with anything the user added by hand
   // (bottles that aren't in any recipe yet), deduped by normalized name, then
@@ -112,6 +124,42 @@ export function BarScreen() {
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not delete this bar.')
     }
+  }
+
+  const scanEnabled = FEATURES.cloudAI && gemini.hasKey
+
+  const onScanFiles = async (files: FileList | null) => {
+    if (!files || !files.length) return
+    setScanBusy(true)
+    setScanError(null)
+    try {
+      const chosen = [...files].slice(0, MAX_SCAN_IMAGES)
+      const images = await Promise.all(chosen.map((f) => downscaleDataUrl(f)))
+      const bottles = await geminiIdentifyBottles(images, gemini.apiKey, gemini.model)
+      setScanResults(bottles)
+      setPicked(new Set(bottles.map((b) => b.name)))
+    } catch (err) {
+      setScanError(err instanceof GeminiError ? err.message : 'Could not scan those photos.')
+    } finally {
+      setScanBusy(false)
+      if (fileRef.current) fileRef.current.value = '' // allow re-picking the same file
+    }
+  }
+
+  const togglePick = (name: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+
+  const confirmScan = async () => {
+    if (!barId || !scanResults) return
+    const names = scanResults.filter((b) => picked.has(b.name)).map((b) => b.name)
+    if (names.length) await bulkAddPantry(barId, names)
+    setScanResults(null)
+    setPicked(new Set())
   }
 
   return (
@@ -208,6 +256,22 @@ export function BarScreen() {
           </button>
         )}
 
+        {scanEnabled && (
+          <button className={styles.scanRow} onClick={() => fileRef.current?.click()} disabled={scanBusy}>
+            📷 {scanBusy ? 'Scanning your shelf…' : 'Scan my shelf'}
+          </button>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          hidden
+          onChange={(e) => void onScanFiles(e.target.files)}
+        />
+        {scanError && <p className={styles.scanError}>{scanError}</p>}
+
         {rows.length === 0 ? (
           <p className={styles.empty}>
             {searching ? 'No matches — add it above.' : 'Import or add recipes to build your bottle list.'}
@@ -259,6 +323,56 @@ export function BarScreen() {
           })
         )}
       </div>
+
+      {scanResults && (
+        <div className={styles.sheetBackdrop} onClick={() => setScanResults(null)}>
+          <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
+            <h2 className={styles.sheetTitle}>
+              {scanResults.length
+                ? `Found ${scanResults.length} bottle${scanResults.length > 1 ? 's' : ''}`
+                : 'No bottles found'}
+            </h2>
+            {scanResults.length === 0 ? (
+              <p className={styles.sheetHint}>Try a clearer, closer photo of the labels.</p>
+            ) : (
+              <ul className={styles.sheetList}>
+                {scanResults.map((b) => {
+                  const on = picked.has(b.name)
+                  const already = have.has(normIngredient(b.name))
+                  return (
+                    <li key={b.name}>
+                      <label className={`${styles.item} ${on ? styles.itemOn : ''}`}>
+                        <input
+                          type="checkbox"
+                          className={styles.check}
+                          checked={on}
+                          onChange={() => togglePick(b.name)}
+                        />
+                        <span className={styles.itemName}>{b.name}</span>
+                        {already && <span className={styles.sheetTag}>in bar</span>}
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            <div className={styles.sheetActions}>
+              <button className={styles.sheetGhost} onClick={() => setScanResults(null)}>
+                Cancel
+              </button>
+              {scanResults.length > 0 && (
+                <button
+                  className={styles.sheetSolid}
+                  disabled={picked.size === 0}
+                  onClick={() => void confirmScan()}
+                >
+                  Add {picked.size} to {activeBar?.name ?? 'bar'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
