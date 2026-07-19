@@ -227,8 +227,8 @@ export function ImportScreen() {
           <div className={styles.intro}>
             <PlayIcon size={26} className={styles.introIcon} />
             <p>
-              Open an Anders Erickson video, copy its <strong>description</strong>, and paste it
-              below — or <strong>share</strong> the video straight to this app. I'll pull out every
+              Copy a cocktail recipe or a video's <strong>description</strong>, and paste it
+              below — or <strong>share</strong> a video straight to this app. I'll pull out every
               cocktail (and its syrups) so you can pick which to save.
             </p>
           </div>

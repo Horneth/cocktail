@@ -63,7 +63,7 @@ const RESPONSE_SCHEMA = {
   required: ['recipes'],
 }
 
-const PROMPT = `You extract EVERY drink recipe from a video description (often from the Anders Erickson channel). A single description frequently contains SEVERAL cocktails — return all of them.
+const PROMPT = `You extract EVERY drink recipe from a pasted recipe or video description. A single description frequently contains SEVERAL cocktails — return all of them.
 Return JSON matching the schema: a "recipes" array with one entry per drink, in the order they appear. Rules per recipe:
 - "name": the drink's name only (no channel or video title fluff).
 - "kind": "cocktail" for a mixed drink, OR "component" if the entry is purely a syrup/cordial/orgeat/infusion/mix recipe with no cocktail build. Prefer attaching syrups as "subRecipes" of the cocktail that uses them; only emit a top-level "component" recipe when a syrup stands entirely on its own.
@@ -201,7 +201,6 @@ export function mapGeminiRecipe(r: GeminiRecipe, sourceUrl?: string): Structured
     source: {
       type: sourceUrl ? 'youtube' : 'web',
       ...(sourceUrl ? { url: sourceUrl, videoId } : {}),
-      channel: 'Anders Erickson',
     },
   }
 

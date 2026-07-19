@@ -69,8 +69,8 @@ See `src/db/schema.ts`.
 
 ## Import from a video (phase 2 — shipped)
 
-Tap **Import** on the home screen, paste a video's **description** (tuned for
-the Anders Erickson channel), and an on-device parser
+Tap **Import** on the home screen, paste any cocktail recipe or a video's
+**description**, and an on-device parser
 (`src/import/parseRecipeText.ts`) turns it into the cocktail plus any
 syrups/cordials — **cross-linked** automatically by name. An editable preview
 lets you fix anything before saving. It runs entirely client-side: no backend,
