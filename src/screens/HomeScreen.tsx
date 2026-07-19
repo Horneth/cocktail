@@ -6,7 +6,7 @@ import { makeableIds } from '../domain/availability'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { matchesQuery } from '../domain/search'
 import { spiritSortIndex, tileKeyForRecipe, tileMeta } from '../domain/spirits'
-import { useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
+import { useActiveBar, useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
 import { useAssumeStaples } from '../hooks/useSettings'
 import styles from './HomeScreen.module.css'
 
@@ -18,7 +18,8 @@ interface Tile {
 export function HomeScreen() {
   const cocktails = useCocktails()
   const components = useComponents()
-  const { have } = usePantry()
+  const { barId } = useActiveBar()
+  const { have } = usePantry(barId)
   const [assumeStaples] = useAssumeStaples()
   const [query, setQuery] = useState('')
 

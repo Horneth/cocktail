@@ -9,7 +9,7 @@ import { categorySubstitutions } from '../domain/availability'
 import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
 import { mergeComponents, saveRecipe, setFavorite } from '../import/importRecipe'
-import { useBacklinks, useComponents, usePantry, useRecipe } from '../hooks/useRecipes'
+import { useActiveBar, useBacklinks, useComponents, usePantry, useRecipe } from '../hooks/useRecipes'
 import { useAssumeStaples, useVolumePreference } from '../hooks/useSettings'
 import styles from './RecipeDetailScreen.module.css'
 
@@ -26,7 +26,8 @@ export function RecipeDetailScreen() {
   const recipe = useRecipe(id)
   const navigate = useNavigate()
   const [pref, togglePref] = useVolumePreference()
-  const { have } = usePantry()
+  const { barId } = useActiveBar()
+  const { have } = usePantry(barId)
   const [assumeStaples] = useAssumeStaples()
   const [searchParams, setSearchParams] = useSearchParams()
 

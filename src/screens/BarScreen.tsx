@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { BottleIcon, ChevronLeftIcon, PlusIcon, SearchIcon } from '../components/icons'
 import { normIngredient } from '../domain/availability'
 import { categoryForName } from '../domain/spiritCategory'
+import { createBar, deleteBar, renameBar } from '../domain/bars'
 import { addToPantry, clearPantry, removeFromPantry, setInPantry } from '../domain/pantry'
 import { spiritSortIndex, tileMeta } from '../domain/spirits'
-import { useIngredientCatalog, usePantry } from '../hooks/useRecipes'
+import { useActiveBar, useIngredientCatalog, usePantry } from '../hooks/useRecipes'
 import { useAssumeStaples } from '../hooks/useSettings'
 import styles from './BarScreen.module.css'
 
@@ -21,7 +22,8 @@ interface Group {
 
 export function BarScreen() {
   const navigate = useNavigate()
-  const { items, have } = usePantry()
+  const { barId, bars, setBarId } = useActiveBar()
+  const { items, have } = usePantry(barId)
   const catalog = useIngredientCatalog()
   const [assumeStaples, setAssumeStaples] = useAssumeStaples()
   const [query, setQuery] = useState('')
@@ -54,7 +56,6 @@ export function BarScreen() {
       rows: rs.sort((a, b) => a.label.localeCompare(b.label)),
       stocked: rs.filter((r) => have.has(r.name)).length,
     }))
-    // known spirits first (mosaic order), 'other' always last
     return out.sort((a, b) => {
       if (a.key === 'other') return 1
       if (b.key === 'other') return -1
@@ -64,7 +65,6 @@ export function BarScreen() {
 
   const searching = query.trim() !== ''
 
-  // Summary reflects the whole bar, not the filtered view.
   const categoriesStocked = useMemo(
     () => new Set(items.map((i) => categoryForName(i.label) ?? 'other')).size,
     [items],
@@ -72,8 +72,8 @@ export function BarScreen() {
 
   const addCustom = () => {
     const label = query.trim()
-    if (!label) return
-    void addToPantry(label)
+    if (!label || !barId) return
+    void addToPantry(barId, label)
     setQuery('')
   }
 
@@ -87,14 +87,54 @@ export function BarScreen() {
       return next
     })
 
+  const activeBar = bars.find((b) => b.id === barId)
+
+  const onNewBar = async () => {
+    const name = window.prompt('Name this bar (e.g. “Beach house”)')?.trim()
+    if (!name) return
+    const id = await createBar(name)
+    setBarId(id)
+  }
+
+  const onRenameBar = async () => {
+    if (!barId) return
+    const name = window.prompt('Rename bar', activeBar?.name ?? '')?.trim()
+    if (name) await renameBar(barId, name)
+  }
+
+  const onDeleteBar = async () => {
+    if (!barId || bars.length <= 1) return
+    if (!window.confirm(`Delete “${activeBar?.name}” and its bottles?`)) return
+    const remaining = bars.find((b) => b.id !== barId)
+    try {
+      await deleteBar(barId)
+      if (remaining) setBarId(remaining.id)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete this bar.')
+    }
+  }
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
         <button className={styles.iconBtn} aria-label="Back" onClick={() => navigate(-1)}>
           <ChevronLeftIcon size={26} />
         </button>
-        <span className={styles.headTitle}>My Bar</span>
-        <span className={styles.headSpacer} />
+        <select
+          className={styles.barSelect}
+          value={barId ?? ''}
+          onChange={(e) => setBarId(e.target.value)}
+          aria-label="Active bar"
+        >
+          {bars.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <button className={styles.iconBtn} aria-label="New bar" onClick={() => void onNewBar()}>
+          <PlusIcon size={22} />
+        </button>
       </header>
 
       <div className={styles.body}>
@@ -112,15 +152,26 @@ export function BarScreen() {
             </div>
           ) : (
             <div className={styles.summaryText}>
-              <span className={styles.summaryCount}>Your bar is empty</span>
+              <span className={styles.summaryCount}>This bar is empty</span>
               <span className={styles.summaryHint}>
                 Tick the bottles you have below to unlock “what I can make”.
               </span>
             </div>
           )}
           {have.size > 0 && (
-            <button className={styles.clear} onClick={() => void clearPantry()}>
+            <button className={styles.clear} onClick={() => barId && void clearPantry(barId)}>
               Clear
+            </button>
+          )}
+        </div>
+
+        <div className={styles.barActions}>
+          <button className={styles.barAction} onClick={() => void onRenameBar()}>
+            Rename bar
+          </button>
+          {bars.length > 1 && (
+            <button className={styles.barActionDanger} onClick={() => void onDeleteBar()}>
+              Delete bar
             </button>
           )}
         </div>
@@ -153,7 +204,7 @@ export function BarScreen() {
 
         {query.trim() && !exactExists && (
           <button className={styles.addRow} onClick={addCustom}>
-            <PlusIcon size={16} /> Add “{query.trim()}” to my bar
+            <PlusIcon size={16} /> Add “{query.trim()}” to {activeBar?.name ?? 'my bar'}
           </button>
         )}
 
@@ -188,10 +239,12 @@ export function BarScreen() {
                               type="checkbox"
                               className={styles.check}
                               checked={on}
+                              disabled={!barId}
                               onChange={(e) =>
-                                on
-                                  ? void removeFromPantry(r.name)
-                                  : void setInPantry(r.label, e.target.checked)
+                                barId &&
+                                (on
+                                  ? void removeFromPantry(barId, r.name)
+                                  : void setInPantry(barId, r.label, e.target.checked))
                               }
                             />
                             <span className={styles.itemName}>{r.label}</span>

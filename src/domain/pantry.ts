@@ -1,31 +1,36 @@
 import { db } from '../db/db'
 import { normIngredient } from './availability'
 
-// Mutations for the "My Bar" inventory. Keyed by the normalized ingredient name
-// so "Fresh Lime Juice" and "lime juice" collapse to one entry.
+// Mutations for a bar's bottle inventory. Every bottle is scoped to a `barId`
+// and keyed by the normalized ingredient name, so "Fresh Lime Juice" and "lime
+// juice" collapse to one entry within a bar.
 
-export async function addToPantry(label: string): Promise<void> {
+export async function addToPantry(barId: string, label: string): Promise<void> {
   const name = normIngredient(label)
-  if (!name) return
-  await db.pantry.put({ name, label: label.trim(), addedAt: Date.now() })
+  if (!barId || !name) return
+  await db.bottles.put({ barId, name, label: label.trim(), addedAt: Date.now() })
 }
 
-export async function removeFromPantry(labelOrName: string): Promise<void> {
-  await db.pantry.delete(normIngredient(labelOrName))
+export async function removeFromPantry(barId: string, labelOrName: string): Promise<void> {
+  if (!barId) return
+  await db.bottles.delete([barId, normIngredient(labelOrName)])
 }
 
-export async function setInPantry(label: string, on: boolean): Promise<void> {
-  return on ? addToPantry(label) : removeFromPantry(label)
+export async function setInPantry(barId: string, label: string, on: boolean): Promise<void> {
+  return on ? addToPantry(barId, label) : removeFromPantry(barId, label)
 }
 
-export async function bulkAddPantry(labels: string[]): Promise<void> {
+export async function bulkAddPantry(barId: string, labels: string[]): Promise<void> {
+  if (!barId) return
   const now = Date.now()
   const rows = labels
-    .map((l) => ({ name: normIngredient(l), label: l.trim(), addedAt: now }))
+    .map((l) => ({ barId, name: normIngredient(l), label: l.trim(), addedAt: now }))
     .filter((r) => r.name)
-  if (rows.length) await db.pantry.bulkPut(rows)
+  if (rows.length) await db.bottles.bulkPut(rows)
 }
 
-export async function clearPantry(): Promise<void> {
-  await db.pantry.clear()
+/** Empty a single bar (not all bars). */
+export async function clearPantry(barId: string): Promise<void> {
+  if (!barId) return
+  await db.bottles.where('barId').equals(barId).delete()
 }

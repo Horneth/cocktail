@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { createHashRouter, RouterProvider } from 'react-router-dom'
 import './theme.css'
 import { seedIfEmpty } from './db/seed'
+import { ensureDefaultBar } from './domain/bars'
 import { App } from './App'
 import { HomeScreen } from './screens/HomeScreen'
 import { RecipeDetailScreen } from './screens/RecipeDetailScreen'
@@ -46,6 +47,7 @@ async function bootstrap() {
   handleShareTarget()
   try {
     await seedIfEmpty()
+    await ensureDefaultBar()
   } catch (err) {
     console.error('Seeding failed', err)
   }

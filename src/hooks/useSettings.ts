@@ -6,6 +6,7 @@ const KEY = 'cocktail.volumePref'
 const GEMINI_KEY = 'cocktail.geminiKey'
 const GEMINI_MODEL = 'cocktail.geminiModel'
 const ASSUME_STAPLES = 'cocktail.assumeStaples'
+const ACTIVE_BAR = 'cocktail.activeBarId'
 
 function read(): VolumePreference {
   const v = localStorage.getItem(KEY)
@@ -38,6 +39,22 @@ export function useAssumeStaples(): [boolean, (v: boolean) => void] {
     localStorage.setItem(ASSUME_STAPLES, v ? '1' : '0')
   }, [])
   return [on, set]
+}
+
+/**
+ * The id of the currently-active bar. Global (not per-device-synced) and stored
+ * in localStorage. Returns undefined until the user has selected one; the
+ * `useActiveBar` hook resolves that to a real bar (falling back to the first).
+ */
+export function useActiveBarId(): [string | undefined, (id: string) => void] {
+  const [id, setId] = useState<string | undefined>(
+    () => localStorage.getItem(ACTIVE_BAR) ?? undefined,
+  )
+  const set = useCallback((v: string) => {
+    setId(v)
+    localStorage.setItem(ACTIVE_BAR, v)
+  }, [])
+  return [id, set]
 }
 
 export interface GeminiSettings {

@@ -23,13 +23,38 @@
   border-radius: 50%;
 }
 
-.headTitle {
+.barSelect {
+  flex: 1;
+  min-width: 0;
+  margin: 0 8px;
+  padding: 8px 10px;
+  text-align: center;
+  text-align-last: center;
   font-weight: 700;
+  font-size: 16px;
   color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
-.headSpacer {
-  width: 44px;
+.barActions {
+  display: flex;
+  gap: 16px;
+  margin: 0 0 16px;
+  padding: 0 2px;
+}
+
+.barAction {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.barActionDanger {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
 }
 
 .body {

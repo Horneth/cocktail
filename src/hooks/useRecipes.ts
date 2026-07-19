@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
-import type { PantryItem, Recipe } from '../db/schema'
+import type { Bar, PantryItem, Recipe } from '../db/schema'
 import { KNOWN_SPIRITS } from '../domain/spirits'
 import { isStaple, normIngredient } from '../domain/availability'
+import { useActiveBarId } from './useSettings'
 
 /** All cocktails, alphabetical. Components are excluded from the main list. */
 export function useCocktails(): Recipe[] | undefined {
@@ -62,11 +63,42 @@ export interface Pantry {
   loaded: boolean
 }
 
-/** The user's "My Bar" inventory, reactive. */
-export function usePantry(): Pantry {
-  const items = useLiveQuery(() => db.pantry.orderBy('name').toArray(), [])
+/** A single bar's bottle inventory, reactive. Empty while `barId` is unresolved. */
+export function usePantry(barId: string | undefined): Pantry {
+  const items = useLiveQuery(
+    () =>
+      barId
+        ? db.bottles.where('barId').equals(barId).sortBy('name')
+        : Promise.resolve<PantryItem[]>([]),
+    [barId],
+  )
   const have = useMemo(() => new Set((items ?? []).map((i) => i.name)), [items])
-  return { items: items ?? [], have, loaded: items !== undefined }
+  return { items: items ?? [], have, loaded: !!barId && items !== undefined }
+}
+
+/** All bars, oldest first. */
+export function useBars(): Bar[] | undefined {
+  return useLiveQuery(() => db.bars.orderBy('createdAt').toArray(), [])
+}
+
+export interface ActiveBar {
+  /** the resolved active bar id (stored choice, or the first bar as fallback) */
+  barId: string | undefined
+  bars: Bar[]
+  loaded: boolean
+  setBarId: (id: string) => void
+}
+
+/**
+ * Resolve the active bar: the user's stored choice if it still exists, else the
+ * first bar. Degrades gracefully when the stored bar was deleted.
+ */
+export function useActiveBar(): ActiveBar {
+  const bars = useBars()
+  const [storedId, setBarId] = useActiveBarId()
+  const list = bars ?? []
+  const barId = list.find((b) => b.id === storedId)?.id ?? list[0]?.id
+  return { barId, bars: list, loaded: bars !== undefined, setBarId }
 }
 
 export interface CatalogItem {
