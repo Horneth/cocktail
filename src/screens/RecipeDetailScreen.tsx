@@ -5,11 +5,12 @@ import { ServingStepper } from '../components/ServingStepper'
 import { ChevronLeftIcon, EditIcon, FlaskIcon, HeartIcon, PlusIcon } from '../components/icons'
 import type { Ingredient, Recipe } from '../db/schema'
 import { scaleFactor, type ScaleSettings } from '../domain/scaling'
+import { categorySubstitutions } from '../domain/availability'
 import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
 import { mergeComponents, saveRecipe, setFavorite } from '../import/importRecipe'
-import { useBacklinks, useComponents, useRecipe } from '../hooks/useRecipes'
-import { useVolumePreference } from '../hooks/useSettings'
+import { useBacklinks, useComponents, usePantry, useRecipe } from '../hooks/useRecipes'
+import { useAssumeStaples, useVolumePreference } from '../hooks/useSettings'
 import styles from './RecipeDetailScreen.module.css'
 
 const PART_PRESETS: { label: string; ml: number | undefined }[] = [
@@ -25,7 +26,17 @@ export function RecipeDetailScreen() {
   const recipe = useRecipe(id)
   const navigate = useNavigate()
   const [pref, togglePref] = useVolumePreference()
+  const { have } = usePantry()
+  const [assumeStaples] = useAssumeStaples()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // Bottles the user covers only by substitution (has a generic rum, recipe
+  // calls for a specific one) — surfaced as a subtle "using your rum" note.
+  const substitutions = useMemo(
+    () => (recipe && recipe.kind === 'cocktail' ? categorySubstitutions(recipe, have, assumeStaples) : []),
+    [recipe, have, assumeStaples],
+  )
+  const usingCategories = [...new Set(substitutions.map((s) => s.usingCategory))]
 
   const [overrides, setOverrides] = useState<Map<string, Override>>(new Map())
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -147,6 +158,9 @@ export function RecipeDetailScreen() {
         )}
         <h1 className={styles.title}>{recipe.name}</h1>
         {metaBits.length > 0 && <p className={styles.meta}>{metaBits.join(' · ')}</p>}
+        {usingCategories.length > 0 && (
+          <p className={styles.subNote}>Using your {usingCategories.join(', ')}</p>
+        )}
       </div>
 
       {recipe.measureBasis === 'parts' ? (

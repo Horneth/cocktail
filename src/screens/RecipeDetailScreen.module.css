@@ -85,6 +85,15 @@
   letter-spacing: 0.05em;
 }
 
+.subNote {
+  margin: 8px 0 0;
+  display: inline-block;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
 .stepperWrap,
 .partsControl {
   margin-bottom: 6px;
