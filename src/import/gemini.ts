@@ -1,4 +1,5 @@
 import { coerceUnit } from '../domain/units'
+import { normalizeComponentName } from '../domain/textNormalize'
 import type { RecipeKind, SpiritCategory } from '../db/schema'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
 
@@ -97,16 +98,6 @@ export interface GeminiRecipe {
 let counter = 0
 const tempId = (p: string) => `${p}-${(counter += 1)}`
 
-function normalize(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, '')
-    .replace(/\b(semi-?rich|rich|fresh|homemade|cold|hot|pure)\b/g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 // Only spelling/family normalization — specific spirits (cachaça, mezcal,
 // pisco, cognac, …) are kept as-is so they get their own category.
 const SPIRIT_SYNONYMS: Record<string, SpiritCategory> = {
@@ -166,10 +157,10 @@ export function mapGeminiRecipe(r: GeminiRecipe, sourceUrl?: string): Structured
       }
     })
 
-  const compByName = new Map(components.map((c) => [normalize(c.name), c]))
+  const compByName = new Map(components.map((c) => [normalizeComponentName(c.name), c]))
   const ingredients = (r.ingredients ?? []).map(toDraftIngredient).filter((i) => i.name)
   for (const ing of ingredients) {
-    const key = normalize(ing.name)
+    const key = normalizeComponentName(ing.name)
     let match = compByName.get(key)
     if (!match) {
       for (const [cname, c] of compByName) {

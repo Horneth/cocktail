@@ -1,4 +1,5 @@
 import type { SpiritCategory, Unit } from '../db/schema'
+import { normalizeComponentName } from '../domain/textNormalize'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
 
 // Heuristic parser: turns any pasted recipe / video description into a
@@ -215,16 +216,6 @@ function tempId(prefix: string): string {
   return `${prefix}-${counter}`
 }
 
-function normalize(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, '') // drop "(1.5:1)"
-    .replace(/\b(semi-?rich|rich|fresh|homemade|cold|hot|pure)\b/g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 function detectSpirit(main: RecipeDraft): SpiritCategory | undefined {
   const hay = [main.name, ...main.ingredients.map((i) => i.name)].join(' ')
   for (const [re, spirit] of SPIRIT_HINTS) if (re.test(hay)) return spirit
@@ -319,9 +310,9 @@ export function parseRecipeText(text: string): ParseResult {
   }
 
   // cross-link main ingredients to components by name
-  const compByName = new Map(components.map((c) => [normalize(c.name), c]))
+  const compByName = new Map(components.map((c) => [normalizeComponentName(c.name), c]))
   for (const ing of main.ingredients) {
-    const key = normalize(ing.name)
+    const key = normalizeComponentName(ing.name)
     let match = compByName.get(key)
     if (!match) {
       for (const [cname, c] of compByName) {

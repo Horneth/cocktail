@@ -265,6 +265,43 @@
   border: 1px solid var(--line);
 }
 
+.mergeHint {
+  margin: 0 0 10px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mergeRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mergeSelect {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.mergeBtn {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.mergeBtn:disabled {
+  opacity: 0.5;
+}
+
 .bottomSpace {
   height: calc(var(--safe-bottom) + 40px);
 }
