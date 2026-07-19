@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BottleIcon, ChevronLeftIcon, SearchIcon } from '../components/icons'
+import { BarSwitcher } from '../components/BarSwitcher'
 import { RecipeCard } from '../components/RecipeCard'
 import type { Recipe } from '../db/schema'
 import { makeableIds } from '../domain/availability'
@@ -18,7 +19,7 @@ export function BrowseScreen() {
   const navigate = useNavigate()
   const cocktails = useCocktails()
   const components = useComponents()
-  const { barId } = useActiveBar()
+  const { barId, bars, setBarId } = useActiveBar()
   const { have } = usePantry(barId)
   const [assumeStaples] = useAssumeStaples()
   const [params, setParams] = useSearchParams()
@@ -130,6 +131,11 @@ export function BrowseScreen() {
             onChange={(e) => patchParam('makeable', e.target.checked ? '1' : null)}
           />
         </label>
+        {makeableOnly && (
+          <div className={styles.barSwitchRow}>
+            <BarSwitcher bars={bars} barId={barId} onChange={setBarId} />
+          </div>
+        )}
       </div>
 
       {makeableOnly && have.size === 0 && (
