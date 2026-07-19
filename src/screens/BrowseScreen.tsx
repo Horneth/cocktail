@@ -7,7 +7,7 @@ import { makeableIds } from '../domain/availability'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { matchesQuery } from '../domain/search'
 import { tileKeyForRecipe, tileMeta } from '../domain/spirits'
-import { useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
+import { useActiveBar, useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
 import { useAssumeStaples } from '../hooks/useSettings'
 import styles from './BrowseScreen.module.css'
 
@@ -18,7 +18,8 @@ export function BrowseScreen() {
   const navigate = useNavigate()
   const cocktails = useCocktails()
   const components = useComponents()
-  const { have } = usePantry()
+  const { barId } = useActiveBar()
+  const { have } = usePantry(barId)
   const [assumeStaples] = useAssumeStaples()
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')

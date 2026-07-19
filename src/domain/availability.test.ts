@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Recipe } from '../db/schema'
-import { canMake, isStaple, makeableIds, missingBottles, normIngredient } from './availability'
+import {
+  canMake,
+  categorySubstitutions,
+  isStaple,
+  makeableIds,
+  missingBottles,
+  normIngredient,
+} from './availability'
 
 let n = 0
 function recipe(partial: Partial<Recipe> & { name: string; ingredients: Recipe['ingredients'] }): Recipe {
@@ -50,7 +57,19 @@ const negroni = recipe({
   ],
 })
 
-const byId = new Map<string, Recipe>([daiquiri, negroni, syrup].map((r) => [r.id, r]))
+const oldFashioned = recipe({
+  id: 'oldf',
+  name: 'Old Fashioned',
+  spirit: 'whiskey',
+  ingredients: [
+    { id: 'o1', name: 'Bourbon', amount: 2, unit: 'oz' },
+    { id: 'o2', name: 'Sugar', amount: 1, unit: 'tsp' },
+  ],
+})
+
+const byId = new Map<string, Recipe>(
+  [daiquiri, negroni, syrup, oldFashioned].map((r) => [r.id, r]),
+)
 
 describe('normIngredient', () => {
   it('collapses casing, qualifiers and parentheticals', () => {
@@ -115,5 +134,33 @@ describe('makeableIds + missingBottles', () => {
       'Sweet Vermouth',
     ])
     expect(missingBottles(daiquiri, new Set([normIngredient('White rum')]), byId, true)).toEqual([])
+  })
+})
+
+describe('category substitution', () => {
+  it('a generic rum satisfies a "White rum" call', () => {
+    const genericRum = new Set([normIngredient('rum')])
+    expect(canMake(daiquiri, genericRum, byId, true)).toBe(true)
+  })
+
+  it('a whiskey brand satisfies a "bourbon" call', () => {
+    const woodford = new Set([normIngredient('Woodford Reserve')])
+    expect(canMake(oldFashioned, woodford, byId, true)).toBe(true)
+  })
+
+  it('does not substitute non-base-spirit categories (Campari ≠ Chartreuse)', () => {
+    // stocking Campari (liqueur) must not make a Negroni that also needs gin/vermouth
+    const campariOnly = new Set([normIngredient('Campari')])
+    expect(canMake(negroni, campariOnly, byId, true)).toBe(false)
+  })
+
+  it('reports what is covered only by substitution, not exact stock', () => {
+    expect(categorySubstitutions(daiquiri, new Set([normIngredient('rum')]), true)).toEqual([
+      { required: 'White rum', usingCategory: 'rum' },
+    ])
+    // exact bottle stocked → no substitution reported
+    expect(
+      categorySubstitutions(daiquiri, new Set([normIngredient('White rum')]), true),
+    ).toEqual([])
   })
 })

@@ -23,23 +23,48 @@
   border-radius: 50%;
 }
 
-.headTitle {
+.barSelect {
+  flex: 1;
+  min-width: 0;
+  margin: 0 8px;
+  padding: 8px 10px;
+  text-align: center;
+  text-align-last: center;
   font-weight: 700;
+  font-size: 16px;
   color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
-.headSpacer {
-  width: 44px;
+.barActions {
+  display: flex;
+  gap: 16px;
+  margin: 0 0 16px;
+  padding: 0 2px;
+}
+
+.barAction {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.barActionDanger {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
 }
 
 .body {
   padding: 16px 18px calc(var(--safe-bottom) + 40px);
 }
 
-.intro {
+.summary {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
   background: var(--bg-card);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
@@ -47,17 +72,29 @@
   margin-bottom: 14px;
 }
 
-.introIcon {
+.summaryIcon {
   flex: 0 0 auto;
   color: var(--accent);
-  margin-top: 2px;
 }
 
-.intro p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-dim);
+.summaryText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.summaryCount {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.summaryHint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
 }
 
 .staplesRow {
@@ -155,23 +192,79 @@
   font-size: 14px;
 }
 
-.count {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 6px 0 10px;
-}
-
 .clear {
+  flex: 0 0 auto;
   color: var(--danger);
   font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
   font-size: 13px;
+}
+
+.group {
+  margin-top: 14px;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 4px;
+  color: var(--text);
+}
+
+.groupEmoji {
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.groupLabel {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.groupCount {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.groupChevron {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 12px;
+  width: 14px;
+  text-align: center;
+}
+
+.scanRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.scanRow:disabled {
+  opacity: 0.6;
+}
+
+.scanError {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 0 0 12px;
 }
 
 .empty {
@@ -181,11 +274,91 @@
   text-align: center;
 }
 
+/* Scan review sheet */
+.sheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  padding: 18px 18px calc(var(--safe-bottom) + 18px);
+}
+
+.sheetTitle {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sheetHint {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.sheetList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sheetTag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.sheetActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.sheetGhost {
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.sheetSolid {
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.sheetSolid:disabled {
+  opacity: 0.5;
+}
+
 .list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 6px;
 }
 
 .item {

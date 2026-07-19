@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { mapGeminiRecipe, type GeminiRecipe } from './gemini'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  GeminiError,
+  dedupeBottles,
+  geminiIdentifyBottles,
+  mapGeminiRecipe,
+  type GeminiRecipe,
+} from './gemini'
 
 const SAMPLE: GeminiRecipe = {
   name: 'Whiskey Sour',
@@ -113,5 +119,73 @@ describe('mapGeminiRecipe — standalone syrup', () => {
     expect(r.main.kind).toBe('component')
     expect(r.main.measureBasis).toBe('parts')
     expect(r.main.spirit).toBeUndefined()
+  })
+})
+
+describe('dedupeBottles', () => {
+  it('dedupes by normalized name and lets our categorizer win', () => {
+    const out = dedupeBottles([
+      { name: 'Woodford Reserve', category: 'bourbon' }, // categorizer -> whiskey
+      { name: 'woodford reserve' }, // duplicate, dropped
+      { name: 'Some Amaro' }, // categorizer -> liqueur
+      { name: '' }, // dropped
+    ])
+    expect(out).toHaveLength(2)
+    expect(out[0]).toEqual({ name: 'Woodford Reserve', category: 'whiskey' })
+    expect(out[1]).toEqual({ name: 'Some Amaro', category: 'liqueur' })
+  })
+
+  it('keeps the model category when the categorizer cannot classify', () => {
+    expect(dedupeBottles([{ name: 'Mystery Bottle', category: 'gin' }])).toEqual([
+      { name: 'Mystery Bottle', category: 'gin' },
+    ])
+  })
+})
+
+describe('geminiIdentifyBottles', () => {
+  const IMG = 'data:image/jpeg;base64,QUJD'
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubFetch(payload: unknown, ok = true, status = 200) {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit): Promise<Response> =>
+        ({
+          ok,
+          status,
+          text: async () => '',
+          json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }] }),
+        }) as unknown as Response,
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('sends image inlineData parts and returns deduped bottles', async () => {
+    const fetchMock = stubFetch({ bottles: [{ name: 'Tanqueray' }, { name: 'Tanqueray' }] })
+    const out = await geminiIdentifyBottles([IMG], 'key')
+    expect(out).toEqual([{ name: 'Tanqueray', category: 'gin' }])
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    const body = JSON.parse(init.body as string)
+    const parts = body.contents[0].parts
+    expect(
+      parts.some(
+        (p: { inlineData?: { mimeType: string; data: string } }) =>
+          p.inlineData?.mimeType === 'image/jpeg' && p.inlineData?.data === 'QUJD',
+      ),
+    ).toBe(true)
+  })
+
+  it('throws GeminiError with no api key or no images', async () => {
+    await expect(geminiIdentifyBottles([IMG], '')).rejects.toBeInstanceOf(GeminiError)
+    await expect(geminiIdentifyBottles([], 'key')).rejects.toBeInstanceOf(GeminiError)
+  })
+
+  it('surfaces a rate-limit error', async () => {
+    stubFetch({}, false, 429)
+    await expect(geminiIdentifyBottles([IMG], 'key')).rejects.toThrow(/rate limit/)
   })
 })

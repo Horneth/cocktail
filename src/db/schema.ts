@@ -96,11 +96,22 @@ export interface Recipe {
 }
 
 /**
- * One bottle/ingredient the user has in their bar ("My Bar" inventory).
- * `name` is the normalized match key (primary key); `label` keeps the nice
- * casing they saw when adding it.
+ * A named bar/inventory. Users keep "My Bar" plus any others (a friend's place,
+ * a travel kit). Exactly one is "active" at a time (tracked in localStorage).
+ */
+export interface Bar {
+  id: string
+  name: string
+  createdAt: number
+}
+
+/**
+ * One bottle/ingredient in a specific bar. `name` is the normalized match key,
+ * unique *within a bar* — the store's primary key is the compound
+ * `[barId+name]`. `label` keeps the nice casing the user saw when adding it.
  */
 export interface PantryItem {
+  barId: string
   name: string
   label: string
   addedAt: number

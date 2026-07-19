@@ -166,3 +166,73 @@ export async function countUsage(recipeId: string): Promise<number> {
   const links = await db.recipeLinks.where('childId').equals(recipeId).toArray()
   return new Set(links.map((l) => l.parentId)).size
 }
+
+export interface MergeResult {
+  /** how many parent recipes were repointed from the merged-away component */
+  rewiredParents: number
+}
+
+/** Is `candidateId` reachable as a sub-recipe descendant of `rootId`? (cycle guard) */
+async function isDescendant(rootId: string, candidateId: string): Promise<boolean> {
+  const seen = new Set<string>()
+  const stack = [rootId]
+  while (stack.length) {
+    const id = stack.pop() as string
+    if (seen.has(id)) continue
+    seen.add(id)
+    const children = await db.recipeLinks.where('parentId').equals(id).toArray()
+    for (const l of children) {
+      if (l.childId === candidateId) return true
+      stack.push(l.childId)
+    }
+  }
+  return false
+}
+
+/**
+ * Merge component `fromId` into `toId`: every recipe that referenced `from` as a
+ * sub-recipe is repointed to `to`, links are rebuilt, and `from` is deleted.
+ * Use to fold a near-duplicate syrup ("Semi Rich Simple Syrup") into the one the
+ * user wants to keep. Both must be components. Runs in one transaction.
+ */
+export async function mergeComponents(fromId: string, toId: string): Promise<MergeResult> {
+  if (fromId === toId) return { rewiredParents: 0 }
+
+  return db.transaction('rw', db.recipes, db.recipeLinks, async () => {
+    const from = await db.recipes.get(fromId)
+    const to = await db.recipes.get(toId)
+    if (!from || !to) throw new Error('Both components must exist to merge.')
+    if (from.kind !== 'component' || to.kind !== 'component') {
+      throw new Error('Only sub-recipe components can be merged.')
+    }
+    // Guard against creating a cycle: if `to` already sits under `from`, merging
+    // would make the survivor reference itself through the rewired parents.
+    if (await isDescendant(fromId, toId)) {
+      throw new Error('Cannot merge a component into one of its own sub-recipes.')
+    }
+
+    const parentLinks = await db.recipeLinks.where('childId').equals(fromId).toArray()
+    const parentIds = [...new Set(parentLinks.map((l) => l.parentId))]
+
+    let rewiredParents = 0
+    for (const pid of parentIds) {
+      const parent = await db.recipes.get(pid)
+      if (!parent) continue
+      const ingredients = parent.ingredients.map((i) =>
+        i.subRecipeId === fromId ? { ...i, subRecipeId: toId } : i,
+      )
+      await db.recipes.update(pid, { ingredients })
+      // Rebuild this parent's links from its (now-repointed) ingredients.
+      await db.recipeLinks.where('parentId').equals(pid).delete()
+      await db.recipeLinks.bulkPut(linksForRecipe({ ...parent, ingredients }))
+      rewiredParents++
+    }
+
+    // Drop the merged-away component and any of its own link rows.
+    await db.recipes.delete(fromId)
+    await db.recipeLinks.where('parentId').equals(fromId).delete()
+    await db.recipeLinks.where('childId').equals(fromId).delete()
+
+    return { rewiredParents }
+  })
+}

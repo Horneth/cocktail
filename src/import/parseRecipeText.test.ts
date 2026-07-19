@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseRecipeText } from './parseRecipeText'
 
-// A realistic Anders-Erickson-style description: title, ingredient lines with
+// A realistic video-description style: title, ingredient lines with
 // mixed amount formats, a topper with no amount, a garnish line, a labelled
 // sub-recipe with a ratio, and trailing noise (chapters, gear, socials).
 const TOM_COLLINS = `The Tom Collins is a refreshing classic. Here's how I make mine.

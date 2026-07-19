@@ -62,25 +62,28 @@ src/
   domain/         Pure, framework-free logic — unit-tested, no React, no Dexie imports
     scaling.ts    Serving rescale + per-ingredient nudge (non-destructive)
     units.ts      oz⇄ml conversion, bar-fraction rendering (¾ oz)
-    availability.ts  "Can I make this?" matching against My Bar (staples + recursion)
+    availability.ts  "Can I make this?" matching (staples + recursion + category substitution)
+    spiritCategory.ts  categoryForName() — infers a spirit category from a bottle name (brands too)
     spirits.ts    Spirit tile metadata, known-spirit order, generated art for custom spirits
     search.ts     Recipe text search
-    pantry.ts     My Bar add/remove helpers
+    pantry.ts     Bar-scoped bottle add/remove helpers (take a barId)
+    bars.ts       Bar CRUD + ensureDefaultBar()
+    textNormalize.ts  normalizeComponentName() + duplicateComponentGroups() (dedup/merge)
     recipeSummary.ts  Short ingredient summaries for cards
     recipeActions.ts  deleteRecipeWithConfirm (thin wrapper over import/importRecipe)
     ids.ts        newId()
 
   import/         The single write seam for bulk recipe creation
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (tempId-based links)
-    importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage()
+    importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents()
     parseRecipeText.ts  Offline heuristic parser (pasted description → StructuredImport)
-    gemini.ts     Optional BYO-key Gemini "smart parse" (flag-gated, client-side)
+    gemini.ts     Optional BYO-key Gemini "smart parse" + geminiIdentifyBottles() vision (flag-gated)
+    image.ts      Browser canvas downscale + data-URL split for the photo scan
     shared.ts     Android share-target stash/consume helpers
-    parsers/      Channel-specific parsing (andersErickson.ts)
 
   hooks/
-    useRecipes.ts   useLiveQuery-based reads (useCocktails, useRecipe, useBacklinks, usePantry, …)
-    useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, Gemini key/model)
+    useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useActiveBar, …)
+    useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId, Gemini key/model)
 
   screens/        One component per route (+ co-located *.module.css)
     HomeScreen, BrowseScreen, RecipeDetailScreen, EditRecipeScreen,
@@ -120,6 +123,12 @@ Only **indexed** fields are declared in `db.ts`; full objects are stored as JSON
 regardless. New optional fields (e.g. `source`) drop into the type with **no
 schema bump / no migration**. Add a store or index only via a new
 `this.version(N).stores({...})` block — this keeps existing user data intact.
+**v3** is the one real migration: multi-bar support moved bottles from the old
+single `pantry` store (keyed on bare `name`) into a new bar-scoped `bottles`
+store (compound key `[barId+name]`). IndexedDB can't re-key a store in place, so
+the `.upgrade()` copies rows into `bottles` under a default "My Bar" and leaves
+the dead `pantry` store untouched; fresh installs (which skip the upgrade) get
+their default bar from `ensureDefaultBar()` at boot.
 
 ### State = the database
 There is no separate app state store. Read data with the `useLiveQuery` hooks in
@@ -134,12 +143,40 @@ mutate the stored `Ingredient.amount` — the original is preserved until the us
 explicitly taps *Save to recipe*. Keep this invariant: `amount` is the authored
 value; scaling is a display transform.
 
-### My Bar / "what can I make"
-`domain/availability.ts` matches a recipe's ingredients against the user's bar
-(a set of normalized names). Two rules keep it usable: an **assume-staples**
-switch (on by default) treats water/ice/citrus/sugar/sodas/garnishes/egg and any
-no-amount garnish line as on-hand, and **sub-recipes recurse** (you can make a
-drink if you can make its syrup). Matching keys go through `normIngredient()`.
+### Bars / "what can I make"
+Users keep **multiple named bars** (My Bar, a friend's place, …) with exactly one
+**active** at a time. Bars live in the `bars` store; bottles are scoped by `barId`
+in `bottles`. The active bar id is in localStorage (`useActiveBarId`), resolved to
+a real bar (falling back to the first) by `useActiveBar()`. All pantry mutations
+(`domain/pantry.ts`) and `usePantry()` take a `barId`; Home/Browse/Detail read the
+active bar's `have` set — the availability logic itself is bar-agnostic.
+
+`domain/availability.ts` matches a recipe's ingredients against that set. Three
+rules keep it usable: an **assume-staples** switch (on by default, global) treats
+water/ice/citrus/sugar/sodas/garnishes/egg and any no-amount garnish line as
+on-hand; **sub-recipes recurse** (you can make a drink if you can make its syrup);
+and **category substitution** — a generic bottle covers a specific call ("Jamaican
+rum" is satisfied by any rum). Only base-spirit families in `MATCHABLE_CATEGORIES`
+(from `spiritCategory.ts`) substitute — a Campari must never stand in for a
+Chartreuse. Matching keys go through `normIngredient()`; category inference (also
+used to group the Bar screen and label scanned bottles) goes through
+`categoryForName()`.
+
+### Photo → bar (Gemini vision)
+"Scan my shelf" on the Bar screen downscales photos client-side (`import/image.ts`)
+and sends them to `geminiIdentifyBottles()`, which reuses the same BYO-key endpoint,
+schema, and error/timeout handling as smart-parse (just with `inlineData` image
+parts + a bottle-list `responseSchema`). Results dedupe (our `categoryForName()`
+wins on category) into a review sheet, then land in the active bar via
+`bulkAddPantry`. Gated on `FEATURES.cloudAI` + the user's key.
+
+### Merging duplicate components
+Imports can create near-duplicate syrups (a hand-added "Simple Syrup" plus an
+imported "Semi Rich Simple Syrup"). `mergeComponents(fromId, toId)` (in the import
+seam) repoints every parent's `subRecipeId`, rebuilds `recipeLinks`, and deletes
+the loser in one transaction (with a cycle guard). Surfaced as a "Duplicate?" merge
+picker on a component's detail screen. `normalizeComponentName()` /
+`duplicateComponentGroups()` (`domain/textNormalize.ts`) detect likely dupes.
 
 ### Spirits are free-form
 `Recipe.spirit` is an open string. `domain/spirits.ts` ships metadata (label,
@@ -147,13 +184,14 @@ emoji, gradient) for known spirits and **generates deterministic tile art** for
 anything else, so a custom spirit (cachaça, pisco, sake) gets its own mosaic tile
 without code changes. `'none'` is the sentinel for "no base spirit".
 
-### Optional Gemini "smart parse" — flag-gated, BYO-key
-An opt-in AI parse path (`src/import/gemini.ts`, wired in `SettingsScreen` /
-`ImportScreen`) uses a **user-supplied** Gemini key stored **only in
-localStorage** — never committed, never sent anywhere but Google's API. It is a
-**kill switch**: set `FEATURES.cloudAI = false` in `src/config.ts` and redeploy to
-remove every AI entry point. When touching AI code, keep it isolated behind that
-flag and never introduce a repo-side secret or backend.
+### Optional Gemini AI — flag-gated, BYO-key
+Two opt-in AI paths live in `src/import/gemini.ts`: **smart parse** (description →
+recipes, wired in `ImportScreen`) and **shelf scan** (`geminiIdentifyBottles`,
+photos → bottles, wired in `BarScreen`). Both use a **user-supplied** Gemini key
+stored **only in localStorage** — never committed, never sent anywhere but
+Google's API. `FEATURES.cloudAI = false` in `src/config.ts` is a **kill switch**
+that removes every AI entry point. When touching AI code, keep it isolated behind
+that flag and never introduce a repo-side secret or backend.
 
 ### Error resilience
 `components/ErrorBoundary.tsx` wraps the router outlet and resets on route change,

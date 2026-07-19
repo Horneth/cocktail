@@ -1,9 +1,10 @@
 import type { SpiritCategory, Unit } from '../db/schema'
+import { normalizeComponentName } from '../domain/textNormalize'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
 
-// Heuristic parser: turns a pasted video description (tuned for the Anders
-// Erickson channel's format, but general) into a StructuredImport — the main
-// cocktail plus any sub-recipes (syrups/cordials), cross-linked by name.
+// Heuristic parser: turns any pasted recipe / video description into a
+// StructuredImport — the main cocktail plus any sub-recipes (syrups/cordials),
+// cross-linked by name.
 //
 // It is deliberately forgiving and never throws on messy input; whatever it
 // can't classify is dropped, and the Import screen shows an editable preview
@@ -215,16 +216,6 @@ function tempId(prefix: string): string {
   return `${prefix}-${counter}`
 }
 
-function normalize(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, '') // drop "(1.5:1)"
-    .replace(/\b(semi-?rich|rich|fresh|homemade|cold|hot|pure)\b/g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 function detectSpirit(main: RecipeDraft): SpiritCategory | undefined {
   const hay = [main.name, ...main.ingredients.map((i) => i.name)].join(' ')
   for (const [re, spirit] of SPIRIT_HINTS) if (re.test(hay)) return spirit
@@ -319,9 +310,9 @@ export function parseRecipeText(text: string): ParseResult {
   }
 
   // cross-link main ingredients to components by name
-  const compByName = new Map(components.map((c) => [normalize(c.name), c]))
+  const compByName = new Map(components.map((c) => [normalizeComponentName(c.name), c]))
   for (const ing of main.ingredients) {
-    const key = normalize(ing.name)
+    const key = normalizeComponentName(ing.name)
     let match = compByName.get(key)
     if (!match) {
       for (const [cname, c] of compByName) {
@@ -339,7 +330,7 @@ export function parseRecipeText(text: string): ParseResult {
   main.spirit = detectSpirit(main)
 
   const src = findSourceUrl(text)
-  main.source = { type: src.url ? 'youtube' : 'web', ...src, channel: 'Anders Erickson' }
+  main.source = { type: src.url ? 'youtube' : 'web', ...src }
 
   const ok = main.name.trim() !== '' && main.ingredients.length > 0
   if (!main.name) main.name = 'Imported cocktail'

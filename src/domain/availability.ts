@@ -1,14 +1,19 @@
 import type { Recipe } from '../db/schema'
+import { MATCHABLE_CATEGORIES, categoryForName } from './spiritCategory'
 
 // "Can I make this right now?" — matches a recipe's ingredients against the
 // user's bar inventory (a set of normalized ingredient names).
 //
-// Two ideas keep it useful without forcing you to tick every lime:
+// Three ideas keep it useful without forcing you to tick every lime:
 //  1. `assumeStaples` (default on): common non-alcoholic basics — water, ice,
 //     citrus, sugar, sodas, garnishes, egg — and any garnish/topper line (no
 //     amount) are assumed on hand, so the bar only needs your *bottles*.
 //  2. Sub-recipes recurse: a cocktail that needs Simple Syrup is makeable if you
 //     have the syrup OR can make it from what's available.
+//  3. Category substitution: a generic bottle covers a more specific call — any
+//     rum satisfies "Jamaican rum", any whiskey satisfies "Woodford Reserve".
+//     Only base-spirit families substitute (see MATCHABLE_CATEGORIES); a Campari
+//     must never stand in for a Chartreuse.
 
 /** Normalize an ingredient/bottle name to a stable match key. */
 export function normIngredient(name: string): string {
@@ -50,8 +55,26 @@ export function isStaple(normName: string): boolean {
 
 interface Ctx {
   have: Set<string>
+  /** matchable spirit categories the user stocks (derived from `have`) */
+  haveCategories: Set<string>
   byId: Map<string, Recipe>
   assumeStaples: boolean
+}
+
+/** The matchable spirit categories represented in a bar (e.g. a stocked rum → 'rum'). */
+function categoriesOf(have: Set<string>): Set<string> {
+  const cats = new Set<string>()
+  for (const name of have) {
+    const cat = categoryForName(name)
+    if (cat && MATCHABLE_CATEGORIES.has(cat)) cats.add(cat)
+  }
+  return cats
+}
+
+/** Whether a stocked bottle covers this ingredient by category substitution. */
+function coveredByCategory(name: string, haveCategories: Set<string>): boolean {
+  const cat = categoryForName(name)
+  return !!cat && MATCHABLE_CATEGORIES.has(cat) && haveCategories.has(cat)
 }
 
 function makeable(recipe: Recipe, ctx: Ctx, visited: Set<string>): boolean {
@@ -62,6 +85,8 @@ function makeable(recipe: Recipe, ctx: Ctx, visited: Set<string>): boolean {
     const norm = normIngredient(ing.name)
     if (ctx.assumeStaples && (ing.amount === null || isStaple(norm))) continue
     if (ctx.have.has(norm)) continue
+    // A generic bottle of the same base spirit covers a more specific call.
+    if (coveredByCategory(ing.name, ctx.haveCategories)) continue
     // A sub-recipe you don't have a bottle of is still fine if you can make it.
     if (ing.subRecipeId) {
       const sub = ctx.byId.get(ing.subRecipeId)
@@ -79,7 +104,7 @@ export function canMake(
   byId: Map<string, Recipe>,
   assumeStaples: boolean,
 ): boolean {
-  return makeable(recipe, { have, byId, assumeStaples }, new Set())
+  return makeable(recipe, { have, haveCategories: categoriesOf(have), byId, assumeStaples }, new Set())
 }
 
 /** The subset of `recipes` that are makeable now (byId should include sub-recipes). */
@@ -89,7 +114,7 @@ export function makeableIds(
   have: Set<string>,
   assumeStaples: boolean,
 ): Set<string> {
-  const ctx: Ctx = { have, byId: allById, assumeStaples }
+  const ctx: Ctx = { have, haveCategories: categoriesOf(have), byId: allById, assumeStaples }
   const out = new Set<string>()
   for (const r of recipes) if (makeable(r, ctx, new Set())) out.add(r.id)
   return out
@@ -105,13 +130,14 @@ export function missingBottles(
   byId: Map<string, Recipe>,
   assumeStaples: boolean,
 ): string[] {
-  const ctx: Ctx = { have, byId, assumeStaples }
+  const ctx: Ctx = { have, haveCategories: categoriesOf(have), byId, assumeStaples }
   const missing: string[] = []
   for (const ing of recipe.ingredients ?? []) {
     if (ing.optional) continue
     const norm = normIngredient(ing.name)
     if (assumeStaples && (ing.amount === null || isStaple(norm))) continue
     if (have.has(norm)) continue
+    if (coveredByCategory(ing.name, ctx.haveCategories)) continue
     if (ing.subRecipeId) {
       const sub = byId.get(ing.subRecipeId)
       if (sub && makeable(sub, ctx, new Set())) continue
@@ -119,4 +145,36 @@ export function missingBottles(
     missing.push(ing.name)
   }
   return missing
+}
+
+export interface Substitution {
+  /** the specific ingredient the recipe calls for */
+  required: string
+  /** the base-spirit category the user's bottle covers it with */
+  usingCategory: string
+}
+
+/**
+ * Top-level ingredients that are only satisfied by category substitution — i.e.
+ * the user doesn't have the exact bottle but has a generic one of the same base
+ * spirit. Powers a subtle "using your rum" note on the recipe screen.
+ */
+export function categorySubstitutions(
+  recipe: Recipe,
+  have: Set<string>,
+  assumeStaples: boolean,
+): Substitution[] {
+  const haveCategories = categoriesOf(have)
+  const out: Substitution[] = []
+  for (const ing of recipe.ingredients ?? []) {
+    if (ing.optional) continue
+    const norm = normIngredient(ing.name)
+    if (assumeStaples && (ing.amount === null || isStaple(norm))) continue
+    if (have.has(norm)) continue // exact bottle — no substitution
+    const cat = categoryForName(ing.name)
+    if (cat && MATCHABLE_CATEGORIES.has(cat) && haveCategories.has(cat)) {
+      out.push({ required: ing.name, usingCategory: cat })
+    }
+  }
+  return out
 }

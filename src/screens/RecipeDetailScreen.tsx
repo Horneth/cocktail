@@ -5,11 +5,12 @@ import { ServingStepper } from '../components/ServingStepper'
 import { ChevronLeftIcon, EditIcon, FlaskIcon, HeartIcon, PlusIcon } from '../components/icons'
 import type { Ingredient, Recipe } from '../db/schema'
 import { scaleFactor, type ScaleSettings } from '../domain/scaling'
+import { categorySubstitutions } from '../domain/availability'
 import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
-import { saveRecipe, setFavorite } from '../import/importRecipe'
-import { useBacklinks, useRecipe } from '../hooks/useRecipes'
-import { useVolumePreference } from '../hooks/useSettings'
+import { mergeComponents, saveRecipe, setFavorite } from '../import/importRecipe'
+import { useActiveBar, useBacklinks, useComponents, usePantry, useRecipe } from '../hooks/useRecipes'
+import { useAssumeStaples, useVolumePreference } from '../hooks/useSettings'
 import styles from './RecipeDetailScreen.module.css'
 
 const PART_PRESETS: { label: string; ml: number | undefined }[] = [
@@ -25,7 +26,18 @@ export function RecipeDetailScreen() {
   const recipe = useRecipe(id)
   const navigate = useNavigate()
   const [pref, togglePref] = useVolumePreference()
+  const { barId } = useActiveBar()
+  const { have } = usePantry(barId)
+  const [assumeStaples] = useAssumeStaples()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // Bottles the user covers only by substitution (has a generic rum, recipe
+  // calls for a specific one) — surfaced as a subtle "using your rum" note.
+  const substitutions = useMemo(
+    () => (recipe && recipe.kind === 'cocktail' ? categorySubstitutions(recipe, have, assumeStaples) : []),
+    [recipe, have, assumeStaples],
+  )
+  const usingCategories = [...new Set(substitutions.map((s) => s.usingCategory))]
 
   const [overrides, setOverrides] = useState<Map<string, Override>>(new Map())
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -147,6 +159,9 @@ export function RecipeDetailScreen() {
         )}
         <h1 className={styles.title}>{recipe.name}</h1>
         {metaBits.length > 0 && <p className={styles.meta}>{metaBits.join(' · ')}</p>}
+        {usingCategories.length > 0 && (
+          <p className={styles.subNote}>Using your {usingCategories.join(', ')}</p>
+        )}
       </div>
 
       {recipe.measureBasis === 'parts' ? (
@@ -218,6 +233,8 @@ export function RecipeDetailScreen() {
 
       {isComponent && <UsedIn recipeId={recipe.id} />}
 
+      {isComponent && <MergeInto recipe={recipe} />}
+
       <NotesSection notes={recipe.notes} onAdd={addNote} onRemove={removeNote} />
 
       <div className={styles.bottomSpace} />
@@ -237,6 +254,72 @@ function UsedIn({ recipeId }: { recipeId: string }) {
             {p.name}
           </Link>
         ))}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Fold this component into another one (duplicate cleanup). Every cocktail that
+ * referenced this syrup gets repointed to the survivor, then this record is
+ * deleted. Shown only for components.
+ */
+function MergeInto({ recipe }: { recipe: Recipe }) {
+  const components = useComponents()
+  const navigate = useNavigate()
+  const [targetId, setTargetId] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const others = (components ?? []).filter((c) => c.id !== recipe.id)
+  if (others.length === 0) return null
+
+  const merge = async () => {
+    const target = others.find((c) => c.id === targetId)
+    if (!target || busy) return
+    if (
+      !confirm(
+        `Merge “${recipe.name}” into “${target.name}”? Recipes using “${recipe.name}” will point at “${target.name}”, and “${recipe.name}” will be deleted.`,
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    try {
+      await mergeComponents(recipe.id, target.id)
+      navigate(`/recipe/${target.id}`, { replace: true })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not merge.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.h2}>Duplicate?</h2>
+      <p className={styles.mergeHint}>
+        If this is the same as another sub-recipe, merge it in — everything that
+        uses it will point at the one you keep.
+      </p>
+      <div className={styles.mergeRow}>
+        <select
+          className={styles.mergeSelect}
+          value={targetId}
+          onChange={(e) => setTargetId(e.target.value)}
+        >
+          <option value="">Merge into…</option>
+          {others.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <button
+          className={styles.mergeBtn}
+          disabled={!targetId || busy}
+          onClick={() => void merge()}
+        >
+          {busy ? 'Merging…' : 'Merge'}
+        </button>
       </div>
     </section>
   )
