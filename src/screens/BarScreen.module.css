@@ -36,10 +36,10 @@
   padding: 16px 18px calc(var(--safe-bottom) + 40px);
 }
 
-.intro {
+.summary {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
   background: var(--bg-card);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
@@ -47,17 +47,29 @@
   margin-bottom: 14px;
 }
 
-.introIcon {
+.summaryIcon {
   flex: 0 0 auto;
   color: var(--accent);
-  margin-top: 2px;
 }
 
-.intro p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-dim);
+.summaryText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.summaryCount {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.summaryHint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
 }
 
 .staplesRow {
@@ -155,23 +167,53 @@
   font-size: 14px;
 }
 
-.count {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 6px 0 10px;
-}
-
 .clear {
+  flex: 0 0 auto;
   color: var(--danger);
   font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
   font-size: 13px;
+}
+
+.group {
+  margin-top: 14px;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 4px;
+  color: var(--text);
+}
+
+.groupEmoji {
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.groupLabel {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.groupCount {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.groupChevron {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 12px;
+  width: 14px;
+  text-align: center;
 }
 
 .empty {
@@ -186,6 +228,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 6px;
 }
 
 .item {
