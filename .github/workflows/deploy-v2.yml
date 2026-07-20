@@ -1,0 +1,85 @@
+name: Deploy v2 preview (side-by-side) to GitHub Pages
+
+# Publishes BOTH apps in a single Pages artifact so they live together:
+#   https://<owner>.github.io/cocktail/      → current production app
+#   https://<owner>.github.io/cocktail/v2/   → this v2 redesign
+#
+# GitHub Pages (Actions source) replaces the whole site on every deploy, so a
+# v2-only deploy would delete the production app. To avoid that, this job also
+# rebuilds production from its own branch and nests v2 underneath it.
+#
+# Caveat: a later push to the production branch runs the *other* workflow, which
+# deploys production alone and removes /cocktail/v2/. Re-run this workflow
+# (Actions → this workflow → "Run workflow") to restore the v2 preview.
+
+on:
+  push:
+    branches: [v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # ── Production app → /cocktail/ ────────────────────────────────────
+      - name: Check out production branch
+        uses: actions/checkout@v4
+        with:
+          ref: claude/cocktail-recipe-app-zf5owl
+          path: prod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: prod/package-lock.json
+      - name: Build production app
+        working-directory: prod
+        run: npm ci && npm run build
+        env:
+          BASE_PATH: /cocktail/
+
+      # ── v2 redesign → /cocktail/v2/ ────────────────────────────────────
+      - name: Check out v2 branch
+        uses: actions/checkout@v4
+        with:
+          ref: v2
+          path: v2
+      - name: Build v2 app
+        working-directory: v2
+        run: npm ci && npm run build
+        env:
+          BASE_PATH: /cocktail/v2/
+
+      # ── Combine into one site ──────────────────────────────────────────
+      - name: Assemble combined site
+        run: |
+          mkdir -p site
+          cp -r prod/dist/. site/
+          mkdir -p site/v2
+          cp -r v2/dist/. site/v2/
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

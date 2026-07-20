@@ -20,8 +20,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Nightcap — Home Bar',
-        short_name: 'Nightcap',
+        name: 'Cocktails',
+        short_name: 'Cocktails',
         description: 'Catalogue cocktails and the bottles you own — see what you can pour right now. Offline, instant, yours.',
         theme_color: '#F6F4EF',
         background_color: '#F6F4EF',
