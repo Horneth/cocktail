@@ -4,6 +4,8 @@ import { ChevronLeftIcon, FlaskIcon, PlusIcon, TrashIcon } from '../components/i
 import { db } from '../db/db'
 import type { Ingredient, MeasureBasis, Recipe, RecipeKind, Unit } from '../db/schema'
 import { newId } from '../domain/ids'
+import { KNOWN_SPIRITS } from '../domain/spirits'
+import { spiritVisual } from '../domain/spiritVisual'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
 import {
@@ -67,10 +69,8 @@ export function EditRecipeScreen() {
         ? { ...f, ingredients: f.ingredients.map((i) => (i.id === ingId ? { ...i, ...patch } : i)) }
         : f,
     )
-
   const addRow = () =>
     setForm((f) => (f ? { ...f, ingredients: [...f.ingredients, blankIngredient()] } : f))
-
   const removeRow = (ingId: string) =>
     setForm((f) => (f ? { ...f, ingredients: f.ingredients.filter((i) => i.id !== ingId) } : f))
 
@@ -100,27 +100,28 @@ export function EditRecipeScreen() {
   }
 
   const isComponent = form.kind === 'component'
+  const currentSpirit = form.spirit?.trim().toLowerCase()
 
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <button className={styles.iconBtn} aria-label="Cancel" onClick={() => navigate(-1)}>
-          <ChevronLeftIcon size={26} />
+        <button className={styles.back} aria-label="Cancel" onClick={() => navigate(-1)}>
+          <ChevronLeftIcon size={20} />
         </button>
-        <span className={styles.headTitle}>{isNew ? 'New recipe' : 'Edit'}</span>
-        <button className={styles.saveBtn} disabled={!canSave} onClick={onSave}>
-          Save
-        </button>
+        <h1 className={styles.title}>{isNew ? 'New recipe' : 'Edit recipe'}</h1>
       </header>
 
       <div className={styles.body}>
-        <input
-          className={styles.nameInput}
-          value={form.name}
-          onChange={(e) => update({ name: e.target.value })}
-          placeholder={isComponent ? 'Syrup name…' : 'Cocktail name…'}
-          autoFocus={isNew}
-        />
+        <label className={styles.label}>Name</label>
+        <div className={styles.inputCard}>
+          <input
+            className={styles.nameInput}
+            value={form.name}
+            onChange={(e) => update({ name: e.target.value })}
+            placeholder={isComponent ? 'e.g. Rich Simple Syrup' : 'e.g. Midnight Sour'}
+            autoFocus={isNew}
+          />
+        </div>
 
         <div className={styles.segment}>
           {(['cocktail', 'component'] as RecipeKind[]).map((k) => (
@@ -136,7 +137,27 @@ export function EditRecipeScreen() {
           ))}
         </div>
 
-        {/* measure basis */}
+        {!isComponent && (
+          <>
+            <label className={styles.label}>Base spirit</label>
+            <div className={`${styles.chipRow} hg-scroll`}>
+              {KNOWN_SPIRITS.map((k) => {
+                const v = spiritVisual(k)
+                return (
+                  <button
+                    key={k}
+                    className={`${styles.spiritChip} ${currentSpirit === k ? styles.spiritChipOn : ''}`}
+                    onClick={() => update({ spirit: currentSpirit === k ? undefined : k })}
+                  >
+                    <span className={styles.spiritEmoji}>{v.emoji}</span>
+                    {v.label}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+
         <div className={styles.fieldRow}>
           <label className={styles.label}>Measured in</label>
           <div className={styles.segment}>
@@ -152,8 +173,7 @@ export function EditRecipeScreen() {
           </div>
         </div>
 
-        {/* ingredients */}
-        <h2 className={styles.h2}>Ingredients</h2>
+        <label className={styles.label}>Ingredients</label>
         <div className={styles.ingredients}>
           {form.ingredients.map((ing) => (
             <IngredientEditor
@@ -169,15 +189,14 @@ export function EditRecipeScreen() {
           ))}
         </div>
         <button className={styles.addRow} onClick={addRow}>
-          <PlusIcon size={18} /> Add ingredient
+          <PlusIcon size={17} /> Add ingredient
         </button>
 
-        {/* cocktail-only build fields */}
         {!isComponent && (
           <>
-            <h2 className={styles.h2}>Build</h2>
+            <label className={styles.label}>Build</label>
             <div className={styles.grid2}>
-              <Field label="Spirit">
+              <Field label="Spirit (custom)">
                 <input
                   list="spirit-suggestions"
                   value={form.spirit ?? ''}
@@ -223,21 +242,26 @@ export function EditRecipeScreen() {
           </>
         )}
 
-        <h2 className={styles.h2}>Method steps</h2>
-        <textarea
-          className={styles.textarea}
-          rows={4}
-          value={form.instructions ?? ''}
-          onChange={(e) => update({ instructions: e.target.value || undefined })}
-          placeholder="How to build it…"
-        />
+        <label className={styles.label}>Method steps</label>
+        <div className={styles.inputCard}>
+          <textarea
+            className={styles.textarea}
+            rows={4}
+            value={form.instructions ?? ''}
+            onChange={(e) => update({ instructions: e.target.value || undefined })}
+            placeholder="One step per line…"
+          />
+        </div>
 
-        <h2 className={styles.h2}>Tags</h2>
-        <input
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          placeholder="sour, tiki, citrusy (comma-separated)"
-        />
+        <label className={styles.label}>Tags</label>
+        <div className={styles.inputCard}>
+          <input
+            className={styles.nameInput}
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            placeholder="sour, tiki, citrusy (comma-separated)"
+          />
+        </div>
 
         {!isNew && (
           <button className={styles.deleteBtn} onClick={onDelete}>
@@ -246,6 +270,12 @@ export function EditRecipeScreen() {
         )}
         <div className={styles.bottomSpace} />
       </div>
+
+      <div className={styles.ctaWrap}>
+        <button className={`${styles.cta} ${canSave ? '' : styles.ctaOff}`} disabled={!canSave} onClick={onSave}>
+          Save recipe
+        </button>
+      </div>
     </div>
   )
 }
@@ -253,7 +283,7 @@ export function EditRecipeScreen() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className={styles.field}>
-      <span className={styles.label}>{label}</span>
+      <span className={styles.fieldLabel}>{label}</span>
       {children}
     </label>
   )
@@ -303,19 +333,16 @@ function IngredientEditor({
   const exactMatch = components.some(
     (c) => c.name.toLowerCase() === ingredient.name.trim().toLowerCase(),
   )
-
   const showLinkOptions = !partsMode && !ingredient.subRecipeId
 
   const pickName = (name: string) => {
     onChange({ name, subRecipeId: undefined })
     setFocused(false)
   }
-
   const linkTo = (comp: Recipe) => {
     onChange({ name: comp.name, subRecipeId: comp.id })
     setFocused(false)
   }
-
   const makeSubRecipe = async () => {
     const name = ingredient.name.trim()
     if (!name) return
@@ -351,9 +378,7 @@ function IngredientEditor({
           inputMode="decimal"
           step="any"
           value={ingredient.amount ?? ''}
-          onChange={(e) =>
-            onChange({ amount: e.target.value === '' ? null : Number(e.target.value) })
-          }
+          onChange={(e) => onChange({ amount: e.target.value === '' ? null : Number(e.target.value) })}
           placeholder="—"
         />
         <select

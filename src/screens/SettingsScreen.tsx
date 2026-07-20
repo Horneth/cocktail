@@ -14,11 +14,10 @@ export function SettingsScreen() {
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <button className={styles.iconBtn} aria-label="Back" onClick={() => navigate(-1)}>
-          <ChevronLeftIcon size={26} />
+        <button className={styles.back} aria-label="Back" onClick={() => navigate(-1)}>
+          <ChevronLeftIcon size={20} />
         </button>
-        <span className={styles.headTitle}>Settings</span>
-        <span className={styles.spacer} />
+        <h1 className={styles.headTitle}>Settings</h1>
       </header>
 
       <div className={styles.body}>

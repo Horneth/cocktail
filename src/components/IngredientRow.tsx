@@ -18,6 +18,8 @@ interface Props {
   editing: boolean
   onStartEdit: () => void
   onOverride: (value: Override | undefined) => void
+  /** Ownership tick: true = have it, false = missing, undefined = don't show. */
+  owned?: boolean
 }
 
 /** The scaled + preference-converted display amount (before any override). */
@@ -40,6 +42,7 @@ export function IngredientRow({
   editing,
   onStartEdit,
   onOverride,
+  owned,
 }: Props) {
   const base = displayValue(ingredient, scale, pref)
   const shown: { amount: number | null; unit: Unit } = override ?? base
@@ -59,6 +62,30 @@ export function IngredientRow({
 
   return (
     <div className={`${styles.row} ${ingredient.optional ? styles.optional : ''}`}>
+      {owned !== undefined && (
+        <span className={`${styles.tick} ${owned ? styles.tickOn : styles.tickOff}`} aria-hidden>
+          {owned ? '✓' : ''}
+        </span>
+      )}
+
+      <div className={styles.body}>
+        {ingredient.subRecipeId ? (
+          <Link className={styles.linkName} to={`/recipe/${ingredient.subRecipeId}`}>
+            <span>{ingredient.name}</span>
+            <ChevronRightIcon size={16} className={styles.chev} />
+          </Link>
+        ) : (
+          <span className={styles.name}>{ingredient.name}</span>
+        )}
+        {(ingredient.note || ingredient.optional) && (
+          <span className={styles.meta}>
+            {ingredient.note}
+            {ingredient.note && ingredient.optional ? ' · ' : ''}
+            {ingredient.optional ? 'optional' : ''}
+          </span>
+        )}
+      </div>
+
       {editing ? (
         <div className={styles.tweaker}>
           <button className={styles.tweakBtn} aria-label="Less" onClick={() => bump(-1)}>
@@ -87,24 +114,6 @@ export function IngredientRow({
           {isModified && <span className={styles.dot} aria-label="modified" />}
         </button>
       )}
-
-      <div className={styles.body}>
-        {ingredient.subRecipeId ? (
-          <Link className={styles.linkName} to={`/recipe/${ingredient.subRecipeId}`}>
-            <span>{ingredient.name}</span>
-            <ChevronRightIcon size={16} className={styles.chev} />
-          </Link>
-        ) : (
-          <span className={styles.name}>{ingredient.name}</span>
-        )}
-        {(ingredient.note || ingredient.optional) && (
-          <span className={styles.meta}>
-            {ingredient.note}
-            {ingredient.note && ingredient.optional ? ' · ' : ''}
-            {ingredient.optional ? 'optional' : ''}
-          </span>
-        )}
-      </div>
     </div>
   )
 }

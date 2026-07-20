@@ -1,16 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IngredientRow, type Override } from '../components/IngredientRow'
 import { ServingStepper } from '../components/ServingStepper'
-import { ChevronLeftIcon, EditIcon, FlaskIcon, HeartIcon, PlusIcon } from '../components/icons'
+import { ChevronLeftIcon, EditIcon, HeartIcon, PlusIcon } from '../components/icons'
 import type { Ingredient, Recipe } from '../db/schema'
 import { scaleFactor, type ScaleSettings } from '../domain/scaling'
-import { categorySubstitutions } from '../domain/availability'
+import { categorySubstitutions, missingBottles } from '../domain/availability'
 import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
+import { tileKeyForRecipe } from '../domain/spirits'
+import { spiritVisual } from '../domain/spiritVisual'
 import { mergeComponents, saveRecipe, setFavorite } from '../import/importRecipe'
-import { useActiveBar, useBacklinks, useComponents, usePantry, useRecipe } from '../hooks/useRecipes'
-import { useAssumeStaples, useVolumePreference } from '../hooks/useSettings'
+import { useBacklinks, useComponents, useRecipe } from '../hooks/useRecipes'
+import { useVolumePreference } from '../hooks/useSettings'
+import { useAvailability } from '../hooks/useAvailability'
 import styles from './RecipeDetailScreen.module.css'
 
 const PART_PRESETS: { label: string; ml: number | undefined }[] = [
@@ -21,23 +24,28 @@ const PART_PRESETS: { label: string; ml: number | undefined }[] = [
   { label: '100 ml', ml: 100 },
 ]
 
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
 export function RecipeDetailScreen() {
   const { id } = useParams()
   const recipe = useRecipe(id)
   const navigate = useNavigate()
   const [pref, togglePref] = useVolumePreference()
-  const { barId } = useActiveBar()
-  const { have } = usePantry(barId)
-  const [assumeStaples] = useAssumeStaples()
+  const { have, byId, assumeStaples } = useAvailability()
   const [searchParams, setSearchParams] = useSearchParams()
+  const ingredientsRef = useRef<HTMLDivElement>(null)
 
-  // Bottles the user covers only by substitution (has a generic rum, recipe
-  // calls for a specific one) — surfaced as a subtle "using your rum" note.
   const substitutions = useMemo(
     () => (recipe && recipe.kind === 'cocktail' ? categorySubstitutions(recipe, have, assumeStaples) : []),
     [recipe, have, assumeStaples],
   )
   const usingCategories = [...new Set(substitutions.map((s) => s.usingCategory))]
+
+  const missing = useMemo(
+    () => (recipe && recipe.kind === 'cocktail' ? missingBottles(recipe, have, byId, assumeStaples) : []),
+    [recipe, have, byId, assumeStaples],
+  )
+  const missingSet = useMemo(() => new Set(missing), [missing])
 
   const [overrides, setOverrides] = useState<Map<string, Override>>(new Map())
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -75,7 +83,7 @@ export function RecipeDetailScreen() {
   }
 
   const setMultiplier = (m: number) => {
-    setOverrides(new Map()) // scaling changed → drop transient tweaks
+    setOverrides(new Map())
     setEditingId(null)
     setSearchParams(m === 1 ? {} : { x: String(m) }, { replace: true })
   }
@@ -124,120 +132,191 @@ export function RecipeDetailScreen() {
   }
 
   const isComponent = recipe.kind === 'component'
-  const metaBits = [recipe.method, recipe.glassware].filter(Boolean)
+  const v = spiritVisual(tileKeyForRecipe(recipe))
+  const showTicks = !isComponent && have.size > 0
+  const canMakeIt = !isComponent && missing.length === 0
+  const spiritLabel = recipe.spirit && recipe.spirit !== 'none' ? cap(recipe.spirit) : isComponent ? 'Sub-recipe' : v.label
+  const subBits = [spiritLabel, recipe.glassware].filter(Boolean)
+
+  const metaCards = !isComponent
+    ? [
+        { label: 'Method', value: recipe.method || '—' },
+        { label: 'Glass', value: recipe.glassware || '—' },
+        {
+          label: 'Serves',
+          value: recipe.measureBasis === 'parts' ? 'Ratio' : String(recipe.baseServings),
+        },
+      ]
+    : []
+
+  const startMaking = () =>
+    ingredientsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
-        <button className={styles.iconBtn} aria-label="Back" onClick={() => navigate(-1)}>
-          <ChevronLeftIcon size={26} />
-        </button>
-        <div className={styles.headerRight}>
-          <button className={styles.prefBtn} onClick={togglePref} aria-label="Toggle units">
-            {pref}
+      <div className={styles.hero} style={{ background: `linear-gradient(180deg, ${v.tint}, var(--paper))` }}>
+        <div className={styles.heroTop}>
+          <button className={styles.roundBtn} aria-label="Back" onClick={() => navigate(-1)}>
+            <ChevronLeftIcon size={20} />
           </button>
-          {recipe.kind === 'cocktail' && (
-            <button
-              className={`${styles.iconBtn} ${recipe.favorite ? styles.favActive : ''}`}
-              aria-label={recipe.favorite ? 'Unfavorite' : 'Favorite'}
-              onClick={() => void setFavorite(recipe.id, !recipe.favorite)}
-            >
-              <HeartIcon size={23} filled={!!recipe.favorite} />
+          <div className={styles.heroActions}>
+            <button className={styles.prefBtn} onClick={togglePref} aria-label="Toggle units">
+              {pref}
             </button>
-          )}
-          <Link className={styles.iconBtn} to={`/recipe/${recipe.id}/edit`} aria-label="Edit">
-            <EditIcon size={22} />
-          </Link>
+            {!isComponent && (
+              <button
+                className={`${styles.roundBtn} ${recipe.favorite ? styles.favOn : ''}`}
+                aria-label={recipe.favorite ? 'Unfavorite' : 'Favorite'}
+                onClick={() => void setFavorite(recipe.id, !recipe.favorite)}
+              >
+                <HeartIcon size={20} filled={!!recipe.favorite} />
+              </button>
+            )}
+            <Link className={styles.roundBtn} to={`/recipe/${recipe.id}/edit`} aria-label="Edit">
+              <EditIcon size={19} />
+            </Link>
+          </div>
         </div>
-      </header>
-
-      <div className={styles.titleBlock}>
-        {isComponent && (
-          <span className={styles.kindTag}>
-            <FlaskIcon size={13} /> Sub-recipe
-          </span>
-        )}
-        <h1 className={styles.title}>{recipe.name}</h1>
-        {metaBits.length > 0 && <p className={styles.meta}>{metaBits.join(' · ')}</p>}
-        {usingCategories.length > 0 && (
-          <p className={styles.subNote}>Using your {usingCategories.join(', ')}</p>
-        )}
+        <div className={styles.heroCenter}>
+          <div className={styles.heroEmoji}>{v.emoji}</div>
+          <h1 className={styles.title}>{recipe.name}</h1>
+          {subBits.length > 0 && <div className={styles.sub}>{subBits.join(' · ')}</div>}
+          {usingCategories.length > 0 && (
+            <div className={styles.subNote}>Using your {usingCategories.join(', ')}</div>
+          )}
+        </div>
       </div>
 
-      {recipe.measureBasis === 'parts' ? (
-        <div className={styles.partsControl}>
-          <span className={styles.partsLabel}>1 part =</span>
-          <div className={styles.presets}>
-            {PART_PRESETS.map((p) => (
-              <button
-                key={p.label}
-                className={`${styles.preset} ${mlPerPart === p.ml ? styles.presetActive : ''}`}
-                onClick={() => setMlPerPart(p.ml)}
-              >
-                {p.label}
-              </button>
+      <div className={styles.body}>
+        {!isComponent && (
+          <div className={`${styles.avail} ${canMakeIt ? styles.availReady : styles.availMissing}`}>
+            <span className={styles.availEmoji}>{canMakeIt ? '✅' : '🛒'}</span>
+            <div className={styles.availText}>
+              <div className={styles.availTitle}>
+                {canMakeIt
+                  ? 'You can make this'
+                  : `Missing ${missing.length} ${missing.length === 1 ? 'thing' : 'things'}`}
+              </div>
+              <div className={styles.availSub}>
+                {canMakeIt ? 'Everything’s on your shelf' : missing.join(', ') || 'Add bottles to check'}
+              </div>
+            </div>
+            <button className={styles.availBtn} onClick={() => navigate('/bar')}>
+              My Bar
+            </button>
+          </div>
+        )}
+
+        {metaCards.length > 0 && (
+          <div className={styles.metaRow}>
+            {metaCards.map((m) => (
+              <div key={m.label} className={styles.metaCard}>
+                <div className={styles.metaLabel}>{m.label}</div>
+                <div className={styles.metaValue}>{m.value}</div>
+              </div>
             ))}
           </div>
-        </div>
-      ) : (
-        <div className={styles.stepperWrap}>
-          <ServingStepper
-            multiplier={multiplier}
-            baseServings={recipe.baseServings}
-            onChange={setMultiplier}
-          />
-        </div>
-      )}
+        )}
 
-      <section className={styles.ingredients}>
-        {recipe.ingredients.map((ing) => (
-          <IngredientRow
-            key={ing.id}
-            ingredient={ing}
-            scale={scale}
-            pref={pref}
-            override={overrides.get(ing.id)}
-            editing={editingId === ing.id}
-            onStartEdit={() => setEditingId(ing.id)}
-            onOverride={(v) => setOverride(ing.id, v)}
-          />
-        ))}
-      </section>
-
-      {hasOverrides && (
-        <div className={styles.tweakBar}>
-          <span>Adjusted for this build</span>
-          <div className={styles.tweakActions}>
-            <button className={styles.ghostBtn} onClick={() => setOverrides(new Map())}>
-              Reset
-            </button>
-            <button className={styles.solidBtn} onClick={saveTweaks}>
-              Save to recipe
-            </button>
+        {recipe.measureBasis === 'parts' ? (
+          <div className={styles.partsControl}>
+            <span className={styles.partsLabel}>1 part =</span>
+            <div className={styles.presets}>
+              {PART_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  className={`${styles.preset} ${mlPerPart === p.ml ? styles.presetActive : ''}`}
+                  onClick={() => setMlPerPart(p.ml)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
+        ) : (
+          <div className={styles.stepperWrap}>
+            <ServingStepper
+              multiplier={multiplier}
+              baseServings={recipe.baseServings}
+              onChange={setMultiplier}
+            />
+          </div>
+        )}
+
+        <h2 className={styles.h2} ref={ingredientsRef}>
+          Ingredients
+        </h2>
+        <div className={styles.ingredients}>
+          {recipe.ingredients.map((ing) => (
+            <IngredientRow
+              key={ing.id}
+              ingredient={ing}
+              scale={scale}
+              pref={pref}
+              override={overrides.get(ing.id)}
+              editing={editingId === ing.id}
+              onStartEdit={() => setEditingId(ing.id)}
+              onOverride={(val) => setOverride(ing.id, val)}
+              owned={showTicks ? !missingSet.has(ing.name) : undefined}
+            />
+          ))}
+        </div>
+
+        {hasOverrides && (
+          <div className={styles.tweakBar}>
+            <span>Adjusted for this build</span>
+            <div className={styles.tweakActions}>
+              <button className={styles.ghostBtn} onClick={() => setOverrides(new Map())}>
+                Reset
+              </button>
+              <button className={styles.solidBtn} onClick={saveTweaks}>
+                Save to recipe
+              </button>
+            </div>
+          </div>
+        )}
+
+        {recipe.garnish && (
+          <p className={styles.garnish}>
+            <span className={styles.garnishLabel}>Garnish</span> {recipe.garnish}
+          </p>
+        )}
+
+        {recipe.instructions && (
+          <section className={styles.section}>
+            <h2 className={styles.h2}>Method</h2>
+            <p className={styles.instructions}>{recipe.instructions}</p>
+          </section>
+        )}
+
+        {recipe.tags.length > 0 && (
+          <div className={styles.tagChips}>
+            {recipe.tags.map((t) => (
+              <span key={t} className={styles.tagChip}>
+                #{t}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {isComponent && <UsedIn recipeId={recipe.id} />}
+        {isComponent && <MergeInto recipe={recipe} />}
+
+        <NotesSection notes={recipe.notes} onAdd={addNote} onRemove={removeNote} />
+
+        <div className={styles.bottomSpace} />
+      </div>
+
+      {!isComponent && (
+        <div className={styles.ctaWrap}>
+          <button className={styles.cta} onClick={startMaking}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 2h4M10.5 2v3.2a3 3 0 0 1-.6 1.8L8.8 8.5a4 4 0 0 0-.8 2.4V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-9.1a4 4 0 0 0-.8-2.4l-1.1-1.5a3 3 0 0 1-.6-1.8V2M8 13h8" />
+            </svg>
+            Start making
+          </button>
         </div>
       )}
-
-      {recipe.garnish && (
-        <p className={styles.garnish}>
-          <span className={styles.garnishLabel}>Garnish</span> {recipe.garnish}
-        </p>
-      )}
-
-      {recipe.instructions && (
-        <section className={styles.section}>
-          <h2 className={styles.h2}>Method</h2>
-          <p className={styles.instructions}>{recipe.instructions}</p>
-        </section>
-      )}
-
-      {isComponent && <UsedIn recipeId={recipe.id} />}
-
-      {isComponent && <MergeInto recipe={recipe} />}
-
-      <NotesSection notes={recipe.notes} onAdd={addNote} onRemove={removeNote} />
-
-      <div className={styles.bottomSpace} />
     </div>
   )
 }
@@ -297,8 +376,8 @@ function MergeInto({ recipe }: { recipe: Recipe }) {
     <section className={styles.section}>
       <h2 className={styles.h2}>Duplicate?</h2>
       <p className={styles.mergeHint}>
-        If this is the same as another sub-recipe, merge it in — everything that
-        uses it will point at the one you keep.
+        If this is the same as another sub-recipe, merge it in — everything that uses it will point
+        at the one you keep.
       </p>
       <div className={styles.mergeRow}>
         <select
@@ -313,11 +392,7 @@ function MergeInto({ recipe }: { recipe: Recipe }) {
             </option>
           ))}
         </select>
-        <button
-          className={styles.mergeBtn}
-          disabled={!targetId || busy}
-          onClick={() => void merge()}
-        >
+        <button className={styles.mergeBtn} disabled={!targetId || busy} onClick={() => void merge()}>
           {busy ? 'Merging…' : 'Merge'}
         </button>
       </div>
@@ -342,11 +417,7 @@ function NotesSection({
       {list.map((n) => (
         <div key={n.id} className={styles.note}>
           <p>{n.text}</p>
-          <button
-            className={styles.noteDel}
-            aria-label="Delete note"
-            onClick={() => onRemove(n.id)}
-          >
+          <button className={styles.noteDel} aria-label="Delete note" onClick={() => onRemove(n.id)}>
             ×
           </button>
         </div>

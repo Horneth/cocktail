@@ -1,0 +1,98 @@
+.screen {
+  padding: calc(24px + var(--safe-top)) 22px 118px;
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 20px;
+}
+.searchIcon {
+  color: var(--faint);
+}
+.input {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 15.5px;
+  color: var(--ink);
+}
+.input:focus {
+  border: none;
+}
+.clear {
+  font-size: 15px;
+  color: var(--faint);
+}
+
+.suggestLabel {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 12px;
+}
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  transition: transform 0.1s ease;
+}
+.chip:active {
+  transform: scale(0.95);
+}
+
+.count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 36px 20px;
+  color: var(--muted);
+}
+.emptyEmoji {
+  font-size: 34px;
+}
+.emptyText {
+  margin: 10px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.importBtn {
+  margin-top: 16px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}

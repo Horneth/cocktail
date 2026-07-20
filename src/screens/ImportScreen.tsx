@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  ChevronLeftIcon,
-  FlaskIcon,
-  PlayIcon,
-  PlusIcon,
-  SparkleIcon,
-  TrashIcon,
-} from '../components/icons'
+import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
 import { FEATURES } from '../config'
 import type { Unit } from '../db/schema'
 import { UNIT_ORDER, UNITS } from '../domain/units'
@@ -22,6 +15,13 @@ import styles from './ImportScreen.module.css'
 
 const INGREDIENT_LIST_ID = 'known-ingredients'
 
+const MODES = [
+  { key: 'link', label: 'Link', emoji: '🔗', placeholder: 'https://…  paste a recipe or video link' },
+  { key: 'text', label: 'Text', emoji: '📝', placeholder: 'Paste the full recipe text…' },
+  { key: 'video', label: 'Video', emoji: '🎬', placeholder: 'Paste a video description or transcript…' },
+] as const
+type Mode = (typeof MODES)[number]['key']
+
 interface Draft {
   recipes: StructuredImport[]
   ok: boolean
@@ -34,6 +34,7 @@ export function ImportScreen() {
   const gemini = useGeminiSettings()
   const aiEnabled = FEATURES.cloudAI && gemini.hasKey
   const [text, setText] = useState('')
+  const [mode, setMode] = useState<Mode>('text')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
@@ -59,14 +60,12 @@ export function ImportScreen() {
       setSelected(new Set(recipes.map((_, i) => i)))
       setDraft({ recipes, ok: true })
     } catch (err) {
-      // Fall back gracefully to the offline parser; keep the user on this screen.
       setAiError(err instanceof GeminiError ? err.message : 'AI parse failed. Try Basic parse.')
     } finally {
       setAiBusy(false)
     }
   }
 
-  // Parse an explicit string (the share auto-parse can't wait for `text` state).
   const runParse = (t: string, ai: boolean) => {
     if (ai) {
       setAiBusy(true)
@@ -86,8 +85,6 @@ export function ImportScreen() {
     }
   }
 
-  // If the user shared a video/description into the app (Android share target),
-  // prefill the box and parse it automatically with whatever engine is on.
   const sharedApplied = useRef(false)
   useEffect(() => {
     if (sharedApplied.current || draft) return
@@ -99,33 +96,22 @@ export function ImportScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Back to the previous screen, or home if Import is the first history entry
-  // (e.g. opened cold from an Android share) so Back is never a dead end.
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
     if (idx > 0) navigate(-1)
     else navigate('/')
   }
 
-  const pasteFromClipboard = async () => {
-    try {
-      const t = await navigator.clipboard.readText()
-      if (t) setText(t)
-    } catch {
-      /* clipboard blocked — user can paste manually */
-    }
-  }
+  const pasteExample = () =>
+    setText('Whiskey Sour\n2 oz bourbon\n3/4 oz lemon juice\n3/4 oz simple syrup\nShake with ice, strain into a coupe.')
 
   const recipes = draft?.recipes ?? []
   const single = draft && recipes.length === 1 ? recipes[0] : null
 
-  // ---- single-draft mutation helpers (immutable, operate on recipes[0]) ----
   const patchRecipe0 = (fn: (imp: StructuredImport) => StructuredImport) =>
     setDraft((d) => (d ? { ...d, recipes: [fn(d.recipes[0]), ...d.recipes.slice(1)] } : d))
-
   const patchMain = (patch: Partial<RecipeDraft>) =>
     patchRecipe0((imp) => ({ ...imp, main: { ...imp.main, ...patch } }))
-
   const patchRecipeIngredients = (tempId: string, ings: IngredientDraft[]) =>
     patchRecipe0((imp) => {
       if (imp.main.tempId === tempId) return { ...imp, main: { ...imp.main, ingredients: ings } }
@@ -134,20 +120,17 @@ export function ImportScreen() {
         components: imp.components.map((c) => (c.tempId === tempId ? { ...c, ingredients: ings } : c)),
       }
     })
-
   const patchComponent = (tempId: string, patch: Partial<RecipeDraft>) =>
     patchRecipe0((imp) => ({
       ...imp,
       components: imp.components.map((c) => (c.tempId === tempId ? { ...c, ...patch } : c)),
     }))
-
   const toggleComponent = (tempId: string) =>
     setExcluded((prev) => {
       const next = new Set(prev)
       next.has(tempId) ? next.delete(tempId) : next.add(tempId)
       return next
     })
-
   const toggleSelected = (idx: number) =>
     setSelected((prev) => {
       const next = new Set(prev)
@@ -160,7 +143,6 @@ export function ImportScreen() {
     [single],
   )
 
-  // Trim empties and stamp provenance just before writing.
   const cleanImport = (imp: StructuredImport, drop: Set<string>): StructuredImport => ({
     main: {
       ...imp.main,
@@ -190,7 +172,6 @@ export function ImportScreen() {
     try {
       const chosen = recipes.filter((_, i) => selected.has(i))
       let lastMainId = ''
-      // sequential so importRecipe dedupes a shared syrup across drinks
       for (const imp of chosen) {
         const { mainId } = await importRecipe(cleanImport(imp, new Set()))
         lastMainId = mainId
@@ -201,6 +182,10 @@ export function ImportScreen() {
       setSaving(false)
     }
   }
+
+  const placeholder = MODES.find((m) => m.key === mode)!.placeholder
+  const hasText = text.trim().length > 0
+  const runPrimary = () => (aiEnabled ? void smartParse() : parse())
 
   return (
     <div className={styles.screen}>
@@ -214,78 +199,79 @@ export function ImportScreen() {
           <option key={s} value={s} />
         ))}
       </datalist>
+
       <header className={styles.header}>
-        <button className={styles.iconBtn} aria-label="Back" onClick={goBack}>
-          <ChevronLeftIcon size={26} />
+        <button className={styles.back} aria-label="Back" onClick={goBack}>
+          <ChevronLeftIcon size={20} />
         </button>
-        <span className={styles.headTitle}>Import from video</span>
-        <span className={styles.headSpacer} />
+        <h1 className={styles.title}>Import a recipe</h1>
       </header>
 
       {!draft ? (
         <div className={styles.body}>
-          <div className={styles.intro}>
-            <PlayIcon size={26} className={styles.introIcon} />
-            <p>
-              Copy a cocktail recipe or a video's <strong>description</strong>, and paste it
-              below — or <strong>share</strong> a video straight to this app. I'll pull out every
-              cocktail (and its syrups) so you can pick which to save.
-            </p>
+          <p className={styles.intro}>
+            Paste a link, a video description, or the recipe text — we’ll pull out the ingredients
+            and steps.
+          </p>
+
+          <div className={styles.modes}>
+            {MODES.map((m) => (
+              <button
+                key={m.key}
+                className={`${styles.mode} ${mode === m.key ? styles.modeOn : ''}`}
+                onClick={() => setMode(m.key)}
+              >
+                <span className={styles.modeEmoji}>{m.emoji}</span>
+                {m.label}
+              </button>
+            ))}
           </div>
-          <textarea
-            className={styles.paste}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={'Paste the full video description here…'}
-            rows={12}
-            autoFocus
-          />
+
+          <div className={styles.textareaCard}>
+            <textarea
+              className={styles.textarea}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={placeholder}
+              autoFocus
+            />
+          </div>
+
+          <button className={styles.example} onClick={pasteExample}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 5h6M9 5a2 2 0 0 0-4 0M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+            </svg>
+            Paste an example
+          </button>
+
           {aiError && (
             <p className={styles.warn}>
-              {aiError} <span className={styles.warnDim}>Basic parse still works below.</span>
+              {aiError} <span className={styles.warnDim}>Basic parse still works.</span>
             </p>
           )}
 
-          {aiEnabled ? (
-            <>
-              <div className={styles.actions}>
-                <button className={styles.ghostBtn} onClick={pasteFromClipboard} disabled={aiBusy}>
-                  Paste
-                </button>
-                <button
-                  className={styles.solidBtn}
-                  disabled={!text.trim() || aiBusy}
-                  onClick={smartParse}
-                >
-                  <SparkleIcon size={18} /> {aiBusy ? 'Parsing with Gemini…' : 'Smart parse'}
-                </button>
-              </div>
-              <button
-                className={styles.textBtn}
-                disabled={!text.trim() || aiBusy}
-                onClick={parse}
-              >
-                Use basic parser instead
-              </button>
-            </>
-          ) : (
-            <>
-              <div className={styles.actions}>
-                <button className={styles.ghostBtn} onClick={pasteFromClipboard}>
-                  Paste
-                </button>
-                <button className={styles.solidBtn} disabled={!text.trim()} onClick={parse}>
-                  Parse recipe
-                </button>
-              </div>
-              {FEATURES.cloudAI && (
-                <Link className={styles.aiNudge} to="/settings">
-                  <SparkleIcon size={15} /> Want smarter, multi-drink parsing? Add a Gemini key in
-                  Settings
-                </Link>
-              )}
-            </>
+          {aiEnabled && (
+            <button className={styles.basicLink} disabled={!hasText || aiBusy} onClick={parse}>
+              Use basic parser instead
+            </button>
           )}
+          {!aiEnabled && FEATURES.cloudAI && (
+            <Link className={styles.aiNudge} to="/settings">
+              <SparkleIcon size={15} /> Want smarter, multi-drink parsing? Add a Gemini key in
+              Settings
+            </Link>
+          )}
+
+          <div className={styles.ctaWrap}>
+            <button
+              className={`${styles.cta} ${hasText ? '' : styles.ctaOff}`}
+              disabled={!hasText || aiBusy}
+              onClick={runPrimary}
+            >
+              <SparkleIcon size={19} />
+              {aiBusy ? 'Parsing…' : hasText ? 'Extract recipe' : 'Paste something to start'}
+            </button>
+          </div>
         </div>
       ) : single ? (
         <SinglePreview
@@ -315,9 +301,6 @@ export function ImportScreen() {
   )
 }
 
-// -------------------------------------------------------------------------
-// One drink: full editable preview (existing behaviour)
-// -------------------------------------------------------------------------
 function SinglePreview({
   imp,
   ok,
@@ -348,8 +331,8 @@ function SinglePreview({
     <div className={styles.body}>
       {!ok && (
         <p className={styles.warn}>
-          I couldn't confidently find a recipe — check the text below and edit as needed, or go
-          back and paste again.
+          I couldn’t confidently find a recipe — check the text below and edit as needed, or go back
+          and paste again.
         </p>
       )}
 
@@ -361,12 +344,14 @@ function SinglePreview({
       <label className={styles.label}>
         {main.kind === 'component' ? 'Sub-recipe name' : 'Cocktail name'}
       </label>
-      <input
-        className={styles.nameInput}
-        value={main.name}
-        onChange={(e) => onPatchMain({ name: e.target.value })}
-        placeholder="Name"
-      />
+      <div className={styles.inputCard}>
+        <input
+          className={styles.nameInput}
+          value={main.name}
+          onChange={(e) => onPatchMain({ name: e.target.value })}
+          placeholder="Name"
+        />
+      </div>
 
       <h2 className={styles.h2}>Ingredients</h2>
       <IngredientList recipe={main} onChange={(ings) => onPatchIngredients(main.tempId, ings)} />
@@ -381,16 +366,18 @@ function SinglePreview({
 
       {main.kind !== 'component' && (
         <div className={styles.spiritRow}>
-          <label className={styles.spiritLabel}>Base spirit</label>
-          <input
-            className={styles.spiritInput}
-            list="import-spirits"
-            value={main.spirit ?? ''}
-            onChange={(e) => onPatchMain({ spirit: e.target.value || undefined })}
-            placeholder="gin, cachaça…"
-            autoCapitalize="none"
-            autoCorrect="off"
-          />
+          <label className={styles.label}>Base spirit</label>
+          <div className={styles.inputCard}>
+            <input
+              className={styles.spiritInput}
+              list="import-spirits"
+              value={main.spirit ?? ''}
+              onChange={(e) => onPatchMain({ spirit: e.target.value || undefined })}
+              placeholder="gin, cachaça…"
+              autoCapitalize="none"
+              autoCorrect="off"
+            />
+          </div>
         </div>
       )}
 
@@ -424,10 +411,7 @@ function SinglePreview({
                   </label>
                 </div>
                 {on && (
-                  <IngredientList
-                    recipe={c}
-                    onChange={(ings) => onPatchIngredients(c.tempId, ings)}
-                  />
+                  <IngredientList recipe={c} onChange={(ings) => onPatchIngredients(c.tempId, ings)} />
                 )}
               </div>
             )
@@ -435,7 +419,7 @@ function SinglePreview({
         </>
       )}
 
-      <div className={styles.actions}>
+      <div className={styles.previewActions}>
         <button className={styles.ghostBtn} onClick={onStartOver}>
           Start over
         </button>
@@ -447,9 +431,6 @@ function SinglePreview({
   )
 }
 
-// -------------------------------------------------------------------------
-// Several drinks: checklist to pick which to save
-// -------------------------------------------------------------------------
 function MultiPreview({
   recipes,
   selected,
@@ -513,15 +494,12 @@ function MultiPreview({
                   .join(' · ')}
                 {m.ingredients.length > 5 ? ' …' : ''}
               </span>
-              {(m.tags?.length ?? 0) > 0 && (
-                <span className={styles.pickTags}>{(m.tags ?? []).map((t) => `#${t}`).join(' ')}</span>
-              )}
             </span>
           </button>
         )
       })}
 
-      <div className={styles.actions}>
+      <div className={styles.previewActions}>
         <button className={styles.ghostBtn} onClick={onStartOver} disabled={saving}>
           Start over
         </button>

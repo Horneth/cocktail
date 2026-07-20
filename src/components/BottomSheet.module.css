@@ -1,0 +1,33 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(30, 22, 16, 0.42);
+  transition: opacity 0.28s ease;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  width: min(440px, 100%);
+  margin-inline: auto;
+  background: var(--card);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-sheet);
+  padding: 10px 22px calc(30px + var(--safe-bottom));
+  transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.grab {
+  padding: 8px 0 14px;
+}
+.grabBar {
+  width: 42px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
+  margin: 0 auto;
+}

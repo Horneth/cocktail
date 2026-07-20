@@ -1,37 +1,64 @@
 :root {
-  /* palette — moody speakeasy with warm amber accent */
-  --bg: #17111d;
-  --bg-elevated: #211826;
-  --bg-card: #271d2e;
-  --bg-input: #1c1522;
-  --line: #3a2d43;
-  --line-soft: #2c2233;
+  /* ── Nightcap palette — warm "paper" light theme ─────────────────────── */
+  --paper: #f6f4ef; /* app background (warm off-white) */
+  --card: #ffffff; /* cards, sheets, inputs */
+  --ink: #221e1a; /* primary text, dark buttons/pills */
+  --muted: #8c857b; /* secondary text */
+  --faint: #b0a99f; /* placeholder text, tertiary icons */
+  --line: #ece7de; /* borders, dividers */
+  --accent: #e7623b; /* primary brand accent */
+  --accent-ink: #fff3ed; /* text/eyebrow on accent surfaces */
+  --green: #4e9e7e; /* "have it" / available ticks */
 
-  --text: #f3ecf4;
-  --text-dim: #b9a9c2;
-  --text-faint: #8a7a94;
+  /* accent gradient — hero, primary buttons, add-FAB */
+  --accent-grad: linear-gradient(150deg, #ee6b44, #d8492a);
 
-  --accent: #e8a75c; /* amber / aperol */
-  --accent-strong: #f0b872;
-  --accent-ink: #2a1c0d;
-  --danger: #e2686b;
-  --link: #d9a3e6;
+  /* availability badges */
+  --ready-fg: #2e6b54;
+  --ready-bg: #e4f0ea;
+  --missing-fg: #9a7a55;
+  --missing-bg: #f3ecdf;
 
-  --radius: 16px;
-  --radius-sm: 10px;
+  /* radii */
+  --radius: 20px;
+  --radius-lg: 26px;
+  --radius-sm: 16px;
+  --radius-xs: 14px;
   --radius-pill: 999px;
+  --radius-sheet: 30px;
 
-  --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
+  /* shadows */
+  --shadow-card: 0 3px 12px rgba(40, 30, 20, 0.04);
+  --shadow-pop: 0 2px 10px rgba(40, 30, 20, 0.05);
+  --shadow-accent: 0 14px 28px -10px rgba(216, 73, 42, 0.6);
+  --shadow-sheet: 0 -20px 50px -12px rgba(40, 30, 20, 0.35);
+  --shadow-tabbar: 0 12px 30px -8px rgba(40, 30, 20, 0.16);
 
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
-  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  /* type */
+  --font: 'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --serif: 'DM Serif Display', 'Iowan Old Style', 'Palatino Linotype', Palatino,
+    Georgia, serif;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
-  color-scheme: dark;
+  /* ── Legacy aliases — keep un-migrated component modules on-palette ───── */
+  --bg: var(--paper);
+  --bg-elevated: var(--card);
+  --bg-card: var(--card);
+  --bg-input: var(--card);
+  --line-soft: var(--line);
+  --text: var(--ink);
+  --text-dim: var(--muted);
+  --text-faint: var(--faint);
+  --accent-strong: #d8492a;
+  --danger: #d8492a;
+  --link: var(--accent);
+  --shadow: var(--shadow-card);
+  --shadow-lg: var(--shadow-sheet);
+
+  color-scheme: light;
 }
 
 * {
@@ -47,8 +74,8 @@ body,
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font);
   font-size: 16px;
   line-height: 1.4;
@@ -58,10 +85,12 @@ body {
 }
 
 #root {
-  max-width: 640px;
+  max-width: 440px;
   margin: 0 auto;
-  background: var(--bg);
+  min-height: 100%;
+  background: var(--paper);
   position: relative;
+  overflow-x: hidden;
 }
 
 button {
@@ -77,10 +106,10 @@ select,
 textarea {
   font-family: inherit;
   font-size: 16px; /* prevents iOS zoom-on-focus */
-  color: var(--text);
-  background: var(--bg-input);
+  color: var(--ink);
+  background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   padding: 12px 14px;
   width: 100%;
 }
@@ -93,7 +122,7 @@ textarea:focus {
 }
 
 a {
-  color: var(--link);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -101,10 +130,17 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 ::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+.hg-scroll::-webkit-scrollbar {
+  display: none;
+}
+.hg-scroll {
+  scrollbar-width: none;
 }

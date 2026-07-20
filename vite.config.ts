@@ -20,11 +20,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Cocktail — Recipe Book',
-        short_name: 'Cocktail',
-        description: 'Create, tweak and build your cocktail recipes. Offline, instant, yours.',
-        theme_color: '#1a1220',
-        background_color: '#1a1220',
+        name: 'Nightcap — Home Bar',
+        short_name: 'Nightcap',
+        description: 'Catalogue cocktails and the bottles you own — see what you can pour right now. Offline, instant, yours.',
+        theme_color: '#F6F4EF',
+        background_color: '#F6F4EF',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,
@@ -50,6 +50,24 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Cache the Google-hosted webfonts so the redesign's type still works
+        // fully offline after the first online load (offline-first is core).
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-stylesheets' },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       devOptions: {
         enabled: true,

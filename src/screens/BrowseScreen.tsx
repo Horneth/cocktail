@@ -1,37 +1,40 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { BottleIcon, ChevronLeftIcon, SearchIcon } from '../components/icons'
-import { BarSwitcher } from '../components/BarSwitcher'
-import { RecipeCard } from '../components/RecipeCard'
+import { useSearchParams } from 'react-router-dom'
+import { RecipeRow } from '../components/RecipeRow'
+import { BottomSheet } from '../components/BottomSheet'
+import { CheckIcon, SearchIcon } from '../components/icons'
 import type { Recipe } from '../db/schema'
 import { makeableIds } from '../domain/availability'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
-import { matchesQuery } from '../domain/search'
-import { tileKeyForRecipe, tileMeta } from '../domain/spirits'
-import { useActiveBar, useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
-import { useAssumeStaples } from '../hooks/useSettings'
+import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
+import { spiritVisual } from '../domain/spiritVisual'
+import { useCocktails, useComponents } from '../hooks/useRecipes'
+import { useAvailability } from '../hooks/useAvailability'
 import styles from './BrowseScreen.module.css'
 
-const TAG_LIMIT = 16
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+// A handful of the most common tags get a leading glyph; the rest fall back to a
+// generic label chip (the tag name alone still reads fine).
+const TAG_EMOJI: Record<string, string> = {
+  classic: '🎩', sour: '🍋', citrusy: '🍊', refreshing: '💧', 'spirit-forward': '🥃',
+  bitter: '🌿', bubbly: '🫧', herbal: '🌱', sweet: '🍬', nightcap: '🌙', 'low-abv': '🍃',
+  tropical: '🏝️', smoky: '💨', creamy: '🥛', fruity: '🍓', brunch: '🥂', spicy: '🌶️',
+  frozen: '🧊', tiki: '🗿',
+}
+const tagEmoji = (t: string) => TAG_EMOJI[t] ?? '🏷️'
 
 export function BrowseScreen() {
-  const navigate = useNavigate()
   const cocktails = useCocktails()
   const components = useComponents()
-  const { barId, bars, setBarId } = useActiveBar()
-  const { have } = usePantry(barId)
-  const [assumeStaples] = useAssumeStaples()
+  const { badgeFor, byId, have, assumeStaples } = useAvailability()
   const [params, setParams] = useSearchParams()
-  const [query, setQuery] = useState('')
-  const [showAllTags, setShowAllTags] = useState(false)
+  const [tagSheet, setTagSheet] = useState(false)
+  const [tagQuery, setTagQuery] = useState('')
 
   const scope = params.get('scope') || 'all'
   const selectedTags = (params.get('tags') || '').split(',').filter(Boolean)
   const makeableOnly = params.get('makeable') === '1'
   const isComponents = scope === 'components'
 
-  // base set for the current scope (spirit / all / favorites / components)
   const base = useMemo<Recipe[]>(() => {
     if (isComponents) return components ?? []
     const list = cocktails ?? []
@@ -40,167 +43,159 @@ export function BrowseScreen() {
     return list.filter((c) => tileKeyForRecipe(c) === scope)
   }, [cocktails, components, scope, isComponents])
 
-  // tags available within the scope, most-used first
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>()
     base.forEach((r) => r.tags.forEach((t) => m.set(t, (m.get(t) ?? 0) + 1)))
     return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   }, [base])
 
-  // recipes makeable from the current bar (needs all recipes for sub-recipe resolution)
-  const makeable = useMemo(() => {
-    if (!makeableOnly) return null
-    const all = [...(cocktails ?? []), ...(components ?? [])]
-    const byId = new Map(all.map((r) => [r.id, r]))
-    return makeableIds(base, byId, have, assumeStaples)
-  }, [makeableOnly, base, cocktails, components, have, assumeStaples])
+  const makeable = useMemo(
+    () => (makeableOnly ? makeableIds(base, byId, have, assumeStaples) : null),
+    [makeableOnly, base, byId, have, assumeStaples],
+  )
 
-  // AND semantics: a recipe must have every selected tag
   const list = useMemo(
     () =>
       base.filter(
         (r) =>
-          matchesQuery(r, query) &&
-          selectedTags.every((t) => r.tags.includes(t)) &&
-          (!makeable || makeable.has(r.id)),
+          selectedTags.every((t) => r.tags.includes(t)) && (!makeable || makeable.has(r.id)),
       ),
-    [base, query, selectedTags, makeable],
+    [base, selectedTags, makeable],
   )
 
-  const patchParam = (key: string, value: string | null) => {
+  // Spirit filter chips: All + Favorites/Syrups when present + each spirit used.
+  const chips = useMemo(() => {
+    const out: { key: string; label: string; emoji: string }[] = [
+      { key: 'all', label: 'All', emoji: '✨' },
+    ]
+    const list = cocktails ?? []
+    if (list.some((c) => c.favorite)) out.push({ key: 'favorites', label: 'Favorites', emoji: '❤️' })
+    const spiritKeys = new Set(list.map((c) => tileKeyForRecipe(c)))
+    ;[...spiritKeys]
+      .sort((a, b) => spiritSortIndex(a) - spiritSortIndex(b) || a.localeCompare(b))
+      .forEach((k) => {
+        const v = spiritVisual(k)
+        out.push({ key: k, label: v.label, emoji: v.emoji })
+      })
+    if ((components ?? []).length) out.push({ key: 'components', label: 'Syrups', emoji: '🍯' })
+    return out
+  }, [cocktails, components])
+
+  const patch = (key: string, value: string | null) => {
     const p = new URLSearchParams(params)
     if (value) p.set(key, value)
     else p.delete(key)
     setParams(p, { replace: true })
   }
-
-  const setTags = (next: string[]) => {
-    const p = new URLSearchParams(params)
-    if (next.length) p.set('tags', next.join(','))
-    else p.delete('tags')
-    setParams(p, { replace: true })
-  }
+  const setTags = (next: string[]) => patch('tags', next.length ? next.join(',') : null)
   const toggleTag = (t: string) =>
     setTags(selectedTags.includes(t) ? selectedTags.filter((x) => x !== t) : [...selectedTags, t])
+  const selectScope = (key: string) => patch('scope', key === 'all' ? null : key)
 
-  const scopeMeta = tileMeta(scope)
-  const tagDriven = scope === 'all' && selectedTags.length > 0
-  const title = tagDriven ? selectedTags.map(cap).join(' + ') : scopeMeta.label
-  const emoji = tagDriven ? '🏷️' : scopeMeta.emoji
+  const filteredSheetTags = tagQuery.trim()
+    ? tagCounts.filter(([t]) => t.includes(tagQuery.trim().toLowerCase()))
+    : tagCounts
 
-  const visibleTags = showAllTags ? tagCounts : tagCounts.slice(0, TAG_LIMIT)
-  const mixed = scope === 'all' || scope === 'favorites'
+  const tagChip = (t: string, on: boolean) => (
+    <button
+      key={t}
+      className={`${styles.tag} ${on ? styles.tagOn : ''}`}
+      onClick={() => toggleTag(t)}
+    >
+      <span className={styles.tagEmoji}>{tagEmoji(t)}</span>
+      {t}
+    </button>
+  )
 
   return (
     <div className={styles.screen}>
-      <header className={styles.header} style={{ background: scopeMeta.gradient }}>
-        <div className={styles.topRow}>
-          <button className={styles.back} aria-label="Back" onClick={() => navigate('/')}>
-            <ChevronLeftIcon size={26} />
-          </button>
-          <span className={styles.emoji}>{emoji}</span>
-        </div>
-        <h1 className={styles.title}>{title}</h1>
-        <div className={styles.search}>
-          <SearchIcon size={18} className={styles.searchIcon} />
-          <input
-            className={styles.searchInput}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, ingredient…"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          {query && (
-            <button className={styles.clear} onClick={() => setQuery('')} aria-label="Clear">
-              ×
-            </button>
-          )}
-        </div>
-      </header>
+      <div className={styles.head}>
+        <div className={styles.count}>{list.length} recipes</div>
+        <h1 className={styles.title}>Browse</h1>
+      </div>
 
-      <div className={styles.makeableRow}>
-        <label className={styles.makeableToggle}>
-          <BottleIcon size={17} className={styles.makeableIcon} />
-          <span>Only what I can make</span>
-          <input
-            type="checkbox"
-            className={styles.switch}
-            checked={makeableOnly}
-            onChange={(e) => patchParam('makeable', e.target.checked ? '1' : null)}
-          />
-        </label>
-        {makeableOnly && (
-          <div className={styles.barSwitchRow}>
-            <BarSwitcher bars={bars} barId={barId} onChange={setBarId} />
-          </div>
+      <div className={`${styles.spiritRow} hg-scroll`}>
+        {chips.map((c) => (
+          <button
+            key={c.key}
+            className={`${styles.spiritChip} ${scope === c.key ? styles.spiritChipOn : ''}`}
+            onClick={() => selectScope(c.key)}
+          >
+            <span className={styles.spiritEmoji}>{c.emoji}</span>
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <div className={styles.tagHead}>
+        <span className={styles.tagHeadLabel}>Filter by tag</span>
+        {selectedTags.length > 0 && (
+          <button className={styles.clearTags} onClick={() => setTags([])}>
+            Clear {selectedTags.length}
+          </button>
         )}
       </div>
 
-      {makeableOnly && have.size === 0 && (
-        <p className={styles.makeableHint}>
-          Your bar is empty. <Link to="/bar">Add your bottles</Link> to see what you can make.
-        </p>
-      )}
-
-      {!isComponents && tagCounts.length > 0 && (
-        <section className={styles.tagPicker}>
-          <div className={styles.tagHead}>
-            <span className={styles.tagTitle}>
-              Tags{selectedTags.length > 0 ? ` · ${selectedTags.length}` : ''}
-            </span>
-            {selectedTags.length > 0 && (
-              <button className={styles.clearTags} onClick={() => setTags([])}>
-                Clear
-              </button>
-            )}
-          </div>
-          <div className={styles.tagChips}>
-            {visibleTags.map(([t, n]) => {
-              const on = selectedTags.includes(t)
-              return (
-                <button
-                  key={t}
-                  className={`${styles.tagChip} ${on ? styles.tagChipOn : ''}`}
-                  onClick={() => toggleTag(t)}
-                >
-                  #{t}
-                  <span className={styles.tagCount}>{n}</span>
-                </button>
-              )
-            })}
-            {tagCounts.length > TAG_LIMIT && (
-              <button className={styles.moreTags} onClick={() => setShowAllTags((v) => !v)}>
-                {showAllTags ? 'Show less' : `+${tagCounts.length - TAG_LIMIT} more`}
-              </button>
-            )}
-          </div>
-        </section>
-      )}
+      <div className={`${styles.tagRow} hg-scroll`}>
+        {have.size > 0 && (
+          <button
+            className={`${styles.ready} ${makeableOnly ? styles.readyOn : ''}`}
+            onClick={() => patch('makeable', makeableOnly ? null : '1')}
+          >
+            <CheckIcon size={14} /> Ready to pour
+          </button>
+        )}
+        <button className={styles.allTags} onClick={() => setTagSheet(true)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5h18M6 12h12M10 19h4" />
+          </svg>
+          All tags
+        </button>
+        {tagCounts.slice(0, 10).map(([t]) => tagChip(t, selectedTags.includes(t)))}
+      </div>
 
       {list.length === 0 ? (
-        <p className={styles.empty}>
-          {query || selectedTags.length ? 'No matches with these filters.' : 'Nothing here yet.'}
-        </p>
+        <div className={styles.empty}>
+          <div className={styles.emptyEmoji}>🍸</div>
+          <p className={styles.emptyText}>No drinks match those filters</p>
+        </div>
       ) : (
-        <ul className={styles.list}>
+        <div className={styles.list}>
           {list.map((r) => (
-            <li key={r.id}>
-              <RecipeCard
-                recipe={r}
-                showHeart={!isComponents}
-                showSpirit={mixed}
-                onDelete={() => void deleteRecipeWithConfirm(r)}
-              />
-            </li>
+            <RecipeRow
+              key={r.id}
+              recipe={r}
+              badge={badgeFor(r)}
+              onDelete={() => void deleteRecipeWithConfirm(r)}
+            />
           ))}
-        </ul>
+        </div>
       )}
 
-      <Link className={styles.fab} to="/new" aria-label="New recipe">
-        <span>＋</span>
-      </Link>
+      <BottomSheet open={tagSheet} onClose={() => setTagSheet(false)}>
+        <div className={styles.sheetHead}>
+          <h2 className={styles.sheetTitle}>All tags</h2>
+          <button className={styles.sheetClear} onClick={() => setTags([])}>
+            Clear all
+          </button>
+        </div>
+        <div className={styles.sheetSearch}>
+          <SearchIcon size={18} className={styles.searchIcon} />
+          <input
+            className={styles.sheetInput}
+            value={tagQuery}
+            onChange={(e) => setTagQuery(e.target.value)}
+            placeholder="Search tags"
+          />
+        </div>
+        <div className={`${styles.sheetTags} hg-scroll`}>
+          {filteredSheetTags.length === 0 ? (
+            <p className={styles.noTags}>No tags yet.</p>
+          ) : (
+            filteredSheetTags.map(([t]) => tagChip(t, selectedTags.includes(t)))
+          )}
+        </div>
+      </BottomSheet>
     </div>
   )
 }

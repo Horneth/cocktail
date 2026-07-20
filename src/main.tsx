@@ -12,6 +12,7 @@ import { ImportScreen } from './screens/ImportScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { BrowseScreen } from './screens/BrowseScreen'
 import { BarScreen } from './screens/BarScreen'
+import { SearchScreen } from './screens/SearchScreen'
 import { stashSharedImport } from './import/shared'
 
 // Hash routing keeps GitHub Pages happy: deep links and refreshes never 404,
@@ -22,6 +23,7 @@ const router = createHashRouter([
     element: <App />,
     children: [
       { index: true, element: <HomeScreen /> },
+      { path: 'search', element: <SearchScreen /> },
       { path: 'browse', element: <BrowseScreen /> },
       { path: 'recipe/:id', element: <RecipeDetailScreen /> },
       { path: 'recipe/:id/edit', element: <EditRecipeScreen /> },

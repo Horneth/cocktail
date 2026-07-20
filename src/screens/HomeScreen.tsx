@@ -1,200 +1,147 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { BottleIcon, GearIcon, ImportIcon, PlusIcon, SearchIcon } from '../components/icons'
-import { BarSwitcher } from '../components/BarSwitcher'
-import { RecipeCard } from '../components/RecipeCard'
-import { makeableIds } from '../domain/availability'
+import { useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { RecipeRow } from '../components/RecipeRow'
+import { BottleIcon, ChevronRightIcon, SearchIcon } from '../components/icons'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
-import { matchesQuery } from '../domain/search'
-import { spiritSortIndex, tileKeyForRecipe, tileMeta } from '../domain/spirits'
-import { useActiveBar, useCocktails, useComponents, usePantry } from '../hooks/useRecipes'
-import { useAssumeStaples } from '../hooks/useSettings'
+import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
+import { spiritVisual } from '../domain/spiritVisual'
+import { useCocktails } from '../hooks/useRecipes'
+import { useAvailability } from '../hooks/useAvailability'
 import styles from './HomeScreen.module.css'
 
-interface Tile {
-  key: string
-  count: number
+function greetingForHour(h: number): string {
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 }
 
 export function HomeScreen() {
+  const navigate = useNavigate()
   const cocktails = useCocktails()
-  const components = useComponents()
-  const { barId, bars, setBarId } = useActiveBar()
-  const { have } = usePantry(barId)
-  const [assumeStaples] = useAssumeStaples()
-  const [query, setQuery] = useState('')
+  const { makeableCount, badgeFor, barId, bars, setBarId } = useAvailability()
 
-  const makeableCount = useMemo(() => {
-    if (have.size === 0 || !cocktails) return 0
-    const all = [...cocktails, ...(components ?? [])]
-    const byId = new Map(all.map((r) => [r.id, r]))
-    return makeableIds(cocktails, byId, have, assumeStaples).size
-  }, [have, cocktails, components, assumeStaples])
+  const barName = bars.find((b) => b.id === barId)?.name ?? 'My Bar'
+  const cycleBar = () => {
+    if (bars.length < 2 || !barId) return
+    const i = bars.findIndex((b) => b.id === barId)
+    setBarId(bars[(i + 1) % bars.length].id)
+  }
 
-  const tiles = useMemo<Tile[]>(() => {
-    if (!cocktails || !components) return []
-    const counts = new Map<string, number>()
-    let favs = 0
-    for (const c of cocktails) {
-      counts.set(tileKeyForRecipe(c), (counts.get(tileKeyForRecipe(c)) ?? 0) + 1)
-      if (c.favorite) favs++
-    }
-    const out: Tile[] = []
-    if (cocktails.length) out.push({ key: 'all', count: cocktails.length })
-    if (favs) out.push({ key: 'favorites', count: favs })
-    // one tile per distinct base spirit present (known spirits first, then custom)
-    const spiritKeys = [...counts.keys()].sort(
-      (a, b) => spiritSortIndex(a) - spiritSortIndex(b) || a.localeCompare(b),
-    )
-    for (const k of spiritKeys) out.push({ key: k, count: counts.get(k)! })
-    if (components.length) out.push({ key: 'components', count: components.length })
-    return out
-  }, [cocktails, components])
-
-  const topTags = useMemo(() => {
+  const spiritTiles = useMemo(() => {
     if (!cocktails) return []
-    const count = new Map<string, number>()
-    cocktails.forEach((c) => c.tags.forEach((t) => count.set(t, (count.get(t) ?? 0) + 1)))
-    return [...count.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 12)
-      .map(([t]) => t)
+    const counts = new Map<string, number>()
+    for (const c of cocktails) {
+      const k = tileKeyForRecipe(c)
+      counts.set(k, (counts.get(k) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => spiritSortIndex(a[0]) - spiritSortIndex(b[0]) || a[0].localeCompare(b[0]))
+      .map(([key, count]) => ({ key, count }))
   }, [cocktails])
 
-  const results = useMemo(() => {
-    if (!query.trim() || !cocktails || !components) return []
-    return [...cocktails, ...components].filter((r) => matchesQuery(r, query))
-  }, [query, cocktails, components])
+  const recent = useMemo(
+    () => (cocktails ? [...cocktails].sort((a, b) => b.createdAt - a.createdAt).slice(0, 4) : []),
+    [cocktails],
+  )
 
-  const searching = query.trim() !== ''
+  const greeting = greetingForHour(new Date().getHours())
 
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <div className={styles.brandRow}>
-          <h1 className={styles.brand}>Cocktails</h1>
-          <div className={styles.headerActions}>
-            <Link className={styles.importBtn} to="/import">
-              <ImportIcon size={17} />
-              Import
-            </Link>
-            <Link className={styles.gearBtn} to="/bar" aria-label="My Bar">
-              <BottleIcon size={20} />
-            </Link>
-            <Link className={styles.gearBtn} to="/settings" aria-label="Settings">
-              <GearIcon size={20} />
-            </Link>
-          </div>
+        <div>
+          <div className={styles.greeting}>{greeting}</div>
+          <h1 className={styles.title}>What can you pour?</h1>
         </div>
-        <div className={styles.search}>
-          <SearchIcon size={18} className={styles.searchIcon} />
-          <input
-            className={styles.searchInput}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, spirit, ingredient…"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          {query && (
-            <button className={styles.clear} onClick={() => setQuery('')} aria-label="Clear">
-              ×
-            </button>
-          )}
-        </div>
+        <button className={styles.barPill} onClick={cycleBar} aria-label="Switch bar">
+          <span className={styles.barDot} />
+          <span className={styles.barName}>{barName}</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 9l4-4 4 4M8 15l4 4 4-4" />
+          </svg>
+        </button>
       </header>
 
-      {searching ? (
-        results.length === 0 ? (
-          <p className={styles.empty}>No matches for “{query}”.</p>
-        ) : (
-          <ul className={styles.list}>
-            {results.map((r) => (
-              <li key={r.id}>
-                <RecipeCard
-                  recipe={r}
-                  showSpirit
-                  onDelete={() => void deleteRecipeWithConfirm(r)}
-                />
-              </li>
-            ))}
-          </ul>
-        )
-      ) : tiles.length === 0 ? (
-        <div className={styles.empty}>
-          <p>No cocktails yet.</p>
-          <p className={styles.emptyHint}>Tap ＋ to add one, or Import from a video.</p>
-        </div>
-      ) : (
-        <>
-          {bars.length > 1 && (
-            <div className={styles.barStrip}>
-              <span className={styles.barStripLabel}>Showing</span>
-              <BarSwitcher bars={bars} barId={barId} onChange={setBarId} />
-            </div>
-          )}
+      <button className={styles.search} onClick={() => navigate('/search')}>
+        <SearchIcon size={19} className={styles.searchIcon} />
+        <span className={styles.searchText}>Search drinks, spirits, ingredients</span>
+      </button>
 
-          {have.size > 0 && (
-            <Link
-              className={styles.makeBanner}
-              to={makeableCount > 0 ? '/browse?makeable=1' : '/bar'}
-            >
-              <BottleIcon size={20} className={styles.makeBannerIcon} />
-              <span className={styles.makeBannerText}>
-                {makeableCount > 0 ? (
-                  <>
-                    <strong>{makeableCount}</strong> you can make right now
-                  </>
-                ) : (
-                  <>No drinks ready yet — add more bottles</>
-                )}
-              </span>
-              <span className={styles.makeBannerArrow}>→</span>
+      <Link className={styles.hero} to={makeableCount > 0 ? '/browse?makeable=1' : '/bar'}>
+        <span className={styles.heroBlob1} />
+        <span className={styles.heroBlob2} />
+        <span className={styles.heroContent}>
+          <span className={styles.heroEyebrow}>
+            <BottleIcon size={15} /> Ready at {barName}
+          </span>
+          <span className={styles.heroRow}>
+            <span className={styles.heroNum}>{makeableCount}</span>
+            <span className={styles.heroLabel}>
+              drinks you
+              <br />
+              can make now
+            </span>
+          </span>
+          <span className={styles.heroChip}>
+            {makeableCount > 0 ? 'Pour something' : 'Stock your bar'}
+            <ChevronRightIcon size={15} />
+          </span>
+        </span>
+      </Link>
+
+      {spiritTiles.length > 0 && (
+        <section>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.h2}>Browse by spirit</h2>
+            <Link className={styles.seeAll} to="/browse">
+              See all
             </Link>
-          )}
-
-          <div className={styles.mosaic}>
-            {tiles.map((t) => {
-              const m = tileMeta(t.key)
+          </div>
+          <div className={`${styles.rail} hg-scroll`}>
+            {spiritTiles.map(({ key, count }) => {
+              const v = spiritVisual(key)
               return (
-                <Link
-                  key={t.key}
-                  className={styles.tile}
-                  to={`/browse?scope=${t.key}`}
-                  style={{ background: m.gradient }}
-                >
-                  <span className={styles.tileEmoji}>{m.emoji}</span>
-                  <span className={styles.tileLabel}>{m.label}</span>
-                  <span className={styles.tileCount}>
-                    {t.count} {t.count === 1 ? 'recipe' : 'recipes'}
+                <Link key={key} className={styles.spiritCard} to={`/browse?scope=${key}`}>
+                  <span className={styles.spiritChip} style={{ background: v.dot }}>
+                    {v.emoji}
+                  </span>
+                  <span className={styles.spiritLabel}>{v.label}</span>
+                  <span className={styles.spiritCount}>
+                    {count} {count === 1 ? 'recipe' : 'recipes'}
                   </span>
                 </Link>
               )
             })}
           </div>
-
-          {topTags.length > 0 && (
-            <section className={styles.tagSection}>
-              <h2 className={styles.tagSectionTitle}>Browse by tag</h2>
-              <div className={styles.tagPills}>
-                {topTags.map((t) => (
-                  <Link key={t} className={styles.tagPill} to={`/browse?tags=${encodeURIComponent(t)}`}>
-                    #{t}
-                  </Link>
-                ))}
-                <Link className={styles.tagPillMore} to="/browse">
-                  All tags →
-                </Link>
-              </div>
-            </section>
-          )}
-        </>
+        </section>
       )}
 
-      <Link className={styles.fab} to="/new" aria-label="New recipe">
-        <PlusIcon size={28} />
-      </Link>
+      {recent.length > 0 && (
+        <section className={styles.recentSection}>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.h2}>Recently added</h2>
+            <Link className={styles.seeAll} to="/browse">
+              See all
+            </Link>
+          </div>
+          <div className={styles.list}>
+            {recent.map((r) => (
+              <RecipeRow
+                key={r.id}
+                recipe={r}
+                badge={badgeFor(r)}
+                onDelete={() => void deleteRecipeWithConfirm(r)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {cocktails && cocktails.length === 0 && (
+        <div className={styles.empty}>
+          <div className={styles.emptyEmoji}>🍸</div>
+          <p className={styles.emptyTitle}>No cocktails yet</p>
+          <p className={styles.emptyHint}>Tap ＋ below to import or build your first drink.</p>
+        </div>
+      )}
     </div>
   )
 }
