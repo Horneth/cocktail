@@ -2,18 +2,18 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BottomSheet } from '../components/BottomSheet'
 import { PlusIcon, SearchIcon } from '../components/icons'
-import { FEATURES } from '../config'
 import { normIngredient } from '../domain/availability'
 import { categoryForName } from '../domain/spiritCategory'
 import { createBar, deleteBar, renameBar } from '../domain/bars'
 import { addToPantry, bulkAddPantry, removeFromPantry, setInPantry } from '../domain/pantry'
 import { spiritSortIndex } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
-import { GeminiError, geminiIdentifyBottles, type IdentifiedBottle } from '../import/gemini'
+import type { IdentifiedBottle } from '../import/aiShared'
 import { downscaleDataUrl } from '../import/image'
 import { useIngredientCatalog, usePantry } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
-import { useAssumeStaples, useGeminiSettings } from '../hooks/useSettings'
+import { useAssumeStaples } from '../hooks/useSettings'
+import { useAuth } from '../hooks/useAuth'
 import styles from './BarScreen.module.css'
 
 const MAX_SCAN_IMAGES = 4
@@ -33,7 +33,7 @@ export function BarScreen() {
   const { barId, bars, setBarId, makeableCount } = useAvailability()
   const { items, have } = usePantry(barId)
   const catalog = useIngredientCatalog()
-  const gemini = useGeminiSettings()
+  const auth = useAuth()
   const [assumeStaples, setAssumeStaples] = useAssumeStaples()
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -115,7 +115,7 @@ export function BarScreen() {
     }
   }
 
-  const scanEnabled = FEATURES.cloudAI && gemini.hasKey
+  const scanEnabled = auth.aiAvailable
   const onScanFiles = async (files: FileList | null) => {
     if (!files || !files.length) return
     setScanBusy(true)
@@ -123,11 +123,12 @@ export function BarScreen() {
     try {
       const chosen = [...files].slice(0, MAX_SCAN_IMAGES)
       const images = await Promise.all(chosen.map((f) => downscaleDataUrl(f)))
-      const bottles = await geminiIdentifyBottles(images, gemini.apiKey, gemini.model)
+      const { firebaseIdentifyBottles } = await import('../import/firebaseAI')
+      const bottles = await firebaseIdentifyBottles(images)
       setScanResults(bottles)
       setPicked(new Set(bottles.map((b) => b.name)))
     } catch (err) {
-      setScanError(err instanceof GeminiError ? err.message : 'Could not scan those photos.')
+      setScanError(err instanceof Error ? err.message : 'Could not scan those photos.')
     } finally {
       setScanBusy(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -232,6 +233,11 @@ export function BarScreen() {
       {scanEnabled && (
         <button className={styles.scanRow} onClick={() => fileRef.current?.click()} disabled={scanBusy}>
           📷 {scanBusy ? 'Scanning your shelf…' : 'Scan my shelf'}
+        </button>
+      )}
+      {!scanEnabled && auth.configured && (
+        <button className={styles.scanRow} onClick={() => void auth.signIn()}>
+          📷 Sign in with Google to scan your shelf
         </button>
       )}
       <input

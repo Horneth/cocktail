@@ -12,6 +12,19 @@ const base = '/'
 // https://vite.dev/config/
 export default defineConfig({
   base,
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep the Firebase SDK in its own chunk so it only loads when a user
+        // opens an AI screen — and so we can keep it out of the SW precache.
+        manualChunks(id) {
+          if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+            return 'firebase'
+          }
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -48,6 +61,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // The Firebase SDK is large and only needed for the optional AI
+        // features — fetch it on demand at runtime instead of bloating the
+        // first-install precache.
+        globIgnores: ['**/firebase-*.js'],
         // Cache the Google-hosted webfonts so the redesign's type still works
         // fully offline after the first online load (offline-first is core).
         runtimeCaching: [

@@ -3,14 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeftIcon, ImportIcon, SparkleIcon } from '../components/icons'
 import { FEATURES } from '../config'
 import { backupFilename, exportBackup, importBackup, parseBackup } from '../import/backup'
-import { DEFAULT_GEMINI_MODEL } from '../import/gemini'
-import { useGeminiSettings } from '../hooks/useSettings'
+import { useAuth } from '../hooks/useAuth'
 import styles from './SettingsScreen.module.css'
 
 export function SettingsScreen() {
   const navigate = useNavigate()
-  const gemini = useGeminiSettings()
-  const [show, setShow] = useState(false)
+  const auth = useAuth()
   const fileInput = useRef<HTMLInputElement>(null)
   const [dataStatus, setDataStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
@@ -68,65 +66,47 @@ export function SettingsScreen() {
         {FEATURES.cloudAI && (
           <section className={styles.section}>
             <h2 className={styles.h2}>
-              <SparkleIcon size={16} className={styles.h2icon} /> AI parsing (optional)
+              <SparkleIcon size={16} className={styles.h2icon} /> AI features (optional)
             </h2>
-            <p className={styles.desc}>
-              Paste your own Google <strong>Gemini</strong> API key to unlock “Smart parse” when
-              importing. It’s stored <strong>only on this device</strong> and is sent only to
-              Google when you parse — never to this app’s server or repository.
-            </p>
 
-            <label className={styles.label}>Gemini API key</label>
-            <div className={styles.keyRow}>
-              <input
-                className={styles.keyInput}
-                type={show ? 'text' : 'password'}
-                value={gemini.apiKey}
-                onChange={(e) => gemini.setApiKey(e.target.value)}
-                placeholder="AIza…"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              <button className={styles.showBtn} onClick={() => setShow((s) => !s)}>
-                {show ? 'Hide' : 'Show'}
-              </button>
-            </div>
+            {!auth.configured ? (
+              <p className={styles.desc}>
+                Cloud AI isn’t set up for this build. Basic (offline) recipe parsing always works
+                without it. To enable “Smart parse” and “Scan my shelf”, configure a Firebase
+                project (see <code>docs/cloud-ai-backend.md</code>).
+              </p>
+            ) : (
+              <>
+                <p className={styles.desc}>
+                  Sign in with Google to unlock <strong>Smart parse</strong> (messy descriptions →
+                  clean recipes) and <strong>Scan my shelf</strong> (photos → bottles). Requests run
+                  through Google — <strong>no API key is stored in this app</strong>, and your login
+                  is used only to run those AI features. Everything else works signed out.
+                </p>
 
-            <div className={styles.actionRow}>
-              <a
-                className={styles.link}
-                href="https://aistudio.google.com/apikey"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Get a free key ↗
-              </a>
-              {gemini.hasKey && (
-                <button className={styles.clearBtn} onClick={gemini.clear}>
-                  Remove key
-                </button>
-              )}
-            </div>
+                {auth.user ? (
+                  <div className={styles.actionRow}>
+                    <span className={styles.desc}>
+                      Signed in as <strong>{auth.user.email ?? auth.user.displayName ?? 'your account'}</strong>
+                    </span>
+                    <button className={styles.clearBtn} onClick={() => void auth.signOut()}>
+                      Sign out
+                    </button>
+                  </div>
+                ) : (
+                  <div className={styles.actionRow}>
+                    <button className={styles.showBtn} onClick={() => void auth.signIn()}>
+                      Sign in with Google
+                    </button>
+                  </div>
+                )}
 
-            <details className={styles.advanced}>
-              <summary>Advanced</summary>
-              <label className={styles.label}>Model</label>
-              <input
-                className={styles.keyInput}
-                value={gemini.model}
-                onChange={(e) => gemini.setModel(e.target.value)}
-                placeholder={DEFAULT_GEMINI_MODEL}
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </details>
-
-            <p className={styles.note}>
-              For safety, create a key <strong>restricted to the “Generative Language API”</strong>{' '}
-              (and optionally to your site’s domain) in Google Cloud, so a leak is low-impact. Basic
-              (offline) parsing always works without a key.
-            </p>
+                <p className={styles.note}>
+                  Usage is rate-limited per account. Basic (offline) parsing always works without
+                  signing in.
+                </p>
+              </>
+            )}
           </section>
         )}
 
@@ -172,8 +152,7 @@ export function SettingsScreen() {
           )}
 
           <p className={styles.note}>
-            Importing <strong>replaces</strong> your whole library rather than merging into it. Your
-            API key is never written to the backup file.
+            Importing <strong>replaces</strong> your whole library rather than merging into it.
           </p>
         </section>
       </div>
