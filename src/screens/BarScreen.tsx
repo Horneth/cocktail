@@ -10,6 +10,7 @@ import { addToPantry, bulkAddPantry, removeFromPantry, setInPantry } from '../do
 import { spiritSortIndex } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { GeminiError, geminiIdentifyBottles, type IdentifiedBottle } from '../import/gemini'
+import { mergeIngredients } from '../import/importRecipe'
 import { downscaleDataUrl } from '../import/image'
 import { useIngredientCatalog, usePantry } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
@@ -37,6 +38,8 @@ export function BarScreen() {
   const [assumeStaples, setAssumeStaples] = useAssumeStaples()
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [mergeMode, setMergeMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [scanBusy, setScanBusy] = useState(false)
@@ -84,6 +87,30 @@ export function BarScreen() {
     setQuery('')
   }
   const exactExists = rows.some((r) => r.name === normIngredient(query))
+
+  const toggleSelect = (name: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  const exitMerge = () => {
+    setMergeMode(false)
+    setSelected(new Set())
+  }
+  const doMerge = async () => {
+    const names = [...selected]
+    if (names.length < 2) return
+    // Suggest the shortest selected label as the canonical name — usually the
+    // cleanest ("Lemon" over "lemon slices cut in 1/2").
+    const labels = rows.filter((r) => selected.has(r.name)).map((r) => r.label)
+    const suggestion = [...labels].sort((a, b) => a.length - b.length)[0] ?? labels[0]
+    const target = window.prompt(`Merge ${names.length} ingredients into one name:`, suggestion)?.trim()
+    if (!target) return
+    await mergeIngredients(target, names)
+    exitMerge()
+  }
 
   const toggleCollapse = (key: string) =>
     setCollapsed((prev) => {
@@ -223,13 +250,13 @@ export function BarScreen() {
         />
       </div>
 
-      {query.trim() && !exactExists && (
+      {!mergeMode && query.trim() && !exactExists && (
         <button className={styles.addRow} onClick={addCustom}>
           <PlusIcon size={16} /> Add “{query.trim()}” to {activeBar?.name ?? 'my bar'}
         </button>
       )}
 
-      {scanEnabled && (
+      {scanEnabled && !mergeMode && (
         <button className={styles.scanRow} onClick={() => fileRef.current?.click()} disabled={scanBusy}>
           📷 {scanBusy ? 'Scanning your shelf…' : 'Scan my shelf'}
         </button>
@@ -244,6 +271,25 @@ export function BarScreen() {
         onChange={(e) => void onScanFiles(e.target.files)}
       />
       {scanError && <p className={styles.scanError}>{scanError}</p>}
+
+      {rows.length > 0 &&
+        (mergeMode ? (
+          <div className={styles.mergeBar}>
+            <span className={styles.mergeHint}>
+              {selected.size < 2 ? 'Pick 2+ ingredients to merge' : `Merge ${selected.size} into one`}
+            </span>
+            <button className={styles.mergeGhost} onClick={exitMerge}>
+              Cancel
+            </button>
+            <button className={styles.mergeSolid} disabled={selected.size < 2} onClick={() => void doMerge()}>
+              Merge
+            </button>
+          </div>
+        ) : (
+          <button className={styles.mergeToggle} onClick={() => setMergeMode(true)}>
+            Merge duplicates…
+          </button>
+        ))}
 
       {rows.length === 0 ? (
         <p className={styles.empty}>
@@ -270,16 +316,19 @@ export function BarScreen() {
               {!isCollapsed && (
                 <div className={styles.items}>
                   {g.rows.map((r) => {
-                    const on = have.has(r.name)
+                    const on = mergeMode ? selected.has(r.name) : have.has(r.name)
                     return (
                       <button
                         key={r.name}
                         className={`${styles.item} ${on ? styles.itemOn : styles.itemOff}`}
-                        disabled={!barId}
-                        onClick={() =>
-                          barId &&
-                          (on ? void removeFromPantry(barId, r.name) : void setInPantry(barId, r.label, true))
-                        }
+                        disabled={!mergeMode && !barId}
+                        onClick={() => {
+                          if (mergeMode) return toggleSelect(r.name)
+                          if (!barId) return
+                          return have.has(r.name)
+                            ? void removeFromPantry(barId, r.name)
+                            : void setInPantry(barId, r.label, true)
+                        }}
                       >
                         <span className={styles.itemName}>{r.label}</span>
                         <span className={`${styles.check} ${on ? styles.checkOn : styles.checkOff}`}>

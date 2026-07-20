@@ -75,7 +75,7 @@ src/
 
   import/         The single write seam for bulk recipe creation
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (tempId-based links)
-    importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents()
+    importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents(), mergeIngredients()
     parseRecipeText.ts  Offline heuristic parser (pasted description → StructuredImport)
     gemini.ts     Optional BYO-key Gemini "smart parse" + geminiIdentifyBottles() vision (flag-gated)
     image.ts      Browser canvas downscale + data-URL split for the photo scan
@@ -177,6 +177,16 @@ seam) repoints every parent's `subRecipeId`, rebuilds `recipeLinks`, and deletes
 the loser in one transaction (with a cycle guard). Surfaced as a "Duplicate?" merge
 picker on a component's detail screen. `normalizeComponentName()` /
 `duplicateComponentGroups()` (`domain/textNormalize.ts`) detect likely dupes.
+
+### Merging duplicate ingredients
+Plain "bottle-like" ingredients are free text on recipes, so imports pile up
+near-duplicates ("strawberry"/"strawberries", "lemon slices cut in 1/2"). "My Bar"
+has a **Merge duplicates** mode: tap to select 2+ rows, pick one canonical name,
+and `mergeIngredients(targetLabel, sourceNames)` (in the import seam) rewrites the
+matching ingredient `name` on every recipe and repoints owned bottles (in all bars)
+onto the survivor's key — in one transaction. Because the catalog and matching
+derive from recipe text, the merge shows everywhere at once. It only rewrites
+`name`; amounts, notes, and sub-recipe links are preserved.
 
 ### Spirits are free-form
 `Recipe.spirit` is an open string. `domain/spirits.ts` ships metadata (label,

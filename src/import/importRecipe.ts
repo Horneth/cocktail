@@ -1,5 +1,6 @@
 import { db } from '../db/db'
 import type { Ingredient, Recipe, RecipeLink } from '../db/schema'
+import { normIngredient } from '../domain/availability'
 import { newId } from '../domain/ids'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
 
@@ -234,5 +235,68 @@ export async function mergeComponents(fromId: string, toId: string): Promise<Mer
     await db.recipeLinks.where('childId').equals(fromId).delete()
 
     return { rewiredParents }
+  })
+}
+
+export interface IngredientMergeResult {
+  /** how many recipes had ingredient text rewritten */
+  recipesTouched: number
+  /** how many owned bottles (across all bars) were repointed to the survivor */
+  bottlesMoved: number
+}
+
+/**
+ * Merge several plain ingredient spellings into one. Every recipe ingredient
+ * whose normalized name matches one of `sourceNames` is renamed to
+ * `targetLabel`, and any owned bottle keyed to a merged spelling (in any bar) is
+ * repointed to the survivor's key. This folds near-duplicates like
+ * "strawberry"/"strawberries" into a single entry everywhere they surface — the
+ * My Bar catalog, recipe detail, and availability matching — by rewriting the
+ * durable recipe text (only `name` changes; amounts, notes, and any sub-recipe
+ * link are preserved). Unlike `mergeComponents`, this is for the free-text,
+ * bottle-like ingredients that drive the catalog, not sub-recipes. One transaction.
+ */
+export async function mergeIngredients(
+  targetLabel: string,
+  sourceNames: string[],
+): Promise<IngredientMergeResult> {
+  const label = targetLabel.trim()
+  const targetKey = normIngredient(label)
+  const keys = new Set(sourceNames.map(normIngredient).filter(Boolean))
+  if (!targetKey || keys.size === 0) return { recipesTouched: 0, bottlesMoved: 0 }
+
+  return db.transaction('rw', db.recipes, db.bottles, async () => {
+    const now = Date.now()
+
+    // 1. Rewrite recipe ingredient names to the survivor's label.
+    let recipesTouched = 0
+    const recipes = await db.recipes.toArray()
+    for (const r of recipes) {
+      let changed = false
+      const ingredients = r.ingredients.map((i) => {
+        if (keys.has(normIngredient(i.name)) && i.name.trim() !== label) {
+          changed = true
+          return { ...i, name: label }
+        }
+        return i
+      })
+      if (changed) {
+        await db.recipes.update(r.id, { ingredients, updatedAt: now })
+        recipesTouched++
+      }
+    }
+
+    // 2. Repoint owned bottles (in every bar) from a merged spelling onto the
+    //    survivor's normalized key. A bottle already at the target is left as-is.
+    let bottlesMoved = 0
+    const bottles = await db.bottles.toArray()
+    for (const b of bottles) {
+      if (b.name === targetKey || !keys.has(b.name)) continue
+      await db.bottles.delete([b.barId, b.name])
+      await db.bottles.put({ barId: b.barId, name: targetKey, label, addedAt: b.addedAt })
+      bottlesMoved++
+    }
+
+    return { recipesTouched, bottlesMoved }
   })
 }

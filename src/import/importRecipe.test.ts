@@ -5,9 +5,24 @@ import {
   deleteRecipe,
   importRecipe,
   mergeComponents,
+  mergeIngredients,
   saveRecipe,
 } from './importRecipe'
 import type { StructuredImport } from './types'
+
+/** A cocktail whose ingredient list is just the given plain names. */
+function drinkWithIngredients(name: string, names: string[]): StructuredImport {
+  return {
+    main: {
+      tempId: name.toLowerCase().replace(/\s+/g, '-'),
+      kind: 'cocktail',
+      name,
+      measureBasis: 'absolute',
+      ingredients: names.map((n) => ({ name: n, amount: 1, unit: 'oz' as const })),
+    },
+    components: [],
+  }
+}
 
 /** A cocktail that references a syrup by the given (component) name. */
 function drinkWithSyrup(drink: string, syrup: string): StructuredImport {
@@ -238,5 +253,62 @@ describe('mergeComponents', () => {
     await expect(mergeComponents(nested.mainId, nested.componentIds[0])).rejects.toThrow(
       /sub-recipe/,
     )
+  })
+})
+
+describe('mergeIngredients', () => {
+  beforeEach(async () => {
+    await db.recipes.clear()
+    await db.recipeLinks.clear()
+    await db.bottles.clear()
+  })
+
+  it('renames every matching ingredient across recipes to the survivor label', async () => {
+    const a = await importRecipe(drinkWithIngredients('A', ['strawberries', 'White rum']))
+    const b = await importRecipe(drinkWithIngredients('B', ['Strawberry', 'Gin']))
+
+    const res = await mergeIngredients('Strawberry', ['strawberries', 'Strawberry'])
+    expect(res.recipesTouched).toBe(1) // only A changes; B already reads "Strawberry"
+
+    const ra = await db.recipes.get(a.mainId)
+    const rb = await db.recipes.get(b.mainId)
+    expect(ra!.ingredients.map((i) => i.name)).toContain('Strawberry')
+    expect(ra!.ingredients.map((i) => i.name)).not.toContain('strawberries')
+    expect(rb!.ingredients.map((i) => i.name)).toContain('Strawberry')
+  })
+
+  it('preserves amount, unit, and other ingredients on a rewritten recipe', async () => {
+    const a = await importRecipe(drinkWithIngredients('A', ['strawberries', 'White rum']))
+    await mergeIngredients('Strawberry', ['strawberries'])
+
+    const ra = await db.recipes.get(a.mainId)
+    const merged = ra!.ingredients.find((i) => i.name === 'Strawberry')
+    expect(merged).toMatchObject({ amount: 1, unit: 'oz' })
+    expect(ra!.ingredients.map((i) => i.name)).toContain('White rum')
+  })
+
+  it('repoints owned bottles in every bar onto the survivor key', async () => {
+    await importRecipe(drinkWithIngredients('A', ['strawberries']))
+    const now = Date.now()
+    await db.bottles.bulkPut([
+      { barId: 'home', name: 'strawberries', label: 'strawberries', addedAt: now },
+      { barId: 'beach', name: 'strawberries', label: 'strawberries', addedAt: now },
+    ])
+
+    const res = await mergeIngredients('Strawberry', ['strawberries'])
+    expect(res.bottlesMoved).toBe(2)
+
+    // old key gone, survivor key present, in both bars
+    expect(await db.bottles.get(['home', 'strawberries'])).toBeUndefined()
+    expect(await db.bottles.get(['home', 'strawberry'])).toMatchObject({ label: 'Strawberry' })
+    expect(await db.bottles.get(['beach', 'strawberry'])).toBeTruthy()
+  })
+
+  it('is a no-op when the target label is empty', async () => {
+    const a = await importRecipe(drinkWithIngredients('A', ['strawberries']))
+    const res = await mergeIngredients('  ', ['strawberries'])
+    expect(res).toEqual({ recipesTouched: 0, bottlesMoved: 0 })
+    const ra = await db.recipes.get(a.mainId)
+    expect(ra!.ingredients.map((i) => i.name)).toContain('strawberries')
   })
 })
