@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { RecipeRow } from '../components/RecipeRow'
-import { BottleIcon, ChevronRightIcon, SearchIcon } from '../components/icons'
+import { BottleIcon, ChevronRightIcon, GearIcon, SearchIcon } from '../components/icons'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
@@ -47,17 +47,29 @@ export function HomeScreen() {
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <div>
+        <div className={styles.headerText}>
           <div className={styles.greeting}>{greeting}</div>
           <h1 className={styles.title}>What can you pour?</h1>
         </div>
-        <button className={styles.barPill} onClick={cycleBar} aria-label="Switch bar">
-          <span className={styles.barDot} />
-          <span className={styles.barName}>{barName}</span>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 9l4-4 4 4M8 15l4 4 4-4" />
-          </svg>
-        </button>
+        <div className={styles.headerActions}>
+          {/* Only a switcher when there's something to switch to — cycleBar()
+              no-ops below two bars, so for most people this pill was an inert
+              120px of header. The hero card names the active bar anyway. */}
+          {bars.length > 1 && (
+            <button className={styles.barPill} onClick={cycleBar} aria-label="Switch bar">
+              <span className={styles.barDot} />
+              <span className={styles.barName}>{barName}</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 9l4-4 4 4M8 15l4 4 4-4" />
+              </svg>
+            </button>
+          )}
+          {/* Home is where every session starts, so it's the one place a
+              rarely-visited destination like Settings stays findable. */}
+          <Link className={styles.gear} to="/settings" aria-label="Settings">
+            <GearIcon size={19} />
+          </Link>
+        </div>
       </header>
 
       <button className={styles.search} onClick={() => navigate('/search')}>
