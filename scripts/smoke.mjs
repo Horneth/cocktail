@@ -54,6 +54,14 @@ const errors = []
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message))
 
+// Every URL the page asks for, so we can prove the Firebase SDK chunk is NOT
+// among them. Deliberately anchored on `assets/firebase-` so it doesn't also
+// match `assets/firebaseAI-*.js` — that one is our own small shim, and it is
+// precached, so it always loads.
+const requested = []
+page.on('request', (r) => requested.push(r.url()))
+const firebaseSdkLoaded = () => requested.filter((u) => /assets\/firebase-[^/]*\.js/.test(u))
+
 const failures = []
 function check(name, ok, detail = '') {
   console.log(`${ok ? '  ok' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
@@ -73,6 +81,27 @@ async function go(hash) {
   await page.goto(BASE + hash, { waitUntil: 'networkidle' })
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(400)
+}
+
+// ── Is this even the build we just made? ────────────────────────────────────
+// `vite preview` silently moves to 4174 when 4173 is taken, so a forgotten
+// server from another checkout will happily answer here and every check below
+// grades the wrong build. That is worse than a failure: it can pass. Compare
+// the served entry bundle against the one on disk before trusting anything.
+{
+  const { readFileSync } = await import('node:fs')
+  const onDisk = readFileSync('dist/index.html', 'utf8').match(/assets\/index-[^"']+\.js/)?.[0]
+  const served = (await (await fetch(BASE)).text()).match(/assets\/index-[^"']+\.js/)?.[0]
+  if (onDisk && served && onDisk !== served) {
+    console.error(
+      `\n${BASE} is serving a different build than dist/.\n` +
+        `  served:  ${served}\n  on disk: ${onDisk}\n` +
+        'Another `vite preview` is probably holding the port. Kill it, or point this\n' +
+        'script at the right one:  SMOKE_BASE=http://localhost:4174/ node scripts/smoke.mjs',
+    )
+    await browser.close()
+    process.exit(2)
+  }
 }
 
 // ── The app shell ───────────────────────────────────────────────────────────
@@ -114,6 +143,34 @@ await firstRecipe.click()
 await shot('09-recipe')
 check('recipe detail shows ingredients', (await page.locator('text=/oz|ml/').count()) > 0)
 
+// ── Cloud AI stays out of the way until you ask for it ──────────────────────
+// The whole point of the sign-in gate is that an offline user never pays for
+// it. My Bar and Import both call useAuth, so if the hook ever goes back to
+// subscribing on mount, the 350 KB SDK chunk shows up in the walk above.
+await go('#/bar')
+await go('#/import')
+check(
+  'Firebase SDK is not loaded for a signed-out user',
+  firebaseSdkLoaded().length === 0,
+  firebaseSdkLoaded().join(' | '),
+)
+
+// The bring-your-own-key field is gone for good — a password box on this screen
+// means the retired path came back.
+await go('#/settings')
+check('settings has no API key field', (await page.locator('input[type="password"]').count()) === 0)
+check('settings still offers the AI section', (await page.locator('text=/AI features/i').count()) > 0)
+
+// Signed out, the offline parser is the whole product. It must not depend on
+// any of the above.
+await go('#/import')
+await page.locator('button', { hasText: 'Paste an example' }).click()
+await page.locator('button', { hasText: 'Extract recipe' }).click()
+await page.waitForTimeout(800)
+const parsedName = await page.locator('input[placeholder="Name"]').first().inputValue().catch(() => '')
+check('basic parse works signed out', parsedName === 'Whiskey Sour', parsedName || 'no draft')
+await shot('11-basic-parse')
+
 // ── Backup round trip ───────────────────────────────────────────────────────
 // The reason this feature exists is the origin move, so a green unit test isn't
 // enough — the file has to actually leave the browser and come back.
@@ -137,7 +194,13 @@ if (dl) {
     backup.data.recipes.length >= homeBefore,
     `${backup.data.recipes.length} recipes, ${backup.data.bars.length} bars`,
   )
-  check('backup omits the API key', !JSON.stringify(backup).includes('geminiKey'))
+  // PORTABLE_SETTINGS is an allowlist so credentials and session state can't
+  // ride along into a file that ends up in email or cloud storage.
+  const serialized = JSON.stringify(backup)
+  check(
+    'backup omits credentials and session state',
+    !serialized.includes('geminiKey') && !serialized.includes('signedIn'),
+  )
 
   // Wipe the library, then restore from the exported file and confirm it returns.
   await page.evaluate(async () => {
