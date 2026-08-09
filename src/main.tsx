@@ -47,8 +47,19 @@ function handleShareTarget() {
   history.replaceState(null, '', location.pathname + (location.hash || ''))
 }
 
+// Cloud AI used to be bring-your-own-key: the user's own Gemini credential sat
+// in localStorage. Firebase AI Logic retired that, but simply deleting the code
+// would leave the key sitting in every existing install's storage forever. It is
+// a live credential we no longer have any use for, so scrub it on boot. Safe to
+// delete this once the app has been out long enough for installs to have run it.
+function forgetRetiredApiKey() {
+  localStorage.removeItem('cocktail.geminiKey')
+  localStorage.removeItem('cocktail.geminiModel')
+}
+
 async function bootstrap() {
   handleShareTarget()
+  forgetRetiredApiKey()
   try {
     await seedIfEmpty()
     await ensureDefaultBar()

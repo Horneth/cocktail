@@ -6,11 +6,16 @@ vi.mock('../auth/firebase', () => ({ getGeminiModel: vi.fn() }))
 import { getGeminiModel } from '../auth/firebase'
 import { CloudAIError, firebaseIdentifyBottles, firebaseParse } from './firebaseAI'
 
+type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
+
+/** Mock the model and hand back the spy, so tests can assert what was sent. */
 function mockModel(jsonText: string) {
-  vi.mocked(getGeminiModel).mockResolvedValue({
-    generateContent: async () => ({ response: { text: () => jsonText } }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any)
+  const generateContent = vi.fn(async (_request: string | ContentPart[]) => ({
+    response: { text: () => jsonText },
+  }))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vi.mocked(getGeminiModel).mockResolvedValue({ generateContent } as any)
+  return generateContent
 }
 
 afterEach(() => vi.clearAllMocks())
@@ -56,6 +61,22 @@ describe('firebaseIdentifyBottles', () => {
     mockModel(JSON.stringify({ bottles: [{ name: 'Tanqueray' }, { name: 'Tanqueray' }] }))
     const out = await firebaseIdentifyBottles([IMG])
     expect(out).toEqual([{ name: 'Tanqueray', category: 'gin' }])
+  })
+
+  it('sends each photo as an inlineData part alongside the prompt', async () => {
+    const generateContent = mockModel(JSON.stringify({ bottles: [] }))
+    await firebaseIdentifyBottles([IMG])
+
+    const parts = generateContent.mock.calls[0][0] as ContentPart[]
+    expect(parts[0]).toHaveProperty('text')
+    expect(parts).toContainEqual({ inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } })
+  })
+
+  it('rejects a photo that is not a data URL', async () => {
+    // Parts are built before the model handle is requested, so this never calls out.
+    await expect(firebaseIdentifyBottles(['https://example.com/shelf.jpg'])).rejects.toBeInstanceOf(
+      CloudAIError,
+    )
   })
 
   it('rejects an empty image list without calling the model', async () => {

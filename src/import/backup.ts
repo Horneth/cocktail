@@ -20,10 +20,12 @@ export const BACKUP_VERSION = 1
 /**
  * Preferences worth carrying across a device (or origin) move.
  *
- * `cocktail.geminiKey` is deliberately absent. A backup file gets emailed to
- * yourself, dropped in cloud storage and forgotten about; a credential has no
- * business in one. The key is cheap to re-enter, and the Firebase AI work will
- * retire it entirely.
+ * The list is an allowlist rather than "everything under cocktail.*" precisely
+ * so that credentials and session state can never leak into a file that gets
+ * emailed to yourself and dropped in cloud storage. That kept the old
+ * bring-your-own Gemini key out of backups; it now keeps `cocktail.signedIn`
+ * out too, which is device-local by nature — restoring it elsewhere would only
+ * make that browser load the Firebase SDK for a session it doesn't have.
  */
 const PORTABLE_SETTINGS = [
   'cocktail.volumePref',

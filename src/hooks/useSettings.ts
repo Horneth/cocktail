@@ -1,4 +1,4 @@
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import type { VolumePreference } from '../domain/units'
 
 const KEY = 'cocktail.volumePref'
