@@ -39,7 +39,7 @@ npm run test:watch # vitest in watch mode
 npm run typecheck  # tsc -b --noEmit
 ```
 
-Both `npm run typecheck` and `npm test` are green on the current tree (69 tests).
+Both `npm run typecheck` and `npm test` are green on the current tree (111 tests).
 Run them before committing — they are the fast feedback loop. There is **no
 linter/formatter** configured; match the surrounding code style.
 
@@ -65,6 +65,7 @@ src/
     availability.ts  "Can I make this?" matching (staples + recursion + category substitution)
     spiritCategory.ts  categoryForName() — infers a spirit category from a bottle name (brands too)
     spirits.ts    Spirit tile metadata, known-spirit order, generated art for custom spirits
+    spiritVisual.ts  spiritVisual() — resolves a spirit to the redesign's tile colours/glyph
     search.ts     Recipe text search
     pantry.ts     Bar-scoped bottle add/remove helpers (take a barId)
     bars.ts       Bar CRUD + ensureDefaultBar()
@@ -79,22 +80,28 @@ src/
     parseRecipeText.ts  Offline heuristic parser (pasted description → StructuredImport)
     gemini.ts     Optional BYO-key Gemini "smart parse" + geminiIdentifyBottles() vision (flag-gated)
     image.ts      Browser canvas downscale + data-URL split for the photo scan
+    backup.ts     Whole-library export/import (the only way data crosses an origin)
     shared.ts     Android share-target stash/consume helpers
 
   hooks/
     useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useActiveBar, …)
+    useAvailability.ts  Active bar's `have` set + the makeable check, for the screens
     useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId, Gemini key/model)
 
   screens/        One component per route (+ co-located *.module.css)
-    HomeScreen, BrowseScreen, RecipeDetailScreen, EditRecipeScreen,
-    ImportScreen, BarScreen, SettingsScreen
+    HomeScreen, SearchScreen, BrowseScreen, RecipeDetailScreen,
+    EditRecipeScreen, ImportScreen, BarScreen, SettingsScreen
 
-  components/     Reusable UI (RecipeCard, IngredientRow, ServingStepper,
-                  SwipeableRow, ErrorBoundary, icons)
+  components/     Reusable UI (TabBar, RecipeRow, IngredientRow, AddSheet,
+                  BottomSheet, ServingStepper, SwipeableRow, ErrorBoundary, icons)
 ```
 
-**Routes** (hash-based, see `main.tsx`): `/` (home), `/browse`, `/recipe/:id`,
-`/recipe/:id/edit`, `/new`, `/import`, `/bar`, `/settings`.
+**Routes** (hash-based, see `main.tsx`): `/` (home), `/search`, `/browse`,
+`/recipe/:id`, `/recipe/:id/edit`, `/new`, `/import`, `/bar`, `/settings`.
+
+Navigation is the persistent **`TabBar`** (Home · Search · add-FAB · Browse ·
+My Bar). The FAB opens **`AddSheet`** over a **`BottomSheet`** — both are
+buttons with `aria-label`s, not links, which matters when writing selectors.
 
 ## Key concepts — read these before making changes
 
@@ -193,6 +200,15 @@ Google's API. `FEATURES.cloudAI = false` in `src/config.ts` is a **kill switch**
 that removes every AI entry point. When touching AI code, keep it isolated behind
 that flag and never introduce a repo-side secret or backend.
 
+> **In flight:** this is being replaced by **Firebase AI Logic + Firebase Auth +
+> App Check** — Google proxies the call, the Gemini key lives in the Firebase
+> project rather than in each user's browser, and the AI features sit behind an
+> optional Google sign-in. `FEATURES.cloudAI` stays the kill switch. The CI
+> workflow already passes the `VITE_FIREBASE_*` / `VITE_RECAPTCHA_SITE_KEY`
+> build vars (as repo **Variables** — that config is public, not secret), and
+> Hosting is in the same Firebase project so `*.web.app` is already an
+> authorized Auth domain. Until that lands, the BYO-key path above is what ships.
+
 ### Error resilience
 `components/ErrorBoundary.tsx` wraps the router outlet and resets on route change,
 so a screen that throws doesn't blank the whole app. Seeding failures are caught
@@ -208,33 +224,70 @@ in `main.tsx` and don't block boot.
   dedup/linking, `gemini`, `shared`). New domain/import logic should come with a
   vitest test — that's the established pattern and the cheapest safety net.
 
-### End-to-end `verify-*.mjs` scripts (Playwright)
-`scripts/verify*.mjs` are throwaway Playwright smoke checks written per feature
-(one per PR/feature: `verify-mybar.mjs`, `verify-tags.mjs`, …). They drive a
-**preview build** (`npm run build && npm run preview`, port `4173`) and screenshot
-to `scripts/shots/` (gitignored). They are **not** part of `npm test` and are not
-CI-gated — treat them as manual/dev harnesses.
+### `scripts/smoke.mjs` — the one end-to-end check (Playwright)
+Drives a **preview build** (`npm run build && npm run preview`, port `4173`)
+through every screen, screenshots to `scripts/shots/` (gitignored), and asserts
+the backup round trip: export a real file, wipe IndexedDB, re-import, same
+recipes back. Prints ok/FAIL per check and exits non-zero.
 
-> **Gotcha:** these scripts hardcode `executablePath:
-> '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'`. In this environment the
-> browser is at `/opt/pw-browsers/chromium` (and `PLAYWRIGHT_BROWSERS_PATH` is
-> preset). Point `executablePath` at the available binary — or drop it and let
-> Playwright resolve — if you run one. Do **not** run `playwright install`.
+```bash
+npm i -D playwright   # once — deliberately not a repo dependency
+node scripts/smoke.mjs
+```
+
+Playwright stays out of `package.json` because installing it pulls a browser
+download into every `npm ci`, including CI runs that never open one. The script
+resolves Playwright's browser if present and otherwise falls back to the
+system Chrome, so it needs no `playwright install`.
+
+> This replaced sixteen per-feature `verify-*.mjs` scripts that had all rotted
+> (dead `executablePath`, pre-redesign selectors). **Extend this one** rather
+> than adding `verify-yourfeature.mjs` — that's how the last set went stale.
+
+> **Gotcha:** the app is hash-routed, so `page.goto()` between two `#/…` URLs is
+> a *same-document* navigation. The browser doesn't reload and React state (an
+> open sheet) leaks into the next screen. `go()` reloads explicitly for this.
 
 ## Build & deploy
 
-- **GitHub Pages** via `.github/workflows/deploy.yml`. It builds on push to the
-  `claude/cocktail-recipe-app-zf5owl` branch (the effective main line of this
-  repo) with `BASE_PATH=/cocktail/`, then deploys `dist/` to Pages.
-- **Base path**: Pages serves the project under `/cocktail/`. `vite.config.ts`
-  reads `process.env.BASE_PATH` (default `/`), and the PWA manifest's
-  `start_url` / `scope` / `share_target.action` all derive from it. Local dev
-  stays at `/`. Hash routing (`createHashRouter`) is what makes deep links and
-  refreshes work on Pages without 404s.
+- **Firebase Hosting** via `.github/workflows/deploy.yml`: push to `main` →
+  typecheck, test, build, deploy to the **live** channel. Every PR gets its own
+  auto-expiring **preview channel** URL, which is how you try a branch on a
+  phone (this replaced a scheme that published a second copy of the whole app
+  side-by-side under `/cocktail/v2/`).
+- **Base path is `/`** and hard-coded in `vite.config.ts`. It used to be a
+  CI-injected `BASE_PATH`, because Pages served the project under `/cocktail/`
+  and the manifest's `start_url` / `scope` / `share_target.action` all derived
+  from it. Hosting serves at the root, so all of that is gone — don't
+  reintroduce it.
+- **`firebase.json`** pins Cache-Control: `no-cache` on the entry point, `sw.js`
+  and the manifest; `immutable` on Vite's content-hashed `assets/`. This is not
+  incidental — a cached service worker is what pinned the old Pages deploy to a
+  dead build. Header rules are ordered broad-first, specific-last (last match
+  wins). Verify changes with `firebase emulators:start --only hosting` (port
+  5055; not the default 5000, which macOS AirPlay squats on).
+- **Hash routing** (`createHashRouter`) predates Hosting and stays: installed
+  PWAs and shared links keep working. `firebase.json` already has the SPA
+  rewrite if it ever changes.
+- **The old GitHub Pages origin** now serves `farewell/` (manual
+  `pages-farewell.yml` run only) — a self-destructing service worker plus an
+  export button, so old installs stop serving the dead build and users can carry
+  their library over. Keep Pages enabled; that page needs to keep answering.
 - **PWA**: `registerType: 'autoUpdate'`. The manifest declares an Android **Web
   Share Target** (`share_target`) so "Share" on a YouTube video can open the app;
   `main.tsx` captures the `?title&text&url` params at boot, `import/shared.ts`
   stashes them, and the user lands in Import prefilled.
+
+### Moving data between origins / devices
+`src/import/backup.ts` is the only path in or out. `exportBackup()` writes a
+versioned envelope (`{app, version, exportedAt, data, settings}`) covering all
+four Dexie stores plus the portable prefs; `importBackup()` **replaces** the
+library in one transaction. Two invariants worth keeping:
+- **`cocktail.geminiKey` is never exported.** A backup file ends up in email and
+  cloud storage; a credential has no business in one.
+- The **farewell page duplicates this shape by hand** in plain IndexedDB
+  (`farewell/index.html`, no bundle). If the envelope changes, change it there
+  too or the migration path silently breaks.
 
 ## Conventions & gotchas
 
@@ -244,7 +297,8 @@ CI-gated — treat them as manual/dev harnesses.
   core. DB access belongs in `hooks/` (reads) and `import/importRecipe.ts`
   (writes).
 - **CSS Modules** per component/screen; global tokens live in `theme.css`. The
-  theme is dark (`theme_color: #1a1220`).
+  theme is the "Nightcap" warm-paper light palette (`theme_color: #F6F4EF`) —
+  use the tokens (`--paper`, `--ink`, `--accent`, `--danger`, …), not literals.
 - **IDs** come from `domain/ids.ts` (`newId()`) — don't hand-roll ids.
 - **Comments in this codebase explain *why*** (invariants, edge cases,
   history). Match that: comment the non-obvious reasoning, not the obvious code.
@@ -253,10 +307,13 @@ CI-gated — treat them as manual/dev harnesses.
 
 ## Git workflow for AI assistants
 
-- The active development branch for this repo is
-  **`claude/cocktail-recipe-app-zf5owl`** (what CI deploys from). Confirm the
-  branch you were asked to work on before pushing, and never push to a different
-  branch without explicit permission.
+- **`main` is the branch.** It is the default branch and what CI deploys from.
+  Work on a topic branch and never push to a different long-lived branch without
+  explicit permission.
+- The repo previously had no `main` at all: the default was
+  `claude/cocktail-recipe-app-zf5owl` (the pre-redesign UI) with the redesign
+  living on a separate `v2` branch that CI published side-by-side. Both are gone.
+  If you find a reference to either, it's stale.
 - Do **not** open a pull request unless explicitly asked.
 - Write focused commits with clear messages describing the *why* (the existing
   history is a good model: "Recover from render errors instead of blank-screening",

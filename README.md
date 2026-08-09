@@ -9,16 +9,18 @@ offline with all data stored locally on your device. No accounts, no server.
 
 ## Highlights
 
-- **Browse by spirit or tag** — the home screen is a mosaic of base-spirit
-  tiles (gin, rum, whiskey, tequila, mocktails, …) plus a "Browse by tag"
-  section. Everything funnels into one `/browse` view driven by the URL
-  (`scope` + `tags`): a spirit tile scopes to that spirit, a tag pill filters
-  across *all* spirits, and the wrapping tag picker is **multi-select** (AND) —
-  e.g. all *refreshing + citrusy* drinks. A search bar is always available;
-  "All", "Favorites", and "Syrups & more" get their own tiles. **Spirits are
-  free-form** — type any base spirit (cachaça, pisco, sake…) in the editor or
-  import preview and it gets its own tile with generated art; the import keeps
-  the specific spirit a recipe names rather than collapsing it.
+- **Opens on what you can pour** — home leads with a live *"N drinks you can
+  make right now"* card for your active bar, then spirit cards and what you
+  added recently. A bottom tab bar (Home · Search · Browse · My Bar) with a
+  center **+** is always in reach.
+- **Browse by spirit or tag** — everything funnels into one `/browse` view
+  driven by the URL (`scope` + `tags`): a spirit card scopes to that spirit, a
+  tag pill filters across *all* spirits, and the tag picker is **multi-select**
+  (AND) — e.g. all *refreshing + citrusy* drinks. "All", "Favorites" and
+  "Syrups & more" get their own entries. **Spirits are free-form** — type any
+  base spirit (cachaça, pisco, sake…) in the editor or import preview and it
+  gets its own generated art; the import keeps the specific spirit a recipe
+  names rather than collapsing it.
 - **My Bar(s) & "what can I make"** — tell the app which bottles you actually
   have (a tap-to-toggle inventory at `/bar`, grouped by spirit), then flip
   **Only what I can make** on the Browse screen to see just the drinks you can
@@ -45,6 +47,10 @@ offline with all data stored locally on your device. No accounts, no server.
   *Used in* list of every drink that references it.
 - **Parts & volumes** — recipes can be absolute (2 oz, ¾ oz) or ratio-based
   (1 part : 1 part), with a per-part volume selector.
+- **Your data is yours, and portable** — everything lives in your browser, so
+  **Settings → Your data** exports the whole library (recipes, notes, bars,
+  preferences) to a JSON file and imports it back on another device. Your API
+  key is never written to the file.
 
 ## Stack
 
@@ -59,11 +65,28 @@ npm install
 npm run dev        # http://localhost:5173  (service worker enabled in dev)
 npm run build      # production build + service worker
 npm run preview    # serve the production build (test install/offline here)
-npm test           # vitest — units, scaling, import/link dedup
+npm test           # vitest — units, scaling, import/link dedup, backup
 npm run typecheck
 ```
 
 Regenerate PWA icons from the SVG source: `node scripts/make-icons.mjs`.
+
+End-to-end smoke check against a preview build (needs `npm i -D playwright`
+once — it's deliberately not a repo dependency):
+
+```bash
+node scripts/smoke.mjs
+```
+
+## Deploy
+
+Hosted on **Firebase Hosting**. Pushing to `main` runs typecheck + tests + build
+and deploys; every pull request gets its own temporary preview URL.
+
+> **Moving from the old address?** The app used to live on GitHub Pages at
+> `/cocktail/`. Because browsers scope stored data per origin, your recipes
+> don't follow automatically: open the old address, tap **Export my data**, then
+> on the new site go to **Settings → Your data → Import backup**.
 
 ## Data model (one entity, cross-linked)
 
@@ -121,6 +144,10 @@ to `false` in `src/config.ts` and redeploy to remove every AI entry point
 (Settings gear, AI section, Smart-parse button), leaving the app exactly as it
 was. Code is isolated to `src/import/gemini.ts`, `src/screens/SettingsScreen.tsx`,
 and flag-gated blocks, so it also reverts cleanly with `git revert`.
+
+> **Changing soon:** the AI features are moving to **Firebase AI Logic** with an
+> optional Google sign-in, so there's no key to paste and nothing sensitive in
+> your browser. Everything else stays local-first and offline.
 
 ### Roadmap: one-tap URL import (phase 2b)
 
