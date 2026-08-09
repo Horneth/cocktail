@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "REPLACE_ME_WITH_FIREBASE_PROJECT_ID"
-  }
+    "default": "cocktails-c2705",
+    "dev": "cocktails-c2705"
+  },
+  "targets": {},
+  "etags": {}
 }

@@ -1,5 +1,7 @@
 # 🍸 Cocktail
 
+**<https://cocktails-c2705.web.app>**
+
 A fast, offline, install-to-your-phone cocktail recipe book. Open it, pick a
 drink, and build it in seconds. Tweak measurements on the fly, keep personal
 notes, and cross-link sub-recipes (syrups, cordials) shared across many drinks.
@@ -80,8 +82,9 @@ node scripts/smoke.mjs
 
 ## Deploy
 
-Hosted on **Firebase Hosting**. Pushing to `main` runs typecheck + tests + build
-and deploys; every pull request gets its own temporary preview URL.
+Live at **<https://cocktails-c2705.web.app>**, on Firebase Hosting. Pushing to
+`main` runs typecheck + tests + build and deploys; every pull request gets its
+own temporary preview URL.
 
 > **Moving from the old address?** The app used to live on GitHub Pages at
 > `/cocktail/`. Because browsers scope stored data per origin, your recipes
