@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#F6F4EF" />
+    <meta name="robots" content="noindex" />
+    <title>Cocktails has moved</title>
+    <style>
+      :root {
+        --paper: #f6f4ef;
+        --card: #fff;
+        --ink: #221e1a;
+        --muted: #8c857b;
+        --line: #ece7de;
+        --accent: #e7623b;
+        --accent-grad: linear-gradient(150deg, #ee6b44, #d8492a);
+        --green: #4e9e7e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 32px 22px calc(48px + env(safe-area-inset-bottom, 0px));
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.55 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      main { max-width: 34rem; margin: 0 auto; }
+      h1 {
+        font-family: 'DM Serif Display', 'Iowan Old Style', Palatino, Georgia, serif;
+        font-weight: 400;
+        font-size: 32px;
+        letter-spacing: -0.01em;
+        margin: 0 0 10px;
+      }
+      p { color: var(--muted); margin: 0 0 16px; }
+      strong { color: var(--ink); }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 20px;
+        margin: 22px 0;
+        box-shadow: 0 3px 12px rgba(40, 30, 20, 0.04);
+      }
+      .step {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-weight: 800;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 8px;
+      }
+      button, .cta {
+        display: block;
+        width: 100%;
+        padding: 15px 18px;
+        border: 0;
+        border-radius: 16px;
+        font: inherit;
+        font-weight: 800;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      #export { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+      .cta { background: var(--accent-grad); color: #fff3ed; box-shadow: 0 14px 28px -10px rgba(216, 73, 42, 0.6); }
+      #status { margin: 12px 0 0; font-size: 14px; font-weight: 700; }
+      #status.ok { color: var(--green); }
+      #status.warn { color: var(--accent); }
+      footer { font-size: 13px; color: var(--muted); margin-top: 28px; }
+      code { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Cocktails has moved</h1>
+      <p>
+        The app now lives at a new address. Your recipes, notes and bars were saved
+        <strong>in this browser</strong>, on this address — so they don’t come along on their own.
+        Two steps and they will.
+      </p>
+
+      <div class="card">
+        <div class="step">Step 1 · here</div>
+        <p>Save a backup file of everything you have on this device.</p>
+        <button id="export" type="button">Export my data</button>
+        <p id="status"></p>
+      </div>
+
+      <div class="card">
+        <div class="step">Step 2 · there</div>
+        <p>
+          Open the new app, go to <strong>Settings → Your data → Import backup</strong>, and pick
+          the file you just saved.
+        </p>
+        <!-- MANUAL STEP: replace with the real Firebase Hosting URL before deploying. -->
+        <a class="cta" id="newsite" href="https://REPLACE-ME.web.app/">Open the new app</a>
+      </div>
+
+      <footer>
+        <p>
+          Nothing was uploaded anywhere — the backup is a plain
+          <code>.json</code> file that never leaves your device until you choose to move it. This
+          page has also cleared the old offline copy of the app from this browser; if you had it
+          installed to your home screen, you can delete that icon.
+        </p>
+      </footer>
+    </main>
+
+    <script>
+      // ── Evict the old app ──────────────────────────────────────────────
+      // sw.js here is a self-destroying worker. Registering it hands the old
+      // Workbox precache over to something that deletes every cache and then
+      // unregisters — the only way an already-installed PWA stops serving
+      // itself the app that used to live at this address.
+      //
+      // Only register when there is actually something to evict. sw.js reloads
+      // every open window once it has unregistered itself, so registering it
+      // unconditionally would mean: load → activate → unregister → reload →
+      // register → … a permanent reload loop. After the first visit there are
+      // no registrations left, and this stays a plain static page.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then(function (regs) {
+            if (!regs.length) return
+            return navigator.serviceWorker.register('sw.js').catch(function () {
+              // Registration blocked — unregister the old worker directly.
+              return Promise.all(regs.map(function (r) { return r.unregister() }))
+            })
+          })
+          .catch(function () {})
+      }
+      if (window.caches) {
+        caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {})
+      }
+
+      // ── Export ─────────────────────────────────────────────────────────
+      // Reads the Dexie database with plain IndexedDB, so this page needs no
+      // bundle. The shape must stay identical to exportBackup() in
+      // src/import/backup.ts — the new app's importer reads exactly this.
+      var STORES = ['recipes', 'recipeLinks', 'bars', 'bottles']
+      var SETTINGS = ['cocktail.volumePref', 'cocktail.assumeStaples', 'cocktail.activeBarId']
+
+      var statusEl = document.getElementById('status')
+      function say(text, cls) {
+        statusEl.textContent = text
+        statusEl.className = cls || ''
+      }
+
+      function openDB() {
+        return new Promise(function (resolve, reject) {
+          // No version: open whatever this browser already has, and never
+          // trigger an upgrade that could alter the user's data on the way out.
+          var req = indexedDB.open('cocktailDB')
+          req.onsuccess = function () { resolve(req.result) }
+          req.onerror = function () { reject(req.error) }
+          req.onblocked = function () { reject(new Error('Close the app’s other tabs and retry.')) }
+        })
+      }
+
+      function readAll(db, name) {
+        return new Promise(function (resolve) {
+          if (!db.objectStoreNames.contains(name)) return resolve([])
+          var req = db.transaction(name, 'readonly').objectStore(name).getAll()
+          req.onsuccess = function () { resolve(req.result || []) }
+          req.onerror = function () { resolve([]) }
+        })
+      }
+
+      document.getElementById('export').addEventListener('click', function () {
+        say('Reading…')
+        openDB()
+          .then(function (db) {
+            return Promise.all(STORES.map(function (s) { return readAll(db, s) }))
+          })
+          .then(function (tables) {
+            var data = {}
+            STORES.forEach(function (name, i) { data[name] = tables[i] })
+
+            var settings = {}
+            SETTINGS.forEach(function (key) {
+              var v = null
+              try { v = localStorage.getItem(key) } catch (e) { /* storage blocked */ }
+              if (v !== null) settings[key] = v
+            })
+            // The Gemini API key is deliberately not in SETTINGS — a backup
+            // file should never carry a credential.
+
+            var backup = {
+              app: 'cocktail',
+              version: 1,
+              exportedAt: Date.now(),
+              data: data,
+              settings: settings,
+            }
+
+            if (!data.recipes.length) {
+              say('No saved recipes found in this browser — nothing to move.', 'warn')
+              return
+            }
+
+            var url = URL.createObjectURL(
+              new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }),
+            )
+            var a = document.createElement('a')
+            a.href = url
+            a.download = 'cocktails-backup-' + new Date().toISOString().slice(0, 10) + '.json'
+            // Firefox needs the anchor in the document; Safari aborts the
+            // download if the blob URL is revoked in the same tick.
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            setTimeout(function () { URL.revokeObjectURL(url) }, 10000)
+
+            say('Saved ' + data.recipes.length + ' recipes. Now open the new app below.', 'ok')
+          })
+          .catch(function (err) {
+            say(err && err.message ? err.message : 'Could not read your data.', 'warn')
+          })
+      })
+    </script>
+  </body>
+</html>
