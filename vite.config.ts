@@ -3,13 +3,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// Minimal declaration so the config can read the CI-provided env var without
-// pulling in @types/node.
-declare const process: { env: Record<string, string | undefined> }
-
-// GitHub Pages serves project sites under /<repo>/. The workflow sets
-// BASE_PATH=/cocktail/; local dev stays at '/'.
-const base = process.env.BASE_PATH || '/'
+// Firebase Hosting serves the app at the site root, so the base path is a
+// constant. (It used to be CI-injected: GitHub Pages served project sites under
+// /<repo>/, which forced a BASE_PATH env var through the manifest's start_url,
+// scope and share_target. Moving off Pages retired all of that.)
+const base = '/'
 
 // https://vite.dev/config/
 export default defineConfig({

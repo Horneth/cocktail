@@ -1,0 +1,36 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "//": "SPA fallback. Redundant while the app uses createHashRouter (every route lives after the #), but it is what makes a future switch to createBrowserRouter a one-line change instead of a hosting migration.",
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "//": "Default: revalidate everything. A stale service worker is exactly how the old GitHub Pages deploy pinned installed apps to a dead build, so the entry point, sw.js and the manifest must never be cached. Later matches override this for the fingerprinted files below.",
+        "source": "**",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0" }]
+      },
+      {
+        "//": "Vite fingerprints everything under assets/ with a content hash, so a given URL's bytes never change.",
+        "source": "/assets/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "//": "Icons are not fingerprinted, but they change roughly never.",
+        "source": "/icons/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+      }
+    ]
+  },
+  "emulators": {
+    "//": "Not the default 5000 — macOS AirPlay Receiver squats on that port and answers 403.",
+    "hosting": { "port": 5055 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

@@ -8,3 +8,8 @@ coverage
 *.log
 *.tsbuildinfo
 scripts/shots
+
+# Firebase CLI deploy cache. .firebaserc IS committed (it only names the project).
+.firebase
+# Local Firebase client config for `npm run dev`; CI injects these as repo Variables.
+.env
