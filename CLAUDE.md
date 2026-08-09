@@ -6,10 +6,15 @@ Guidance for AI assistants (and humans) working in this repository.
 
 **Cocktail** is an offline-first PWA cocktail recipe book: browse drinks by base
 spirit or tag, scale a recipe on the fly, keep personal notes, track a "My Bar"
-inventory, and import recipes from pasted YouTube descriptions. It is a pure
-client-side app — **no backend, no accounts, no server**. All data lives in the
-browser (IndexedDB + localStorage), and the app shell is cached by a service
-worker so it works fully offline and installs to a phone's home screen.
+inventory, and import recipes from pasted YouTube descriptions. All data lives in
+the browser (IndexedDB + localStorage) — **no server holds your library, and
+there is nothing to sign up for**. The app shell is cached by a service worker so
+it works fully offline and installs to a phone's home screen.
+
+The one exception, and it is deliberate: the **optional** AI features (smart
+parse, shelf scan) call Gemini through Firebase and require a Google sign-in.
+Everything else — every screen, every recipe, the whole library — works signed
+out and offline, and must keep working that way. See "Optional cloud AI" below.
 
 The user-facing story lives in `README.md`; this file is the map for *changing*
 the code.
@@ -39,7 +44,7 @@ npm run test:watch # vitest in watch mode
 npm run typecheck  # tsc -b --noEmit
 ```
 
-Both `npm run typecheck` and `npm test` are green on the current tree (111 tests).
+Both `npm run typecheck` and `npm test` are green on the current tree (129 tests).
 Run them before committing — they are the fast feedback loop. There is **no
 linter/formatter** configured; match the surrounding code style.
 
@@ -78,15 +83,20 @@ src/
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (tempId-based links)
     importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents()
     parseRecipeText.ts  Offline heuristic parser (pasted description → StructuredImport)
-    gemini.ts     Optional BYO-key Gemini "smart parse" + geminiIdentifyBottles() vision (flag-gated)
+    aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
+    firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse() + firebaseIdentifyBottles()
     image.ts      Browser canvas downscale + data-URL split for the photo scan
     backup.ts     Whole-library export/import (the only way data crosses an origin)
     shared.ts     Android share-target stash/consume helpers
 
+  auth/
+    firebase.ts   Lazy Firebase bootstrap (App Check + Auth + AI Logic); sign-in/out; model handles
+
   hooks/
     useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useActiveBar, …)
     useAvailability.ts  Active bar's `have` set + the makeable check, for the screens
-    useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId, Gemini key/model)
+    useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId)
+    useAuth.ts      Optional Google sign-in; `aiAvailable` is the single gate for AI features
 
   screens/        One component per route (+ co-located *.module.css)
     HomeScreen, SearchScreen, BrowseScreen, RecipeDetailScreen,
@@ -115,7 +125,7 @@ both ways, powering fast "Used in" back-links and shared-component dedup.
 a second source of truth. See `src/db/schema.ts`.
 
 ### The import seam is the only bulk write path
-Every recipe source — the seed data today, the YouTube importer, the Gemini
+Every recipe source — the seed data today, the YouTube importer, the cloud AI
 parser — produces a **`StructuredImport`** and goes through
 **`importRecipe()`** (`src/import/importRecipe.ts`). It runs in a single Dexie
 transaction: inserts/reuses components (deduped by `name`+`kind`), resolves
@@ -141,7 +151,7 @@ their default bar from `ensureDefaultBar()` at boot.
 There is no separate app state store. Read data with the `useLiveQuery` hooks in
 `hooks/useRecipes.ts`; mutate via the `import/importRecipe.ts` actions. UI updates
 follow automatically because `useLiveQuery` re-runs on DB change. User
-*preferences* (oz/ml, assume-staples, Gemini key) live in **localStorage** via
+*preferences* (oz/ml, assume-staples, active bar) live in **localStorage** via
 `hooks/useSettings.ts`, not IndexedDB.
 
 ### Non-destructive scaling
@@ -171,11 +181,11 @@ used to group the Bar screen and label scanned bottles) goes through
 
 ### Photo → bar (Gemini vision)
 "Scan my shelf" on the Bar screen downscales photos client-side (`import/image.ts`)
-and sends them to `geminiIdentifyBottles()`, which reuses the same BYO-key endpoint,
-schema, and error/timeout handling as smart-parse (just with `inlineData` image
-parts + a bottle-list `responseSchema`). Results dedupe (our `categoryForName()`
-wins on category) into a review sheet, then land in the active bar via
-`bulkAddPantry`. Gated on `FEATURES.cloudAI` + the user's key.
+and sends them to `firebaseIdentifyBottles()`, which reuses the same model handle,
+schema and error handling as smart-parse (just with `inlineData` image parts + a
+bottle-list `responseSchema`). Results dedupe (our `categoryForName()` wins on
+category) into a review sheet, then land in the active bar via `bulkAddPantry`.
+Gated on `auth.aiAvailable`.
 
 ### Merging duplicate components
 Imports can create near-duplicate syrups (a hand-added "Simple Syrup" plus an
@@ -191,23 +201,36 @@ emoji, gradient) for known spirits and **generates deterministic tile art** for
 anything else, so a custom spirit (cachaça, pisco, sake) gets its own mosaic tile
 without code changes. `'none'` is the sentinel for "no base spirit".
 
-### Optional Gemini AI — flag-gated, BYO-key
-Two opt-in AI paths live in `src/import/gemini.ts`: **smart parse** (description →
-recipes, wired in `ImportScreen`) and **shelf scan** (`geminiIdentifyBottles`,
-photos → bottles, wired in `BarScreen`). Both use a **user-supplied** Gemini key
-stored **only in localStorage** — never committed, never sent anywhere but
-Google's API. `FEATURES.cloudAI = false` in `src/config.ts` is a **kill switch**
-that removes every AI entry point. When touching AI code, keep it isolated behind
-that flag and never introduce a repo-side secret or backend.
+### Optional cloud AI — Firebase AI Logic, behind a sign-in
+Two opt-in AI paths: **smart parse** (description → recipes, wired in
+`ImportScreen`) and **shelf scan** (photos → bottles, wired in `BarScreen`). Both
+call **`src/import/firebaseAI.ts`**, which goes through **Firebase AI Logic** —
+Google proxies the request and the Gemini key lives in the Firebase project, so
+**no credential ships in this app or sits in a user's browser**. The pure part
+(schemas, prompts, model-JSON → `StructuredImport`) lives in
+**`src/import/aiShared.ts`** and is transport-agnostic; a future backend should
+reuse it and only supply a new transport.
 
-> **In flight:** this is being replaced by **Firebase AI Logic + Firebase Auth +
-> App Check** — Google proxies the call, the Gemini key lives in the Firebase
-> project rather than in each user's browser, and the AI features sit behind an
-> optional Google sign-in. `FEATURES.cloudAI` stays the kill switch. The CI
-> workflow already passes the `VITE_FIREBASE_*` / `VITE_RECAPTCHA_SITE_KEY`
-> build vars (as repo **Variables** — that config is public, not secret), and
-> Hosting is in the same Firebase project so `*.web.app` is already an
-> authorized Auth domain. Until that lands, the BYO-key path above is what ships.
+Three gates, in order — all three must hold before an AI call happens:
+1. `FEATURES.cloudAI` in `src/config.ts` — the **kill switch**, removes every entry point.
+2. `isCloudAIConfigured()` — the `VITE_FIREBASE_*` build vars are present. Unset
+   (a fork, a bare checkout) means the AI UI never appears and the SDK never loads.
+3. `useAuth().aiAvailable` — the user is signed in with Google.
+
+**Don't subscribe to auth eagerly.** `useAuth` deliberately does *not* boot
+Firebase on mount: `BarScreen` calls it on a primary tab, and booting means the
+SDK chunk plus App Check's reCAPTCHA handshake. It arms only for someone who has
+signed in on this browser before (`cocktail.signedIn`) or who just clicked sign
+in. `scripts/smoke.mjs` asserts the chunk is never fetched for a signed-out user
+— if you change this hook, that check is what will catch you.
+
+`vite.config.ts` keeps `firebase-*.js` in its own chunk and out of the SW
+precache, for the same reason. Setup, console steps and the preview-channel
+caveat are in **`docs/cloud-ai-backend.md`**.
+
+Rules that still hold: never introduce a repo-side secret, and keep the offline
+`parseRecipeText` path fully working for signed-out users — that is the default
+experience, not a fallback.
 
 ### Error resilience
 `components/ErrorBoundary.tsx` wraps the router outlet and resets on route change,
@@ -221,7 +244,8 @@ in `main.tsx` and don't block boot.
   and **`fake-indexeddb/auto`** so Dexie works in tests without a real browser.
 - The strongest coverage is on the **pure domain logic** (`scaling`, `units`,
   `availability`) and the **import pipeline** (`parseRecipeText`, `importRecipe`
-  dedup/linking, `gemini`, `shared`). New domain/import logic should come with a
+  dedup/linking, `aiShared`, `firebaseAI`, `shared`) plus `useAuth`'s lazy-boot
+  gate. New domain/import logic should come with a
   vitest test — that's the established pattern and the cheapest safety net.
 
 ### `scripts/smoke.mjs` — the one end-to-end check (Playwright)
@@ -285,8 +309,10 @@ system Chrome, so it needs no `playwright install`.
 versioned envelope (`{app, version, exportedAt, data, settings}`) covering all
 four Dexie stores plus the portable prefs; `importBackup()` **replaces** the
 library in one transaction. Two invariants worth keeping:
-- **`cocktail.geminiKey` is never exported.** A backup file ends up in email and
-  cloud storage; a credential has no business in one.
+- **`PORTABLE_SETTINGS` is an allowlist, not a `cocktail.*` sweep.** A backup file
+  ends up in email and cloud storage, so credentials and session state must never
+  ride along. That kept the old BYO Gemini key out; it now keeps
+  `cocktail.signedIn` out, which is device-local anyway.
 - **Bump `BACKUP_VERSION` and keep reading v1** if the envelope changes.
   `parseBackup()` rejects anything newer than it knows, so a file exported today
   has to stay loadable — this is the only copy some libraries have.
@@ -304,8 +330,10 @@ library in one transaction. Two invariants worth keeping:
 - **IDs** come from `domain/ids.ts` (`newId()`) — don't hand-roll ids.
 - **Comments in this codebase explain *why*** (invariants, edge cases,
   history). Match that: comment the non-obvious reasoning, not the obvious code.
-- No secrets in the repo, ever. The only credential path (Gemini) is
-  user-supplied and browser-local by design.
+- No secrets in the repo, ever. The Gemini key lives in the Firebase project and
+  is never seen by this app. The `VITE_FIREBASE_*` / `VITE_RECAPTCHA_SITE_KEY`
+  build vars *are* in the client bundle on purpose — that is public client
+  config, which is why CI passes them as repo **Variables**, not Secrets.
 
 ## Git workflow for AI assistants
 

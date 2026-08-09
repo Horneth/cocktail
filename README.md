@@ -7,7 +7,9 @@ drink, and build it in seconds. Tweak measurements on the fly, keep personal
 notes, and cross-link sub-recipes (syrups, cordials) shared across many drinks.
 
 Built as a **PWA** — a web app you can "Add to Home Screen" that works fully
-offline with all data stored locally on your device. No accounts, no server.
+offline with all data stored locally on your device. No server holds your
+library, and nothing needs an account (the optional AI features ask for a Google
+sign-in; everything else never does).
 
 ## Highlights
 
@@ -29,8 +31,8 @@ offline with all data stored locally on your device. No accounts, no server.
   build right now. Home shows a live *"N you can make right now"* banner. Keep
   **several bars** — "My Bar" plus a friend's place or a travel kit — and switch
   the active one; "what I can make" follows. You can even **scan your shelf**:
-  snap a photo of your bottles and AI adds them for you (opt-in, bring-your-own
-  key). Matching is smart: an **Assume I have the basics** switch (on by default)
+  snap a photo of your bottles and AI adds them for you (opt-in, needs a Google
+  sign-in). Matching is smart: an **Assume I have the basics** switch (on by default)
   covers water/ice/citrus/sugar/sodas/garnishes/egg so the bar only tracks
   *bottles*; sub-recipes recurse (a drink that needs Simple Syrup counts if you
   can make the syrup); and a **generic bottle covers a specific call** — any rum
@@ -113,14 +115,20 @@ toppers like "Club Soda", garnish/method lines) and strips description noise
 (chapters, gear links, socials). `Recipe.source` records provenance (and the
 YouTube URL/video id when present in the pasted text).
 
-### Optional: Smart parse with Gemini (bring-your-own-key)
+### Optional: Smart parse, with a Google sign-in
 
-For messier descriptions you can enable AI parsing: **Settings → AI parsing**,
-paste your own Google **Gemini** API key. It's stored **only in your browser's
-localStorage** — never committed to this repo and never sent anywhere except
-Google's API when you parse. The Import screen then offers **✨ Smart parse**
-(Gemini structured output → the same `StructuredImport` pipeline), with the
-offline heuristic always available as a fallback. All client-side; no backend.
+For messier descriptions there's AI parsing. **Sign in with Google** (from
+**Settings → AI features**, or the prompt on the Import screen) and the Import
+screen offers **✨ Smart parse** — structured model output feeding the same
+`StructuredImport` pipeline, with the offline heuristic always available as a
+fallback.
+
+There is **no API key to paste and nothing sensitive stored in your browser**.
+The request goes through Firebase AI Logic: Google runs the proxy and the Gemini
+key lives in the Firebase project, never in this app. The sign-in exists so usage
+can be rate-limited per account — it is not an account for your recipes. Your
+library stays entirely on your device either way, and every other feature works
+signed out.
 
 A single video description usually holds **several cocktails**, so Smart parse
 returns *all* of them: the preview becomes a **pick-list** ("N cocktails found")
@@ -140,16 +148,15 @@ browser can't fetch a YouTube description — CORS), so for full ingredients sha
 the selected description text, or paste it. iOS Safari doesn't implement Web
 Share Target, so there it stays copy-paste.
 
-Security: create a key **restricted to the Generative Language API** so a leak
-is low-impact. The whole feature is a **kill switch** — set `FEATURES.cloudAI`
-to `false` in `src/config.ts` and redeploy to remove every AI entry point
-(Settings gear, AI section, Smart-parse button), leaving the app exactly as it
-was. Code is isolated to `src/import/gemini.ts`, `src/screens/SettingsScreen.tsx`,
-and flag-gated blocks, so it also reverts cleanly with `git revert`.
-
-> **Changing soon:** the AI features are moving to **Firebase AI Logic** with an
-> optional Google sign-in, so there's no key to paste and nothing sensitive in
-> your browser. Everything else stays local-first and offline.
+The whole feature is a **kill switch** — set `FEATURES.cloudAI` to `false` in
+`src/config.ts` and redeploy to remove every AI entry point, leaving the app
+exactly as it was. It also disappears on its own in any build without the
+`VITE_FIREBASE_*` variables, so a fork or a bare `npm run build` gets a pure
+offline recipe book with no dead UI. Code is isolated to `src/auth/firebase.ts`,
+`src/import/firebaseAI.ts`, `src/hooks/useAuth.ts` and flag-gated blocks. The
+Firebase SDK is a separate chunk that is never downloaded until you actually
+sign in — being signed out costs nothing. Setup notes:
+[`docs/cloud-ai-backend.md`](docs/cloud-ai-backend.md).
 
 ### Roadmap: one-tap URL import (phase 2b)
 

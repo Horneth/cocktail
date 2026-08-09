@@ -1,11 +1,12 @@
 # Cloud AI as a first-class backend — decision & setup
 
-_Status: decision record + setup guide. Written 2026-07._
+_Status: **implemented**. Decision record + setup guide. Written 2026-07, updated 2026-08 after
+the move from GitHub Pages to Firebase Hosting._
 
-## Why change the current model
+## Why change the previous model
 
-Today cloud AI is **bring-your-own-key**: each user pastes a Gemini API key into
-`localStorage` (`cocktail.geminiKey`) and the browser calls Google directly
+Cloud AI used to be **bring-your-own-key**: each user pasted a Gemini API key into
+`localStorage` (`cocktail.geminiKey`) and the browser called Google directly
 (`src/import/gemini.ts`). That's fine for a personal tool but not "first-class."
 
 Decision: if cloud AI stays a first-class feature it gets first-class support —
@@ -23,8 +24,9 @@ Decision: if cloud AI stays a first-class feature it gets first-class support �
 ## Recommendation — Firebase AI Logic + Firebase Auth + App Check
 
 The simplest free path that meets every requirement **without writing or hosting our own
-backend**: Google runs the proxy, the Gemini key stays server-side, and it works from the
-existing GitHub Pages hosting.
+backend**: Google runs the proxy and the Gemini key stays server-side. It landed in the same
+Firebase project that already serves the app, which is what makes the setup below as short as
+it is.
 
 - **Firebase AI Logic** (GA, JS/web SDK) — the client calls Gemini through Google's proxy, so
   there's **no API key in client code and no server for us to write**. Uses the **Gemini
@@ -32,8 +34,9 @@ existing GitHub Pages hosting.
   the same `responseSchema` / `responseMimeType: 'application/json'` structured output we
   already rely on, so our schemas and prompts carry over unchanged.
 - **Firebase Authentication** — Google sign-in (popup or redirect). Free, and works from any
-  origin as long as the domain is on the **Authorized domains** list. No migration off GitHub
-  Pages.
+  origin as long as the domain is on the **Authorized domains** list. Since this memo was
+  written the app moved to **Firebase Hosting in the same project** (`cocktails-c2705`), so
+  `cocktails-c2705.web.app` and `.firebaseapp.com` are authorized automatically.
 - **Firebase App Check** (reCAPTCHA v3, free) — **mandatory for AI Logic as of July 2026**.
   It attests that requests come from the real app; App Check tokens are single-use (replay
   protection, May 2026).
@@ -60,61 +63,93 @@ a Google ID token and forwards to Gemini with a server-held key — full control
 per-user daily metering, at the cost of building, hosting, and securing it ourselves and
 managing the secret. Kept as an escape hatch, not the first move.
 
-## What changes in the app
+## What changed in the app (shipped)
 
-- **Deps:** add `firebase` (modular imports: `firebase/app`, `firebase/auth`, `firebase/ai`,
-  `firebase/app-check`); lazy-load the AI/auth modules so the core bundle stays lean.
-- **Transport swap in `src/import/gemini.ts`:** replace the raw `fetch` to
-  `generativelanguage.googleapis.com` with the Firebase AI Logic SDK —
+- **Deps:** `firebase` (modular imports: `firebase/app`, `firebase/auth`, `firebase/ai`,
+  `firebase/app-check`). `vite.config.ts` splits it into its own `firebase-*.js` chunk and
+  `globIgnores` keeps that chunk **out of the service-worker precache** — an offline recipe
+  book shouldn't ship 350 KB of SDK to everyone on first install.
+- **`src/import/firebaseAI.ts`** replaced the raw `fetch` transport:
   `getAI()` → `getGenerativeModel({ model, generationConfig: { responseMimeType, responseSchema } })`
-  → `generateContent(parts)`. `geminiParse` / `geminiIdentifyBottles` **drop the `apiKey`
-  argument**; everything downstream (mappers, schemas, prompts) is unchanged. Vision still sends
-  `inlineData` parts via `splitDataUrl` (`src/import/image.ts`).
-- **New `src/auth/firebase.ts`:** initialize the Firebase app + App Check + Auth once; expose
-  `signInWithGoogle()`, `signOut()`, and an auth-state hook. The Firebase config values
-  (`apiKey`, `projectId`, `appId`, …) are **public client config, not secrets** — safe to
-  commit. (The real, secret Gemini key lives in the Firebase project and never ships.)
-- **`src/hooks/useSettings.ts`:** retire the BYO-key storage; gating moves from
-  `gemini.hasKey` to `isSignedIn`.
-- **`src/config.ts`:** `FEATURES.cloudAI` stays the kill switch; add the Firebase config object.
-- **UI:** AI entry points in `ImportScreen`/`BarScreen` show **"Sign in with Google to use AI"**
-  when logged out (replacing the "set your key" nudge); `SettingsScreen` gains sign-in/sign-out
-  and account display instead of the key field. Logged-out users still get the offline
-  `parseRecipeText` path.
+  → `generateContent(parts)`. `firebaseParse` / `firebaseIdentifyBottles` take no key.
+  `toFirebaseSchema()` converts our OpenAPI-subset schema to the SDK's `Schema` builder.
+  Everything downstream (mappers, prompts, `StructuredImport`) is unchanged and lives in
+  `src/import/aiShared.ts`. Vision still sends `inlineData` parts via `splitDataUrl`.
+- **`src/auth/firebase.ts`** initializes the app + App Check + Auth once, all behind dynamic
+  `import()`s, and exposes `signInWithGoogle()` / `signOutUser()` / `getGeminiModel()`. The
+  Firebase config values (`apiKey`, `projectId`, `appId`, …) are **public client config, not
+  secrets**. The real Gemini key lives in the Firebase project and never ships.
+- **`src/hooks/useAuth.ts`** is the gate: `aiAvailable = configured && signed in`. It does
+  **not** subscribe on mount — see "Lazy boot" below.
+- **`src/config.ts`:** `FEATURES.cloudAI` is still the kill switch; the Firebase config reads
+  from `VITE_FIREBASE_*` env vars, and `isCloudAIConfigured()` hides the AI UI entirely when
+  they're unset. Nothing project-specific is hard-coded.
+- **`src/import/gemini.ts` is gone**, along with `useGeminiSettings`. `main.tsx` deletes
+  `cocktail.geminiKey` / `cocktail.geminiModel` on boot so the retired credential doesn't sit
+  in existing installs forever.
+- **UI:** `ImportScreen` / `BarScreen` show a sign-in prompt where the "set your key" nudge
+  used to be; `SettingsScreen` shows the account and a sign-out. Signed-out users still get the
+  offline `parseRecipeText` path, which is the majority case and must stay first-class.
+
+### Lazy boot (why `useAuth` looks the way it does)
+
+Booting Firebase means downloading the SDK chunk *and* running App Check's reCAPTCHA
+handshake. `BarScreen` calls `useAuth`, and My Bar is a primary tab — so subscribing on mount
+charged that to every user of an offline-first app, including everyone who never opens an AI
+feature. `useAuth` instead arms its subscription only when `cocktail.signedIn` is set (someone
+signed in on this browser before) or when the user clicks sign in. The hint is cleared whenever
+Firebase resolves to a null user, so a revoked session stops costing anything on the next cold
+start. `scripts/smoke.mjs` asserts the chunk is never requested for a signed-out user.
 
 ## Firebase console setup (one-time, manual)
 
-Do this in the [Firebase console](https://console.firebase.google.com/) before the code can run:
+Do this in the [Firebase console](https://console.firebase.google.com/) — the project is
+**`cocktails-c2705`**, the same one that serves Hosting.
 
-1. **Create a project** (or reuse one). Keep it on the **Spark (free)** plan — do **not** link a
-   billing account.
+1. Keep the project on the **Spark (free)** plan — do **not** link a billing account.
 2. **Authentication →** enable the **Google** sign-in provider. Under **Settings → Authorized
-   domains**, add the app's origins: `localhost`, the `*.github.io` Pages origin, and any custom
-   domain.
+   domains**, confirm `localhost`, `cocktails-c2705.web.app` and `cocktails-c2705.firebaseapp.com`
+   are listed (Hosting adds the last two for you).
 3. **Firebase AI Logic →** enable it and choose the **Gemini Developer API** provider (the
    free-tier path; the Vertex AI provider requires the Blaze plan).
-4. **App Check →** register the web app with **reCAPTCHA v3**; create a site key for each origin
-   above, and turn on **enforcement** for AI Logic.
+4. **App Check →** register the web app with **reCAPTCHA v3** and turn on **enforcement** for
+   AI Logic. Domains are bare hostnames, no scheme or port:
+   `cocktails-c2705.web.app`, `cocktails-c2705.firebaseapp.com`, `localhost`.
 5. **(Optional) Per-user rate limit →** in the Google Cloud console, open the Firebase AI Logic
    API's **Quotas** tab and lower the per-user RPM to fit expected usage.
-6. Copy the web app's Firebase config into `src/config.ts` (public values).
+6. Set the seven build variables as GitHub repo **Variables** (not Secrets — this config is
+   public): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`,
+   `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`,
+   `VITE_RECAPTCHA_SITE_KEY`. `.github/workflows/deploy.yml` already passes them through. For
+   local dev, put the same values in a `.env.local`.
 
 ## Risks / notes
 
 - **Vendor lock-in** to Firebase/Google — acceptable given Gemini is the backend regardless.
 - **Free-tier ceilings:** the Gemini Developer API free tier has project-wide limits; sustained
   or heavy use could require upgrading to Blaze. Fine for a hobby app; worth watching.
-- **App Check per domain:** the reCAPTCHA v3 site key must be registered for every origin
-  (`localhost`, `github.io`, custom domain) or calls will 403.
+- **AI does not work on PR preview channels.** Preview URLs look like
+  `cocktails-c2705--pr-12-a1b2c3d4.web.app` — a *sibling* of the live domain, not a subdomain,
+  so neither Auth's authorized-domain list (no wildcards) nor the reCAPTCHA key covers them.
+  Accepted deliberately: previews are for trying UI on a phone, and everything except sign-in
+  works there. Don't debug this as a bug.
+- **Dev needs an App Check debug token.** `src/auth/firebase.ts` sets
+  `FIREBASE_APPCHECK_DEBUG_TOKEN` in DEV, which prints a token to the console on first run;
+  paste it into **App Check → Apps → Manage debug tokens** or localhost calls will 403. It is
+  per-browser, so each machine registers its own.
 - **No hard daily per-user cap** until the optional Functions/Firestore metering layer is added.
 
 ## Verification
 
 - Sign in with Google → Smart parse and Shelf scan work; sign out → AI is gated with a sign-in
   prompt while the offline basic parser still works.
-- `grep` the production `dist/` bundle for any Gemini key pattern → must be **absent** (proves
-  no key ships).
+- `grep` the production `dist/` for **`generativelanguage.googleapis.com`** → must be absent,
+  proving nothing calls Gemini directly any more. (The memo used to say "grep for a Gemini key
+  pattern". That check is now **wrong and will fail**: `VITE_FIREBASE_API_KEY` is itself an
+  `AIza…` string, and it ships on purpose. The endpoint is the honest signal.)
+- Confirm the SW precache manifest in `dist/sw.js` does **not** list `assets/firebase-*.js`.
 - Confirm App Check enforcement is on and a call from an unregistered origin fails.
+- `node scripts/smoke.mjs` — covers the signed-out half end to end.
 
 ## Sources
 
