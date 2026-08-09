@@ -83,6 +83,16 @@ check('home lists seeded recipes', homeBefore > 0, `${homeBefore} recipes`)
 // The tab bar is buttons + aria-labels, not links.
 check('tab bar is present', await page.locator('button[aria-label="Browse"]').first().isVisible())
 
+// Settings has no tab of its own, so the home header gear is its only entry
+// point — if it regresses, the screen is unreachable without typing a URL.
+const gear = page.locator('a[aria-label="Settings"]')
+check('settings gear is on home', await gear.isVisible())
+await gear.click()
+await page.waitForTimeout(500)
+check('gear opens Settings', (await page.locator('h1').first().textContent())?.trim() === 'Settings')
+check('Settings can be backed out of', await page.locator('button[aria-label="Back"]').isVisible())
+await go('#/') // back to home; the rest of the shell walk starts from there
+
 await page.locator('button[aria-label="Add"]').click()
 await shot('02-add-sheet')
 
