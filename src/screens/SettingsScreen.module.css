@@ -27,6 +27,12 @@
   letter-spacing: -0.01em;
 }
 
+/* Was undefined while Settings had a single section; now it spaces them. */
+.body {
+  display: grid;
+  gap: 18px;
+}
+
 .section {
   background: var(--card);
   border: 1px solid var(--line);
@@ -106,4 +112,39 @@
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--muted);
+}
+
+.dataRow {
+  display: flex;
+  gap: 10px;
+}
+.dataBtn {
+  flex: 1;
+  padding: 12px 10px;
+  border-radius: 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+}
+.dataBtn:active {
+  transform: scale(0.98);
+}
+/* The real file input is unusable on mobile; the styled button proxies to it. */
+.hiddenFile {
+  display: none;
+}
+.dataOk,
+.dataError {
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.dataOk {
+  color: var(--accent);
+}
+.dataError {
+  color: var(--danger);
 }
