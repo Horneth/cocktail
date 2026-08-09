@@ -15,8 +15,10 @@ import { BarScreen } from './screens/BarScreen'
 import { SearchScreen } from './screens/SearchScreen'
 import { stashSharedImport } from './import/shared'
 
-// Hash routing keeps GitHub Pages happy: deep links and refreshes never 404,
-// and offline navigation stays entirely client-side.
+// Hash routing: deep links and refreshes never 404 without a server-side SPA
+// rewrite, and offline navigation stays entirely client-side. Originally chosen
+// for GitHub Pages; kept after the move to Firebase Hosting so already-installed
+// PWAs and shared links keep resolving.
 const router = createHashRouter([
   {
     path: '/',

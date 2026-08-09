@@ -86,10 +86,9 @@ Live at **<https://cocktails-c2705.web.app>**, on Firebase Hosting. Pushing to
 `main` runs typecheck + tests + build and deploys; every pull request gets its
 own temporary preview URL.
 
-> **Moving from the old address?** The app used to live on GitHub Pages at
-> `/cocktail/`. Because browsers scope stored data per origin, your recipes
-> don't follow automatically: open the old address, tap **Export my data**, then
-> on the new site go to **Settings → Your data → Import backup**.
+> Moving to a new phone or browser? Because storage is scoped per browser, your
+> recipes don't follow automatically — use **Settings → Your data** to export a
+> backup file and import it on the other device.
 
 ## Data model (one entity, cross-linked)
 

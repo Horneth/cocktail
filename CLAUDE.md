@@ -269,25 +269,27 @@ system Chrome, so it needs no `playwright install`.
 - **Hash routing** (`createHashRouter`) predates Hosting and stays: installed
   PWAs and shared links keep working. `firebase.json` already has the SPA
   rewrite if it ever changes.
-- **The old GitHub Pages origin** now serves `farewell/` (manual
-  `pages-farewell.yml` run only) — a self-destructing service worker plus an
-  export button, so old installs stop serving the dead build and users can carry
-  their library over. Keep Pages enabled; that page needs to keep answering.
+- **GitHub Pages is fully retired.** The app used to be served from
+  `horneth.github.io/cocktail/`; that origin ran a farewell page (a
+  self-destructing service worker plus a data-export button) through the
+  migration and has since been shut down. There is no Pages workflow, no
+  `gh-pages` branch and no Pages environment — if you find something referring
+  to any of them, it's dead weight.
 - **PWA**: `registerType: 'autoUpdate'`. The manifest declares an Android **Web
   Share Target** (`share_target`) so "Share" on a YouTube video can open the app;
   `main.tsx` captures the `?title&text&url` params at boot, `import/shared.ts`
   stashes them, and the user lands in Import prefilled.
 
-### Moving data between origins / devices
+### Moving data between devices
 `src/import/backup.ts` is the only path in or out. `exportBackup()` writes a
 versioned envelope (`{app, version, exportedAt, data, settings}`) covering all
 four Dexie stores plus the portable prefs; `importBackup()` **replaces** the
 library in one transaction. Two invariants worth keeping:
 - **`cocktail.geminiKey` is never exported.** A backup file ends up in email and
   cloud storage; a credential has no business in one.
-- The **farewell page duplicates this shape by hand** in plain IndexedDB
-  (`farewell/index.html`, no bundle). If the envelope changes, change it there
-  too or the migration path silently breaks.
+- **Bump `BACKUP_VERSION` and keep reading v1** if the envelope changes.
+  `parseBackup()` rejects anything newer than it knows, so a file exported today
+  has to stay loadable — this is the only copy some libraries have.
 
 ## Conventions & gotchas
 
