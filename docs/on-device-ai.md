@@ -1,6 +1,7 @@
 # On-device AI on Android — options memo
 
-_Status: research memo / recommendation. No code yet. Written 2026-07._
+_Status: research memo / recommendation. Written 2026-07; Phase 0 has since shipped, the rest
+has not. Updated 2026-08 for the cloud transport's move to Firebase AI Logic._
 
 ## Why this exists
 
@@ -10,11 +11,11 @@ whether those features can run **on-device** — no cloud round-trip — with a 
 **Android**, since that's the primary install target for the PWA.
 
 The two capabilities to reproduce, both of which already emit structured JSON that pure,
-reusable mappers turn into the app's `StructuredImport`/`IdentifiedBottle`
-(`src/import/gemini.ts`, `src/import/aiShared.ts` after the planned refactor):
+reusable mappers in **`src/import/aiShared.ts`** turn into the app's
+`StructuredImport`/`IdentifiedBottle`:
 
-- **Text parse** — recipe/description text → structured recipes (`geminiParse`).
-- **Vision scan** — shelf photos → bottle list (`geminiIdentifyBottles`).
+- **Text parse** — recipe/description text → structured recipes (`firebaseParse`).
+- **Vision scan** — shelf photos → bottle list (`firebaseIdentifyBottles`).
 
 A key structural advantage: any on-device backend only has to produce the **same raw JSON
 shapes**; all normalization, linking, dedupe, and category inference is already downstream
@@ -53,9 +54,11 @@ floor for text.
 
 ## Phased POC (build next)
 
-- **Phase 0 — Refactor, zero behavior change.** Extract a transport-agnostic
-  `src/import/aiShared.ts` (schemas, prompts, mappers, `finishParse`, a `toJsonSchema()`
-  converter). `gemini.ts` keeps the existing tests green as a regression guard.
+- **Phase 0 — Refactor, zero behavior change. ✅ Done.** `src/import/aiShared.ts` holds the
+  transport-agnostic core (schemas, prompts, mappers, `finishParse`, a `toJsonSchema()`
+  converter) and its tests. It has since survived a real transport swap — the BYO-key
+  `gemini.ts` was replaced wholesale by `firebaseAI.ts` without touching the core — which is
+  the evidence the seam is in the right place. An on-device backend plugs in the same way.
 - **Phase 1 — Text via WebLLM**, flag-off by default: `src/import/onDeviceAI.ts` with
   `onDeviceParse()`, a `webgpuAvailable()` gate, a Cloud/On-device selector + download-progress
   in `ImportScreen`, and fall-through to `parseRecipeText`. Reliability: grammar constraint →
