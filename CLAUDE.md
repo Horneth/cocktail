@@ -339,14 +339,16 @@ the backup round trip: export a real file, wipe IndexedDB, re-import, same
 recipes back. Prints ok/FAIL per check and exits non-zero.
 
 ```bash
-npm i -D playwright   # once — deliberately not a repo dependency
+npx playwright install chromium   # once per machine, not per checkout
 node scripts/smoke.mjs
 ```
 
-Playwright stays out of `package.json` because installing it pulls a browser
-download into every `npm ci`, including CI runs that never open one. The script
-resolves Playwright's browser if present and otherwise falls back to the
-system Chrome, so it needs no `playwright install`.
+Playwright is a devDependency, so `npm install` in any worktree is enough. The
+browser is the expensive part, and it is deliberately *not* installed by `npm
+ci`: the deploy workflow sets `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`, because no
+CI job opens a browser. Locally the browsers cache outside the repo
+(`~/Library/Caches/ms-playwright`), so one download serves every checkout. The
+script still falls back to the system Chrome if that cache is empty.
 
 > This replaced sixteen per-feature `verify-*.mjs` scripts that had all rotted
 > (dead `executablePath`, pre-redesign selectors). **Extend this one** rather

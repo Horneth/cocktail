@@ -28,6 +28,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+        env:
+          # Playwright is a devDependency for scripts/smoke.mjs, which no CI job
+          # runs. Skipping its postinstall keeps a ~100 MB browser download out
+          # of every `npm ci` here; developers get the browser once per machine
+          # (it caches outside the repo) via `npx playwright install chromium`.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

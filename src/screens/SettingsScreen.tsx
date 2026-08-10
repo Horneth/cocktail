@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeftIcon, ImportIcon, SparkleIcon } from '../components/icons'
+import {
+  BottleIcon,
+  ChevronLeftIcon,
+  DownloadIcon,
+  GoogleIcon,
+  SparkleIcon,
+  UploadIcon,
+} from '../components/icons'
 import { FEATURES } from '../config'
 import { backupFilename, exportBackup, importBackup, parseBackup } from '../import/backup'
 import { useAuth } from '../hooks/useAuth'
@@ -11,6 +18,18 @@ export function SettingsScreen() {
   const auth = useAuth()
   const fileInput = useRef<HTMLInputElement>(null)
   const [dataStatus, setDataStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
+
+  async function handleSignIn() {
+    setAuthError(null)
+    try {
+      await auth.signIn()
+    } catch {
+      // Closing the Google popup rejects; that's a cancel, not a failure worth
+      // shouting about — but it must not surface as an unhandled rejection.
+      setAuthError('Sign-in didn’t complete.')
+    }
+  }
 
   async function handleExport() {
     try {
@@ -64,100 +83,120 @@ export function SettingsScreen() {
 
       <div className={styles.body}>
         {FEATURES.cloudAI && (
-          <section className={styles.section}>
-            <h2 className={styles.h2}>
-              <SparkleIcon size={16} className={styles.h2icon} /> AI features (optional)
-            </h2>
+          <section>
+            <div className={styles.eyebrowRow}>
+              <h2 className={styles.eyebrow}>AI features</h2>
+              {auth.configured && !auth.user && (
+                <span className={styles.badge}>Sign-in required</span>
+              )}
+            </div>
 
             {!auth.configured ? (
-              <p className={styles.desc}>
-                Cloud AI isn’t set up for this build, so recipe import and “Scan my shelf” are
-                hidden. Everything else — your library, My Bar, notes, backups — works without it.
-                To enable them, configure a Firebase project (see{' '}
-                <code>docs/cloud-ai-backend.md</code>).
-              </p>
+              <div className={styles.card}>
+                <p className={styles.off}>Not available in this build.</p>
+              </div>
             ) : (
               <>
-                <p className={styles.desc}>
-                  Sign in with Google to unlock <strong>Import</strong> (messy descriptions → clean
-                  recipes) and <strong>Scan my shelf</strong> (photos → bottles). Requests run
-                  through Google — <strong>no API key is stored in this app</strong>, and your login
-                  is used only to run those AI features. Everything else — browsing, editing, My
-                  Bar, backups — works signed out.
-                </p>
-
-                {auth.user ? (
-                  <div className={styles.actionRow}>
-                    <span className={styles.desc}>
-                      Signed in as <strong>{auth.user.email ?? auth.user.displayName ?? 'your account'}</strong>
+                <div className={styles.card}>
+                  <div className={styles.perk}>
+                    <span className={styles.perkIcon}>
+                      <SparkleIcon size={17} />
                     </span>
-                    <button className={styles.clearBtn} onClick={() => void auth.signOut()}>
-                      Sign out
-                    </button>
+                    <span className={styles.perkText}>
+                      <strong>Import a recipe</strong>
+                      <small>Pasted description → recipe</small>
+                    </span>
                   </div>
-                ) : (
-                  <div className={styles.actionRow}>
-                    <button className={styles.showBtn} onClick={() => void auth.signIn()}>
-                      Sign in with Google
-                    </button>
+                  <div className={styles.perk}>
+                    <span className={styles.perkIcon}>
+                      <BottleIcon size={17} />
+                    </span>
+                    <span className={styles.perkText}>
+                      <strong>Scan my shelf</strong>
+                      <small>Photo → bottles</small>
+                    </span>
                   </div>
-                )}
 
-                <p className={styles.note}>
-                  Usage is rate-limited per account. Basic (offline) parsing always works without
-                  signing in.
+                  <div className={styles.account}>
+                    {auth.user ? (
+                      <>
+                        <span className={styles.accountText}>
+                          <small>Signed in</small>
+                          <strong>
+                            {auth.user.email ?? auth.user.displayName ?? 'Google account'}
+                          </strong>
+                        </span>
+                        <button className={styles.ghostBtn} onClick={() => void auth.signOut()}>
+                          Sign out
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className={styles.googleBtn}
+                        onClick={() => void handleSignIn()}
+                        disabled={!auth.ready}
+                      >
+                        <GoogleIcon size={18} />
+                        {auth.ready ? 'Sign in with Google' : 'Checking…'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {authError && (
+                  <p className={styles.authError} role="status">
+                    {authError}
+                  </p>
+                )}
+                <p className={styles.hint}>
+                  Sign-in unlocks these two only. Everything else works offline, signed out.
                 </p>
               </>
             )}
           </section>
         )}
 
-        <section className={styles.section}>
-          <h2 className={styles.h2}>
-            <ImportIcon size={16} className={styles.h2icon} /> Your data
-          </h2>
-          <p className={styles.desc}>
-            Everything you save lives in <strong>this browser</strong> — nothing is uploaded. That
-            also means it doesn’t follow you to another device, or to this app on another address.
-            Export a file here, then import it there.
-          </p>
+        <section>
+          <h2 className={styles.eyebrow}>Backup</h2>
+          <div className={styles.card}>
+            <div className={styles.dataRow}>
+              <button className={styles.dataBtn} onClick={handleExport}>
+                <DownloadIcon size={17} />
+                Export backup
+              </button>
+              <button className={styles.dataBtn} onClick={() => fileInput.current?.click()}>
+                <UploadIcon size={17} />
+                Import backup
+              </button>
+            </div>
 
-          <div className={styles.dataRow}>
-            <button className={styles.dataBtn} onClick={handleExport}>
-              Export backup
-            </button>
-            <button className={styles.dataBtn} onClick={() => fileInput.current?.click()}>
-              Import backup
-            </button>
+            <input
+              ref={fileInput}
+              className={styles.hiddenFile}
+              type="file"
+              accept="application/json,.json"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                // Reset first, so picking the same file twice still fires onChange.
+                e.target.value = ''
+                if (file) void handleImportFile(file)
+              }}
+            />
+
+            {dataStatus && (
+              <p
+                className={dataStatus.kind === 'error' ? styles.error : styles.ok}
+                role="status"
+              >
+                {dataStatus.text}
+              </p>
+            )}
           </div>
-
-          <input
-            ref={fileInput}
-            className={styles.hiddenFile}
-            type="file"
-            accept="application/json,.json"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              // Reset first, so picking the same file twice still fires onChange.
-              e.target.value = ''
-              if (file) void handleImportFile(file)
-            }}
-          />
-
-          {dataStatus && (
-            <p
-              className={dataStatus.kind === 'error' ? styles.dataError : styles.dataOk}
-              role="status"
-            >
-              {dataStatus.text}
-            </p>
-          )}
-
-          <p className={styles.note}>
-            Importing <strong>replaces</strong> your whole library rather than merging into it.
-          </p>
+          <p className={styles.hint}>Importing replaces your library — it doesn’t merge.</p>
         </section>
       </div>
+
+      <p className={styles.footer}>Your library lives on this device only.</p>
     </div>
   )
 }

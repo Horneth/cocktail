@@ -8,7 +8,7 @@
   align-items: center;
   gap: 12px;
   padding-top: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 .back {
   display: grid;
@@ -27,106 +27,180 @@
   letter-spacing: -0.01em;
 }
 
-/* Was undefined while Settings had a single section; now it spaces them. */
 .body {
   display: grid;
-  gap: 18px;
+  gap: 24px;
 }
 
-.section {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 18px;
-  box-shadow: var(--shadow-card);
-}
-.h2 {
+.eyebrowRow {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 17px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Section titles sit above the card, iOS-settings style, so the card itself is
+   pure content and the eye can skim the groups. */
+.eyebrow {
+  margin: 0 0 8px 4px;
+  font-size: 11.5px;
   font-weight: 800;
-  margin-bottom: 10px;
-}
-.h2icon {
-  color: var(--accent);
-}
-.desc {
-  margin: 0 0 16px;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-.label {
-  display: block;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
-  margin: 12px 0 8px;
 }
-.keyRow {
-  display: flex;
-  gap: 8px;
+
+.badge {
+  margin-right: 4px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-ink);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
-.keyInput {
-  flex: 1;
-}
-.showBtn {
-  flex: 0 0 auto;
-  padding: 0 16px;
-  border-radius: 14px;
-  background: var(--paper);
+
+.card {
+  background: var(--card);
   border: 1px solid var(--line);
-  font-weight: 700;
-  font-size: 13px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
-.actionRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 14px;
-}
-.link {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--accent);
-}
-.clearBtn {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
-}
-.advanced {
-  margin-top: 18px;
-}
-.advanced summary {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
-  cursor: pointer;
-}
-.note {
-  margin: 16px 0 0;
+
+.hint {
+  margin: 8px 4px 0;
   font-size: 12.5px;
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--muted);
 }
+
+.off {
+  margin: 0;
+  padding: 16px 18px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ── AI ──────────────────────────────────────────────────────────────────── */
+
+.perk {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+}
+.perk + .perk {
+  border-top: 1px solid var(--line);
+}
+.perkIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--accent-ink);
+  color: var(--accent);
+}
+.perkText {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.perkText strong {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.perkText small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.accountText {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.accountText small {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.accountText strong {
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.googleBtn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-xs);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.googleBtn:active {
+  transform: scale(0.99);
+}
+.googleBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ghostBtn {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* ── Backup ──────────────────────────────────────────────────────────────── */
 
 .dataRow {
   display: flex;
   gap: 10px;
+  padding: 14px 16px;
 }
 .dataBtn {
+  display: flex;
   flex: 1;
-  padding: 12px 10px;
-  border-radius: 14px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border-radius: var(--radius-xs);
   background: var(--paper);
   border: 1px solid var(--line);
   color: var(--ink);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13.5px;
 }
 .dataBtn:active {
   transform: scale(0.98);
@@ -135,16 +209,32 @@
 .hiddenFile {
   display: none;
 }
-.dataOk,
-.dataError {
-  margin: 14px 0 0;
+
+.ok,
+.error {
+  margin: 0;
+  padding: 0 16px 14px;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1.45;
 }
-.dataOk {
-  color: var(--accent);
+.ok {
+  color: var(--green);
 }
-.dataError {
+.error {
   color: var(--danger);
+}
+
+.authError {
+  margin: 8px 4px 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.footer {
+  margin: 28px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
 }
