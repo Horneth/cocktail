@@ -1,10 +1,7 @@
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import type { VolumePreference } from '../domain/units'
-import { DEFAULT_GEMINI_MODEL } from '../import/gemini'
 
 const KEY = 'cocktail.volumePref'
-const GEMINI_KEY = 'cocktail.geminiKey'
-const GEMINI_MODEL = 'cocktail.geminiModel'
 const ASSUME_STAPLES = 'cocktail.assumeStaples'
 const ACTIVE_BAR = 'cocktail.activeBarId'
 
@@ -75,43 +72,4 @@ export function useActiveBarId(): [string | undefined, (id: string) => void] {
   const id = useSyncExternalStore(subscribe, () => localStorage.getItem(ACTIVE_BAR) ?? undefined)
   const set = useCallback((v: string) => writeLocal(ACTIVE_BAR, v), [])
   return [id, set]
-}
-
-export interface GeminiSettings {
-  apiKey: string
-  model: string
-  hasKey: boolean
-  setApiKey: (k: string) => void
-  setModel: (m: string) => void
-  clear: () => void
-}
-
-/**
- * The user's Gemini API key + model, stored ONLY in this browser's
- * localStorage. Never committed, never sent anywhere except Google's API.
- */
-export function useGeminiSettings(): GeminiSettings {
-  const [apiKey, setKey] = useState<string>(() => localStorage.getItem(GEMINI_KEY) ?? '')
-  const [model, setModelState] = useState<string>(
-    () => localStorage.getItem(GEMINI_MODEL) ?? DEFAULT_GEMINI_MODEL,
-  )
-
-  const setApiKey = useCallback((k: string) => {
-    setKey(k)
-    if (k.trim()) localStorage.setItem(GEMINI_KEY, k.trim())
-    else localStorage.removeItem(GEMINI_KEY)
-  }, [])
-
-  const setModel = useCallback((m: string) => {
-    const v = m.trim() || DEFAULT_GEMINI_MODEL
-    setModelState(v)
-    localStorage.setItem(GEMINI_MODEL, v)
-  }, [])
-
-  const clear = useCallback(() => {
-    setKey('')
-    localStorage.removeItem(GEMINI_KEY)
-  }, [])
-
-  return { apiKey, model, hasKey: apiKey.trim() !== '', setApiKey, setModel, clear }
 }

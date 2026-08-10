@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
-import { FEATURES } from '../config'
 import type { Unit } from '../db/schema'
 import { UNIT_ORDER, UNITS } from '../domain/units'
-import { GeminiError, geminiParse } from '../import/gemini'
 import { importRecipe } from '../import/importRecipe'
 import { parseRecipeText } from '../import/parseRecipeText'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from '../import/types'
 import { consumeSharedImport } from '../import/shared'
 import { useKnownIngredients, useSpiritSuggestions } from '../hooks/useRecipes'
-import { useGeminiSettings } from '../hooks/useSettings'
+import { useAuth } from '../hooks/useAuth'
 import styles from './ImportScreen.module.css'
 
 const INGREDIENT_LIST_ID = 'known-ingredients'
@@ -31,8 +29,8 @@ export function ImportScreen() {
   const navigate = useNavigate()
   const knownIngredients = useKnownIngredients()
   const spiritSuggestions = useSpiritSuggestions()
-  const gemini = useGeminiSettings()
-  const aiEnabled = FEATURES.cloudAI && gemini.hasKey
+  const auth = useAuth()
+  const aiEnabled = auth.aiAvailable
   const [text, setText] = useState('')
   const [mode, setMode] = useState<Mode>('text')
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -55,12 +53,13 @@ export function ImportScreen() {
     setAiError(null)
     setAiBusy(true)
     try {
-      const recipes = await geminiParse(text, gemini.apiKey, gemini.model)
+      const { firebaseParse } = await import('../import/firebaseAI')
+      const recipes = await firebaseParse(text)
       setExcluded(new Set())
       setSelected(new Set(recipes.map((_, i) => i)))
       setDraft({ recipes, ok: true })
     } catch (err) {
-      setAiError(err instanceof GeminiError ? err.message : 'AI parse failed. Try Basic parse.')
+      setAiError(err instanceof Error ? err.message : 'AI parse failed. Try Basic parse.')
     } finally {
       setAiBusy(false)
     }
@@ -69,13 +68,14 @@ export function ImportScreen() {
   const runParse = (t: string, ai: boolean) => {
     if (ai) {
       setAiBusy(true)
-      geminiParse(t, gemini.apiKey, gemini.model)
+      import('../import/firebaseAI')
+        .then(({ firebaseParse }) => firebaseParse(t))
         .then((recipes) => {
           setSelected(new Set(recipes.map((_, i) => i)))
           setDraft({ recipes, ok: true })
         })
         .catch((err) =>
-          setAiError(err instanceof GeminiError ? err.message : 'AI parse failed. Try Basic parse.'),
+          setAiError(err instanceof Error ? err.message : 'AI parse failed. Try Basic parse.'),
         )
         .finally(() => setAiBusy(false))
     } else {
@@ -255,11 +255,10 @@ export function ImportScreen() {
               Use basic parser instead
             </button>
           )}
-          {!aiEnabled && FEATURES.cloudAI && (
-            <Link className={styles.aiNudge} to="/settings">
-              <SparkleIcon size={15} /> Want smarter, multi-drink parsing? Add a Gemini key in
-              Settings
-            </Link>
+          {!aiEnabled && auth.configured && (
+            <button className={styles.aiNudge} onClick={() => void auth.signIn()}>
+              <SparkleIcon size={15} /> Sign in with Google for smarter, multi-drink parsing
+            </button>
           )}
 
           <div className={styles.ctaWrap}>

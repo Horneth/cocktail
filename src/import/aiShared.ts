@@ -4,20 +4,27 @@ import { normIngredient } from '../domain/availability'
 import { categoryForName } from '../domain/spiritCategory'
 import type { RecipeKind, SpiritCategory } from '../db/schema'
 import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
-import { splitDataUrl } from './image'
 
-// Optional cloud parsing via the Gemini API. The user supplies their own API
-// key (stored only in their browser); the call goes straight from the browser
-// to Google. No key ever lives in this repo. The heuristic parser remains the
-// always-available fallback.
+// Transport-agnostic AI core. Everything here is pure and shared by every AI
+// backend (cloud Gemini today, on-device WebLLM/transformers.js next): the
+// structured-output schemas, the prompts, and the mappers that turn a model's
+// raw JSON into our StructuredImport. A backend only has to produce the raw
+// shapes below (`AiRecipe` / `{ bottles }`); all normalization lives here.
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
+// ── Structured-output schemas ──────────────────────────────────────────────
+// An OpenAPI subset (what Gemini's responseSchema accepts). `toJsonSchema()`
+// converts it to plain JSON Schema for engines that want that (e.g. WebLLM).
+export interface OpenApiSchema {
+  type?: string
+  nullable?: boolean
+  properties?: Record<string, OpenApiSchema>
+  items?: OpenApiSchema
+  required?: string[]
+}
 
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models'
-
-// Shape we ask Gemini to return (a subset of OpenAPI schema, per Gemini's
-// responseSchema support). We wire cross-links ourselves afterwards by name.
-const INGREDIENT_SCHEMA = {
+// Shape we ask a model to return per ingredient. We wire cross-links ourselves
+// afterwards by name.
+export const INGREDIENT_SCHEMA: OpenApiSchema = {
   type: 'object',
   properties: {
     amount: { type: 'number', nullable: true },
@@ -30,7 +37,7 @@ const INGREDIENT_SCHEMA = {
 }
 
 // One drink (cocktail or standalone syrup) plus its own sub-recipes.
-const RECIPE_SCHEMA = {
+export const RECIPE_SCHEMA: OpenApiSchema = {
   type: 'object',
   properties: {
     name: { type: 'string' },
@@ -59,7 +66,7 @@ const RECIPE_SCHEMA = {
 
 // A single video description often contains SEVERAL cocktails, so we ask for a
 // list. Each entry is a full recipe with its own sub-recipes.
-const RESPONSE_SCHEMA = {
+export const RESPONSE_SCHEMA: OpenApiSchema = {
   type: 'object',
   properties: {
     recipes: { type: 'array', items: RECIPE_SCHEMA },
@@ -67,7 +74,47 @@ const RESPONSE_SCHEMA = {
   required: ['recipes'],
 }
 
-const PROMPT = `You extract EVERY drink recipe from a pasted recipe or video description. A single description frequently contains SEVERAL cocktails — return all of them.
+export const BOTTLES_SCHEMA: OpenApiSchema = {
+  type: 'object',
+  properties: {
+    bottles: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          category: { type: 'string' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  required: ['bottles'],
+}
+
+/**
+ * Convert our OpenAPI-subset schema into plain JSON Schema. Nearly identity —
+ * the only real transform is `{ type, nullable: true }` → `{ type: [t, 'null'] }`
+ * — for engines (e.g. WebLLM's grammar mode) that want JSON Schema, not Gemini's
+ * responseSchema dialect. Pure and recursive.
+ */
+export function toJsonSchema(schema: OpenApiSchema): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (schema.type !== undefined) {
+    out.type = schema.nullable ? [schema.type, 'null'] : schema.type
+  }
+  if (schema.properties) {
+    out.properties = Object.fromEntries(
+      Object.entries(schema.properties).map(([k, v]) => [k, toJsonSchema(v)]),
+    )
+  }
+  if (schema.items) out.items = toJsonSchema(schema.items)
+  if (schema.required) out.required = [...schema.required]
+  return out
+}
+
+// ── Prompts ────────────────────────────────────────────────────────────────
+export const PROMPT = `You extract EVERY drink recipe from a pasted recipe or video description. A single description frequently contains SEVERAL cocktails — return all of them.
 Return JSON matching the schema: a "recipes" array with one entry per drink, in the order they appear. Rules per recipe:
 - "name": the drink's name only (no channel or video title fluff).
 - "kind": "cocktail" for a mixed drink, OR "component" if the entry is purely a syrup/cordial/orgeat/infusion/mix recipe with no cocktail build. Prefer attaching syrups as "subRecipes" of the cocktail that uses them; only emit a top-level "component" recipe when a syrup stands entirely on its own.
@@ -78,14 +125,20 @@ Return JSON matching the schema: a "recipes" array with one entry per drink, in 
 - Ignore non-recipe text: links, chapters/timestamps, gear lists, socials, sponsorships.
 - If a value is unknown, omit it. Do not invent ingredients. If the description has exactly one drink, return a one-element "recipes" array.`
 
-interface GeminiIngredient {
+export const VISION_PROMPT = `You are looking at photo(s) of a home bar or liquor shelf. List every distinct liquor, spirit, wine, or liqueur BOTTLE you can identify.
+- "name": the bottle's brand/label as printed (e.g. "Woodford Reserve", "Tanqueray", "Campari"). If the brand is unreadable but the type is clear, use the type (e.g. "London dry gin").
+- "category": a short lowercase base category — one of gin, vodka, rum, whiskey, tequila, mezcal, brandy, cognac, cachaça, pisco, wine, liqueur. Omit if unsure.
+- One entry per distinct bottle. Ignore glassware, mixers, garnishes and non-bottle items. Do not invent bottles you cannot clearly see.`
+
+// ── Raw model output types ─────────────────────────────────────────────────
+export interface AiIngredient {
   amount?: number | null
   unit?: string
   name?: string
   optional?: boolean
   note?: string
 }
-export interface GeminiRecipe {
+export interface AiRecipe {
   name?: string
   kind?: string
   method?: string
@@ -94,10 +147,16 @@ export interface GeminiRecipe {
   instructions?: string
   tags?: string[]
   spirit?: string
-  ingredients?: GeminiIngredient[]
-  subRecipes?: { name?: string; ingredients?: GeminiIngredient[] }[]
+  ingredients?: AiIngredient[]
+  subRecipes?: { name?: string; ingredients?: AiIngredient[] }[]
 }
 
+export interface IdentifiedBottle {
+  name: string
+  category?: string
+}
+
+// ── Mappers (pure) ─────────────────────────────────────────────────────────
 let counter = 0
 const tempId = (p: string) => `${p}-${(counter += 1)}`
 
@@ -132,7 +191,7 @@ function normalizeTags(tags: string[] | undefined): string[] {
   return out.slice(0, 6)
 }
 
-function toDraftIngredient(g: GeminiIngredient): IngredientDraft {
+function toDraftIngredient(g: AiIngredient): IngredientDraft {
   const ing: IngredientDraft = {
     name: (g.name ?? '').trim(),
     amount: g.amount ?? null,
@@ -143,8 +202,8 @@ function toDraftIngredient(g: GeminiIngredient): IngredientDraft {
   return ing
 }
 
-/** Pure: map a Gemini JSON object into our StructuredImport, wiring cross-links by name. */
-export function mapGeminiRecipe(r: GeminiRecipe, sourceUrl?: string): StructuredImport {
+/** Pure: map a raw AI recipe JSON object into our StructuredImport, wiring cross-links by name. */
+export function mapAiRecipe(r: AiRecipe, sourceUrl?: string): StructuredImport {
   counter = 0
   const components: RecipeDraft[] = (r.subRecipes ?? [])
     .filter((c) => c.name && (c.ingredients?.length ?? 0) > 0)
@@ -201,12 +260,10 @@ export function mapGeminiRecipe(r: GeminiRecipe, sourceUrl?: string): Structured
   return { main, components }
 }
 
-export class GeminiError extends Error {}
-
-// mapGeminiRecipe resets its tempId counter per call, so ids collide across the
+// mapAiRecipe resets its tempId counter per call, so ids collide across the
 // recipes of one batch. Re-namespace each import's tempIds (and the matching
 // subRecipeRefs) so a multi-recipe preview can key everything uniquely.
-function namespaceTempIds(imp: StructuredImport, i: number): StructuredImport {
+export function namespaceTempIds(imp: StructuredImport, i: number): StructuredImport {
   const rename = (id: string) => `r${i}.${id}`
   return {
     main: {
@@ -221,117 +278,30 @@ function namespaceTempIds(imp: StructuredImport, i: number): StructuredImport {
 }
 
 /**
- * Call Gemini and return one StructuredImport per drink found in the text.
- * A description commonly holds several cocktails. Throws GeminiError on failure.
+ * Turn a model's parsed JSON into one StructuredImport per drink. Accepts the
+ * multi-recipe shape (`{ recipes: [...] }`) or a bare single recipe, namespaces
+ * tempIds across the batch, and drops entries with no main ingredients. Returns
+ * an empty array if nothing usable was found — the caller decides how to surface
+ * that (each backend throws its own error type). `sourceText` is scanned for a
+ * YouTube URL to record provenance.
  */
-export async function geminiParse(
-  text: string,
-  apiKey: string,
-  model = DEFAULT_GEMINI_MODEL,
-): Promise<StructuredImport[]> {
-  if (!apiKey.trim()) throw new GeminiError('No API key set.')
-
-  let res: Response
-  // Abort a hung request so the Import screen can never freeze on the spinner
-  // forever — surface a retryable error instead.
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 30_000)
-  try {
-    res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: `${PROMPT}\n\nDESCRIPTION:\n${text}` }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
-          temperature: 0.2,
-        },
-      }),
-    })
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new GeminiError('Gemini took too long to respond — try again, or use Basic parse.')
-    }
-    // network / CORS failure
-    throw new GeminiError(
-      'Could not reach Gemini from the browser (network or CORS). Use Basic parse, or set up a proxy.',
-    )
-  } finally {
-    clearTimeout(timer)
-  }
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    if (res.status === 400 || res.status === 403) {
-      throw new GeminiError('Gemini rejected the request — check that your API key is valid and enabled.')
-    }
-    if (res.status === 429) throw new GeminiError('Gemini rate limit reached — try again in a moment.')
-    throw new GeminiError(`Gemini error ${res.status}. ${detail.slice(0, 140)}`)
-  }
-
-  const data = await res.json()
-  const jsonText: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!jsonText) throw new GeminiError('Gemini returned no content.')
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(jsonText)
-  } catch {
-    throw new GeminiError('Gemini returned malformed JSON.')
-  }
-
-  // Accept the multi-recipe shape ({ recipes: [...] }) or a bare single recipe.
-  const raw = parsed as { recipes?: GeminiRecipe[] } & GeminiRecipe
-  const list: GeminiRecipe[] = Array.isArray(raw?.recipes)
+export function finishParse(parsed: unknown, sourceText: string): StructuredImport[] {
+  const raw = parsed as { recipes?: AiRecipe[] } & AiRecipe
+  const list: AiRecipe[] = Array.isArray(raw?.recipes)
     ? raw.recipes
     : raw?.ingredients
       ? [raw]
       : []
 
-  const url = text.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}/i)?.[0]
-  const results = list
-    .map((r, i) => namespaceTempIds(mapGeminiRecipe(r, url), i))
+  const url = sourceText.match(
+    /https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}/i,
+  )?.[0]
+  return list
+    .map((r, i) => namespaceTempIds(mapAiRecipe(r, url), i))
     .filter((r) => r.main.ingredients.length > 0)
-
-  if (!results.length) throw new GeminiError('Gemini found no recipes.')
-  return results
 }
 
-// ── Photo → bar (Gemini vision) ────────────────────────────────────────────
-
-export interface IdentifiedBottle {
-  name: string
-  category?: string
-}
-
-const BOTTLES_SCHEMA = {
-  type: 'object',
-  properties: {
-    bottles: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          category: { type: 'string' },
-        },
-        required: ['name'],
-      },
-    },
-  },
-  required: ['bottles'],
-}
-
-const VISION_PROMPT = `You are looking at photo(s) of a home bar or liquor shelf. List every distinct liquor, spirit, wine, or liqueur BOTTLE you can identify.
-- "name": the bottle's brand/label as printed (e.g. "Woodford Reserve", "Tanqueray", "Campari"). If the brand is unreadable but the type is clear, use the type (e.g. "London dry gin").
-- "category": a short lowercase base category — one of gin, vodka, rum, whiskey, tequila, mezcal, brandy, cognac, cachaça, pisco, wine, liqueur. Omit if unsure.
-- One entry per distinct bottle. Ignore glassware, mixers, garnishes and non-bottle items. Do not invent bottles you cannot clearly see.`
-
-type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
-
-/** Pure: clean + dedupe Gemini's bottle list, letting our categorizer win on category. */
+/** Pure: clean + dedupe a model's bottle list, letting our categorizer win on category. */
 export function dedupeBottles(raw: { name?: string; category?: string }[]): IdentifiedBottle[] {
   const seen = new Set<string>()
   const out: IdentifiedBottle[] = []
@@ -344,75 +314,4 @@ export function dedupeBottles(raw: { name?: string; category?: string }[]): Iden
     out.push({ name, category: categoryForName(name) ?? fromModel })
   }
   return out
-}
-
-/**
- * Identify the bottles visible in one or more photos (data URLs). Returns a
- * deduped list the user can review before adding to a bar. Throws GeminiError.
- */
-export async function geminiIdentifyBottles(
-  images: string[],
-  apiKey: string,
-  model = DEFAULT_GEMINI_MODEL,
-): Promise<IdentifiedBottle[]> {
-  if (!apiKey.trim()) throw new GeminiError('No API key set.')
-  if (!images.length) throw new GeminiError('No photos to scan.')
-
-  const parts: ContentPart[] = [{ text: VISION_PROMPT }]
-  for (const dataUrl of images) {
-    const split = splitDataUrl(dataUrl)
-    if (!split) throw new GeminiError('One of the photos was in an unsupported format.')
-    parts.push({ inlineData: { mimeType: split.mimeType, data: split.data } })
-  }
-
-  let res: Response
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 30_000)
-  try {
-    res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: BOTTLES_SCHEMA,
-          temperature: 0.1,
-        },
-      }),
-    })
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new GeminiError('Gemini took too long to respond — try again.')
-    }
-    throw new GeminiError(
-      'Could not reach Gemini from the browser (network or CORS). Try again, or add bottles by hand.',
-    )
-  } finally {
-    clearTimeout(timer)
-  }
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    if (res.status === 400 || res.status === 403) {
-      throw new GeminiError('Gemini rejected the request — check that your API key is valid and enabled.')
-    }
-    if (res.status === 429) throw new GeminiError('Gemini rate limit reached — try again in a moment.')
-    throw new GeminiError(`Gemini error ${res.status}. ${detail.slice(0, 140)}`)
-  }
-
-  const data = await res.json()
-  const jsonText: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!jsonText) throw new GeminiError('Gemini returned no content.')
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(jsonText)
-  } catch {
-    throw new GeminiError('Gemini returned malformed JSON.')
-  }
-
-  const raw = (parsed as { bottles?: { name?: string; category?: string }[] })?.bottles ?? []
-  return dedupeBottles(raw)
 }
