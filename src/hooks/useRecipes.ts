@@ -4,6 +4,7 @@ import { db } from '../db/db'
 import type { Bar, PantryItem, Recipe } from '../db/schema'
 import { KNOWN_SPIRITS } from '../domain/spirits'
 import { isStaple, normIngredient } from '../domain/availability'
+import type { NameIndexEntry } from '../domain/dupeMatch'
 import { useActiveBarId } from './useSettings'
 
 /** All cocktails, alphabetical. Components are excluded from the main list. */
@@ -37,6 +38,19 @@ export function useKnownIngredients(): string[] {
         }
       }
       return [...set].sort((a, b) => a.localeCompare(b))
+    }, []) ?? []
+  )
+}
+
+/**
+ * Just the id/name/kind of every recipe — the smallest slice the import screen
+ * needs to look for duplicates locally before asking the AI about any of them.
+ */
+export function useRecipeNameIndex(): NameIndexEntry[] {
+  return (
+    useLiveQuery(async () => {
+      const all = await db.recipes.toArray()
+      return all.map((r) => ({ id: r.id, name: r.name, kind: r.kind }))
     }, []) ?? []
   )
 }

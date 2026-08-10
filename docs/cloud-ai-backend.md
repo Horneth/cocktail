@@ -88,8 +88,24 @@ managing the secret. Kept as an escape hatch, not the first move.
   `cocktail.geminiKey` / `cocktail.geminiModel` on boot so the retired credential doesn't sit
   in existing installs forever.
 - **UI:** `ImportScreen` / `BarScreen` show a sign-in prompt where the "set your key" nudge
-  used to be; `SettingsScreen` shows the account and a sign-out. Signed-out users still get the
-  offline `parseRecipeText` path, which is the majority case and must stay first-class.
+  used to be; `SettingsScreen` shows the account and a sign-out. Import is AI-only (the offline
+  `parseRecipeText` heuristic was deleted), so signed out `/import` is a sign-in panel and
+  `AddSheet` hides the row entirely on a build with no Firebase config. `/new` is the offline
+  path in; every non-import feature must keep working signed out.
+
+### The two calls a backend has to implement
+
+A replacement transport needs **both** entry points in `src/import/firebaseAI.ts` — the pure
+schemas, prompts and mappers for each live in `aiShared.ts` and should be reused verbatim:
+
+1. `firebaseParse(text) → StructuredImport[]` — `PROMPT` + `RESPONSE_SCHEMA`, through
+   `finishParse(json, text)`. Beyond the recipes it yields preview-only `guessed` and `aka`.
+2. `firebaseJudgeDuplicates(queries) → DupeVerdict[]` — `DUPE_PROMPT` + `DUPE_SCHEMA`, through
+   `finishDupeJudgement(json, queries)`. **Must not throw**: the import screen fires it after
+   the preview is already on screen, and an error means "no badges", not a failed import.
+   The payload is only `{index, name, aka, candidates}` — a shortlist `domain/dupeMatch.ts`
+   already computed locally. Do not "improve" this by sending the whole library; keeping the
+   user's collection on the device is the design, not an accident.
 
 ### Lazy boot (why `useAuth` looks the way it does)
 
@@ -141,8 +157,8 @@ Do this in the [Firebase console](https://console.firebase.google.com/) — the 
 
 ## Verification
 
-- Sign in with Google → Smart parse and Shelf scan work; sign out → AI is gated with a sign-in
-  prompt while the offline basic parser still works.
+- Sign in with Google → Import and Shelf scan work; sign out → both are gated with a sign-in
+  prompt, and every other screen still works offline.
 - `grep` the production `dist/` for **`generativelanguage.googleapis.com`** → must be absent,
   proving nothing calls Gemini directly any more. (The memo used to say "grep for a Gemini key
   pattern". That check is now **wrong and will fail**: `VITE_FIREBASE_API_KEY` is itself an

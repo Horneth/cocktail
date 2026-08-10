@@ -7,6 +7,7 @@ import { newId } from '../domain/ids'
 import { KNOWN_SPIRITS } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { UNIT_ORDER, UNITS } from '../domain/units'
+import { GLASSES, METHODS } from '../domain/vocab'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
 import {
   useComponents,
@@ -15,8 +16,6 @@ import {
   useSpiritSuggestions,
 } from '../hooks/useRecipes'
 import styles from './EditRecipeScreen.module.css'
-
-const METHODS = ['Shake', 'Stir', 'Build', 'Blend', 'Throw', 'Swizzle']
 
 function blankIngredient(): Ingredient {
   return { id: newId(), name: '', amount: null, unit: 'oz' }
@@ -226,10 +225,16 @@ export function EditRecipeScreen() {
               </Field>
               <Field label="Glass">
                 <input
+                  list="glass-suggestions"
                   value={form.glassware ?? ''}
                   onChange={(e) => update({ glassware: e.target.value || undefined })}
                   placeholder="Coupe, Rocks…"
                 />
+                <datalist id="glass-suggestions">
+                  {GLASSES.map((g) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
               </Field>
               <Field label="Garnish">
                 <input

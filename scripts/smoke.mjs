@@ -161,15 +161,19 @@ await go('#/settings')
 check('settings has no API key field', (await page.locator('input[type="password"]').count()) === 0)
 check('settings still offers the AI section', (await page.locator('text=/AI features/i').count()) > 0)
 
-// Signed out, the offline parser is the whole product. It must not depend on
-// any of the above.
+// Import is AI-only, so signed out it is a sign-in wall — not a dead textarea
+// the user can type into and never get anything back from.
 await go('#/import')
-await page.locator('button', { hasText: 'Paste an example' }).click()
-await page.locator('button', { hasText: 'Extract recipe' }).click()
-await page.waitForTimeout(800)
-const parsedName = await page.locator('input[placeholder="Name"]').first().inputValue().catch(() => '')
-check('basic parse works signed out', parsedName === 'Whiskey Sour', parsedName || 'no draft')
-await shot('11-basic-parse')
+check(
+  'import is gated behind sign-in when signed out',
+  (await page.locator('text=/Sign in to import|isn.t available in this build/i').count()) > 0,
+)
+check('import shows no paste box when signed out', (await page.locator('textarea').count()) === 0)
+check(
+  'gated import still offers the offline path',
+  (await page.locator('a[href$="/new"]').count()) > 0,
+)
+await shot('11-import-gate')
 
 // ── Backup round trip ───────────────────────────────────────────────────────
 // The reason this feature exists is the origin move, so a green unit test isn't

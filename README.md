@@ -100,40 +100,44 @@ that points at a component; a denormalized `recipeLinks` table indexes that
 relationship both ways (for fast *Used in* back-links and shared components).
 See `src/db/schema.ts`.
 
-## Import from a video (phase 2 — shipped)
+## Import a recipe
 
-Tap **Import** on the home screen, paste any cocktail recipe or a video's
-**description**, and an on-device parser
-(`src/import/parseRecipeText.ts`) turns it into the cocktail plus any
-syrups/cordials — **cross-linked** automatically by name. An editable preview
-lets you fix anything before saving. It runs entirely client-side: no backend,
-no API keys, works offline. Everything funnels through the same
-`importRecipe(StructuredImport)` seam the seed data uses.
+Tap **Import**, paste a recipe or a whole video description, and Gemini turns it
+into the cocktail plus any syrups/cordials — **cross-linked** automatically by
+name, through the same `importRecipe(StructuredImport)` seam the seed data uses.
+A single description usually holds **several** drinks; you get all of them, each
+as a card you can review, edit and tick before anything is saved.
 
-The parser is forgiving (handles `oz`, parts, dashes, `¾`/`3/4`/`.75`, no-amount
-toppers like "Club Soda", garnish/method lines) and strips description noise
-(chapters, gear links, socials). `Recipe.source` records provenance (and the
-YouTube URL/video id when present in the pasted text).
+**It fills in the blanks, and tells you where.** Build, glass, garnish and tags
+come from the text when the text says; otherwise the model infers the standard
+serve for that drink and flags what it inferred with a **✨**. Tap any flagged
+field to correct it and the mark clears. Ingredients and amounts are never
+guessed — those only ever come from what you pasted.
 
-### Optional: Smart parse, with a Google sign-in
+**It knows what you already own.** Before importing, each drink is matched
+against your library and labelled *Already in your library* (unticked, so you
+can't create a duplicate by accident) or *Variation of …* (a Hemingway Daiquiri
+is its own drink, not a second Daiquiri). Matching is on the drink's **identity**
+rather than its exact specs — two bartenders' Daiquiris differ by a quarter ounce
+and are still the same drink, and a Daiquiri pasted in as "Rum Sour" is still
+caught. Your library isn't uploaded to do this: the candidates are found on your
+device first, and only a handful of already-matching *names* are ever sent.
 
-For messier descriptions there's AI parsing. **Sign in with Google** (from
-**Settings → AI features**, or the prompt on the Import screen) and the Import
-screen offers **✨ Smart parse** — structured model output feeding the same
-`StructuredImport` pipeline, with the offline heuristic always available as a
-fallback.
+`Recipe.source` records provenance, including the YouTube URL and video id when
+one is in the pasted text.
 
-There is **no API key to paste and nothing sensitive stored in your browser**.
-The request goes through Firebase AI Logic: Google runs the proxy and the Gemini
-key lives in the Firebase project, never in this app. The sign-in exists so usage
-can be rate-limited per account — it is not an account for your recipes. Your
-library stays entirely on your device either way, and every other feature works
-signed out.
+### Import needs a Google sign-in
 
-A single video description usually holds **several cocktails**, so Smart parse
-returns *all* of them: the preview becomes a **pick-list** ("N cocktails found")
-where you tick which drinks to save. Syrups shared across drinks dedupe to a
-single component automatically (name+kind) via the same `importRecipe` seam.
+Import is the one feature that does. **Sign in with Google** (from **Settings →
+AI features**, or the panel on the Import screen) to use it. There is **no API
+key to paste and nothing sensitive stored in your browser** — the request goes
+through Firebase AI Logic, where Google runs the proxy and the Gemini key lives
+in the Firebase project, never in this app. The sign-in exists so usage can be
+rate-limited per account; it is not an account for your recipes.
+
+Your library stays entirely on your device either way. Browsing, searching,
+editing, **My Bar**, notes, scaling and backups all work signed out and offline,
+and you can always add a recipe by hand.
 
 ### Share a video straight to the app (Android)
 
@@ -143,7 +147,7 @@ tap **Share** on a YouTube video (or on selected description text) and pick
 **Cocktail**. The share lands on the app's start URL as `?title&text&url`
 params; `src/main.tsx` captures them at boot, stashes them
 (`src/import/shared.ts`), and drops you into **Import** with the text prefilled
-and auto-parsed. Sharing the bare video *link* only yields the URL/title (a
+and extracted. Sharing the bare video *link* only yields the URL/title (a
 browser can't fetch a YouTube description — CORS), so for full ingredients share
 the selected description text, or paste it. iOS Safari doesn't implement Web
 Share Target, so there it stays copy-paste.

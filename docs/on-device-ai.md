@@ -1,11 +1,14 @@
 # On-device AI on Android — options memo
 
 _Status: research memo / recommendation. Written 2026-07; Phase 0 has since shipped, the rest
-has not. Updated 2026-08 for the cloud transport's move to Firebase AI Logic._
+has not. Updated 2026-08 for the cloud transport's move to Firebase AI Logic, and again when
+the offline heuristic parser was deleted — the "heuristic floor" this memo leans on twice below
+no longer exists, so an on-device text backend would now be the only alternative to the cloud,
+not a middle tier._
 
 ## Why this exists
 
-Cocktail's optional AI features (Smart parse of a pasted description, and "Scan my
+Cocktail's AI features (import of a pasted description, and "Scan my
 shelf" bottle recognition) currently run on **cloud Gemini**. This memo re-explores
 whether those features can run **on-device** — no cloud round-trip — with a focus on
 **Android**, since that's the primary install target for the PWA.
@@ -34,14 +37,15 @@ and reusable.
 **Through-line:** on-device AI on Android in 2026 is a **high-end-device-only** capability on
 every path — because of WebGPU coverage, multi-GB model downloads, or flagship-only native
 APIs. So it should ship as an **experimental opt-in alongside cloud AI**, never a replacement,
-with the existing offline heuristic parser (`src/import/parseRecipeText.ts`) as the guaranteed
-floor for text.
+alongside cloud AI. (When this was written there was also an offline heuristic parser as a
+guaranteed floor for text; it has since been deleted, so on-device would be the only non-cloud
+text path rather than a third tier.)
 
 ## Recommendation
 
 1. **Ship on-device as an optional in-browser (pure-PWA) backend**, behind a new
    `FEATURES.onDeviceAI` flag, using functions signature-compatible with the cloud ones so the
-   UI barely changes. Keep cloud as the default. Fallback order: **on-device → cloud → heuristic**.
+   UI barely changes. Keep cloud as the default. Fallback order: **on-device → cloud**.
 2. **Engines:**
    - **Text → WebLLM.** Grammar-constrained JSON decoding is the decisive advantage; a small
      instruct model (Qwen2.5-1.5B/3B or Llama-3.2-1B/3B) can emit schema-valid `StructuredImport`.
@@ -61,7 +65,7 @@ floor for text.
   the evidence the seam is in the right place. An on-device backend plugs in the same way.
 - **Phase 1 — Text via WebLLM**, flag-off by default: `src/import/onDeviceAI.ts` with
   `onDeviceParse()`, a `webgpuAvailable()` gate, a Cloud/On-device selector + download-progress
-  in `ImportScreen`, and fall-through to `parseRecipeText`. Reliability: grammar constraint →
+  in `ImportScreen`, and fall-through to the cloud transport. Reliability: grammar constraint →
   `JSON.parse` try/catch → one retry at temp 0 → fall back.
 - **Phase 2 — Vision via transformers.js SmolVLM** in `BarScreen`, reusing
   `downscaleDataUrl`/`splitDataUrl`/`dedupeBottles`, with WASM fallback.

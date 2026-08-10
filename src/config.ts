@@ -2,10 +2,12 @@
 // flipping one boolean (no other code changes needed), then redeploying.
 export const FEATURES = {
   /**
-   * Cloud AI parsing (Smart parse + Shelf scan) via Firebase AI Logic. Google
+   * Cloud AI (recipe import + shelf scan) via Firebase AI Logic. Google
    * runs the proxy and the Gemini key lives in the Firebase project — never in
    * this app. Gated behind an optional Google sign-in (see `useAuth`). Set to
-   * `false` to remove every AI entry point, leaving the app fully offline-only.
+   * `false` to remove every AI entry point, leaving the app fully offline-only —
+   * note that this also removes recipe import, which is AI-only. Adding a recipe
+   * by hand (`/new`) is then the only way in.
    */
   cloudAI: true,
 } as const;

@@ -1,100 +1,146 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
+import { Link, useNavigate } from 'react-router-dom'
+import { ChevronLeftIcon, ChevronRightIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
 import type { Unit } from '../db/schema'
+import { shortlistCandidates } from '../domain/dupeMatch'
+import type { NameIndexEntry } from '../domain/dupeMatch'
 import { UNIT_ORDER, UNITS } from '../domain/units'
+import { GLASSES, METHODS, TAG_KEYS, tagEmoji } from '../domain/vocab'
 import { importRecipe } from '../import/importRecipe'
-import { parseRecipeText } from '../import/parseRecipeText'
-import type { IngredientDraft, RecipeDraft, StructuredImport } from '../import/types'
+import type { DupeQuery, DupeRelation } from '../import/aiShared'
+import type { GuessedField, IngredientDraft, RecipeDraft, StructuredImport } from '../import/types'
 import { consumeSharedImport } from '../import/shared'
-import { useKnownIngredients, useSpiritSuggestions } from '../hooks/useRecipes'
+import { useKnownIngredients, useRecipeNameIndex, useSpiritSuggestions } from '../hooks/useRecipes'
 import { useAuth } from '../hooks/useAuth'
 import styles from './ImportScreen.module.css'
 
 const INGREDIENT_LIST_ID = 'known-ingredients'
+const SPIRIT_LIST_ID = 'import-spirits'
+const GLASS_LIST_ID = 'import-glasses'
 
-const MODES = [
-  { key: 'link', label: 'Link', emoji: '🔗', placeholder: 'https://…  paste a recipe or video link' },
-  { key: 'text', label: 'Text', emoji: '📝', placeholder: 'Paste the full recipe text…' },
-  { key: 'video', label: 'Video', emoji: '🎬', placeholder: 'Paste a video description or transcript…' },
-] as const
-type Mode = (typeof MODES)[number]['key']
+const EXAMPLE = `Whiskey Sour
+2 oz bourbon
+3/4 oz lemon juice
+3/4 oz simple syrup
+Shake with ice, strain into a coupe.`
 
-interface Draft {
-  recipes: StructuredImport[]
-  ok: boolean
+/** A library recipe the AI judged related to one we're about to import. */
+interface DupeInfo {
+  relation: Exclude<DupeRelation, 'different'>
+  id: string
+  name: string
+  reason?: string
 }
 
 export function ImportScreen() {
   const navigate = useNavigate()
   const knownIngredients = useKnownIngredients()
   const spiritSuggestions = useSpiritSuggestions()
+  const nameIndex = useRecipeNameIndex()
   const auth = useAuth()
-  const aiEnabled = auth.aiAvailable
+
   const [text, setText] = useState('')
-  const [mode, setMode] = useState<Mode>('text')
-  const [draft, setDraft] = useState<Draft | null>(null)
+  const [drafts, setDrafts] = useState<StructuredImport[] | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<number | null>(null)
+  const [dupes, setDupes] = useState<Map<number, DupeInfo>>(new Map())
+  const [dupeBusy, setDupeBusy] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [aiBusy, setAiBusy] = useState(false)
-  const [aiError, setAiError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const parse = () => {
-    setAiError(null)
-    const result = parseRecipeText(text)
-    setExcluded(new Set())
-    setSelected(new Set([0]))
-    setDraft({ recipes: [{ main: result.main, components: result.components }], ok: result.ok })
+  // The extract can be kicked off by an effect (Android share), so read the live
+  // name index through a ref rather than closing over a possibly-stale render.
+  const indexRef = useRef<NameIndexEntry[]>(nameIndex)
+  indexRef.current = nameIndex
+
+  /**
+   * Duplicate detection, second phase. Runs AFTER the preview is on screen and
+   * writes badges in when it lands — a slow or failed check must never hold up
+   * a user who already knows what they pasted.
+   */
+  const checkDuplicates = async (recipes: StructuredImport[]) => {
+    const index = indexRef.current
+    const queries: DupeQuery[] = []
+    const shortlists = new Map<number, NameIndexEntry[]>()
+
+    recipes.forEach((imp, i) => {
+      const aka = imp.aka ?? []
+      const candidates = shortlistCandidates(imp.main.name, aka, index, imp.main.kind)
+      if (!candidates.length) return
+      shortlists.set(i, candidates)
+      queries.push({ index: i, name: imp.main.name, aka, candidates: candidates.map((c) => c.name) })
+    })
+    if (!queries.length) return
+
+    setDupeBusy(true)
+    try {
+      const { firebaseJudgeDuplicates } = await import('../import/firebaseAI')
+      const verdicts = await firebaseJudgeDuplicates(queries)
+      const found = new Map<number, DupeInfo>()
+      for (const v of verdicts) {
+        if (v.relation === 'different') continue
+        const entry = shortlists.get(v.index)?.find((c) => c.name === v.match)
+        if (!entry) continue
+        found.set(v.index, {
+          relation: v.relation,
+          id: entry.id,
+          name: entry.name,
+          reason: v.reason,
+        })
+      }
+      setDupes(found)
+      // A drink we already own starts unchecked, so the obvious action (hit
+      // Import) can't quietly create a second copy. A named riff is its own
+      // drink and stays checked — we're only labelling it.
+      setSelected((prev) => {
+        const next = new Set(prev)
+        for (const [i, d] of found) if (d.relation === 'same') next.delete(i)
+        return next
+      })
+    } catch {
+      // `firebaseJudgeDuplicates` swallows its own failures, but loading the
+      // chunk at all can fail (the classic: offline, and it was never cached).
+      // Either way the preview is already on screen — it just goes unbadged.
+    } finally {
+      setDupeBusy(false)
+    }
   }
 
-  const smartParse = async () => {
-    if (aiBusy) return
-    setAiError(null)
-    setAiBusy(true)
+  const extract = async (source: string) => {
+    if (busy) return
+    setError(null)
+    setBusy(true)
     try {
       const { firebaseParse } = await import('../import/firebaseAI')
-      const recipes = await firebaseParse(text)
+      const recipes = await firebaseParse(source)
+      setDrafts(recipes)
       setExcluded(new Set())
+      setDupes(new Map())
       setSelected(new Set(recipes.map((_, i) => i)))
-      setDraft({ recipes, ok: true })
+      setExpanded(recipes.length === 1 ? 0 : null)
+      void checkDuplicates(recipes)
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'AI parse failed. Try Basic parse.')
+      setError(err instanceof Error ? err.message : 'Could not read that text.')
     } finally {
-      setAiBusy(false)
+      setBusy(false)
     }
   }
 
-  const runParse = (t: string, ai: boolean) => {
-    if (ai) {
-      setAiBusy(true)
-      import('../import/firebaseAI')
-        .then(({ firebaseParse }) => firebaseParse(t))
-        .then((recipes) => {
-          setSelected(new Set(recipes.map((_, i) => i)))
-          setDraft({ recipes, ok: true })
-        })
-        .catch((err) =>
-          setAiError(err instanceof Error ? err.message : 'AI parse failed. Try Basic parse.'),
-        )
-        .finally(() => setAiBusy(false))
-    } else {
-      const result = parseRecipeText(t)
-      setSelected(new Set([0]))
-      setDraft({ recipes: [{ main: result.main, components: result.components }], ok: result.ok })
-    }
-  }
-
+  // Android share target: main.tsx stashes the shared text before React mounts.
+  // Wait for `ready` — a returning user's session is still being restored on the
+  // first render, and extracting before then would look like a signed-out user.
   const sharedApplied = useRef(false)
   useEffect(() => {
-    if (sharedApplied.current || draft) return
+    if (sharedApplied.current || drafts || !auth.ready) return
     const shared = consumeSharedImport()
     if (!shared) return
     sharedApplied.current = true
     setText(shared)
-    runParse(shared, aiEnabled)
+    if (auth.aiAvailable) void extract(shared)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [auth.ready, auth.aiAvailable])
 
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
@@ -102,90 +148,109 @@ export function ImportScreen() {
     else navigate('/')
   }
 
-  const pasteExample = () =>
-    setText('Whiskey Sour\n2 oz bourbon\n3/4 oz lemon juice\n3/4 oz simple syrup\nShake with ice, strain into a coupe.')
+  const recipes = drafts ?? []
 
-  const recipes = draft?.recipes ?? []
-  const single = draft && recipes.length === 1 ? recipes[0] : null
+  const patchAt = (i: number, fn: (imp: StructuredImport) => StructuredImport) =>
+    setDrafts((d) => (d ? d.map((imp, n) => (n === i ? fn(imp) : imp)) : d))
 
-  const patchRecipe0 = (fn: (imp: StructuredImport) => StructuredImport) =>
-    setDraft((d) => (d ? { ...d, recipes: [fn(d.recipes[0]), ...d.recipes.slice(1)] } : d))
-  const patchMain = (patch: Partial<RecipeDraft>) =>
-    patchRecipe0((imp) => ({ ...imp, main: { ...imp.main, ...patch } }))
-  const patchRecipeIngredients = (tempId: string, ings: IngredientDraft[]) =>
-    patchRecipe0((imp) => {
-      if (imp.main.tempId === tempId) return { ...imp, main: { ...imp.main, ingredients: ings } }
+  /** Patch the main recipe. `clears` un-marks a guessed field the user just fixed. */
+  const editMain = (i: number, patch: Partial<RecipeDraft>, clears?: GuessedField) =>
+    patchAt(i, (imp) => ({
+      ...imp,
+      main: { ...imp.main, ...patch },
+      guessed: clears ? imp.guessed?.filter((g) => g !== clears) : imp.guessed,
+    }))
+
+  const setKind = (i: number, kind: RecipeDraft['kind']) =>
+    editMain(
+      i,
+      // A sub-recipe is an ingredient, not a serve — drop the fields that only
+      // make sense for a drink rather than leaving stale ones on the record.
+      kind === 'component'
+        ? { kind, spirit: undefined, glassware: undefined, garnish: undefined }
+        : { kind },
+      'kind',
+    )
+
+  const toggleTag = (i: number, tag: string) =>
+    patchAt(i, (imp) => {
+      const tags = imp.main.tags ?? []
       return {
         ...imp,
-        components: imp.components.map((c) => (c.tempId === tempId ? { ...c, ingredients: ings } : c)),
+        main: {
+          ...imp.main,
+          tags: tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag],
+        },
+        guessed: imp.guessed?.filter((g) => g !== 'tags'),
       }
     })
-  const patchComponent = (tempId: string, patch: Partial<RecipeDraft>) =>
-    patchRecipe0((imp) => ({
+
+  const patchIngredients = (i: number, tempId: string, ings: IngredientDraft[]) =>
+    patchAt(i, (imp) =>
+      imp.main.tempId === tempId
+        ? { ...imp, main: { ...imp.main, ingredients: ings } }
+        : {
+            ...imp,
+            components: imp.components.map((c) =>
+              c.tempId === tempId ? { ...c, ingredients: ings } : c,
+            ),
+          },
+    )
+
+  const patchComponent = (i: number, tempId: string, patch: Partial<RecipeDraft>) =>
+    patchAt(i, (imp) => ({
       ...imp,
       components: imp.components.map((c) => (c.tempId === tempId ? { ...c, ...patch } : c)),
     }))
-  const toggleComponent = (tempId: string) =>
-    setExcluded((prev) => {
-      const next = new Set(prev)
-      next.has(tempId) ? next.delete(tempId) : next.add(tempId)
-      return next
-    })
-  const toggleSelected = (idx: number) =>
-    setSelected((prev) => {
-      const next = new Set(prev)
-      next.has(idx) ? next.delete(idx) : next.add(idx)
-      return next
-    })
 
-  const canImportSingle = useMemo(
-    () => !!single && single.main.name.trim() !== '' && single.main.ingredients.some((i) => i.name.trim()),
-    [single],
+  const toggleIn = <T,>(set: Set<T>, value: T) => {
+    const next = new Set(set)
+    if (!next.delete(value)) next.add(value)
+    return next
+  }
+  const toggleComponent = (tempId: string) => setExcluded((prev) => toggleIn(prev, tempId))
+  const toggleSelected = (i: number) => setSelected((prev) => toggleIn(prev, i))
+
+  const importable = useMemo(
+    () =>
+      new Set(
+        recipes
+          .map((imp, i) => (imp.main.name.trim() && imp.main.ingredients.some((g) => g.name.trim()) ? i : -1))
+          .filter((i) => i >= 0),
+      ),
+    [recipes],
   )
+  const chosen = [...selected].filter((i) => importable.has(i)).sort((a, b) => a - b)
 
-  const cleanImport = (imp: StructuredImport, drop: Set<string>): StructuredImport => ({
+  const cleanImport = (imp: StructuredImport): StructuredImport => ({
     main: {
       ...imp.main,
       name: imp.main.name.trim(),
-      ingredients: imp.main.ingredients.filter((i) => i.name.trim()),
+      ingredients: imp.main.ingredients.filter((g) => g.name.trim()),
       source: { ...imp.main.source, type: imp.main.source?.type ?? 'web', importedAt: Date.now() },
     },
     components: imp.components
-      .filter((c) => !drop.has(c.tempId) && c.name.trim() && c.ingredients.length)
-      .map((c) => ({ ...c, ingredients: c.ingredients.filter((i) => i.name.trim()) })),
+      .filter((c) => !excluded.has(c.tempId) && c.name.trim() && c.ingredients.length)
+      .map((c) => ({ ...c, ingredients: c.ingredients.filter((g) => g.name.trim()) })),
   })
 
-  const doImportSingle = async () => {
-    if (!single || saving) return
+  const doImport = async () => {
+    if (saving || !chosen.length) return
     setSaving(true)
     try {
-      const { mainId } = await importRecipe(cleanImport(single, excluded))
-      navigate(`/recipe/${mainId}`, { replace: true })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const doImportSelected = async () => {
-    if (saving || selected.size === 0) return
-    setSaving(true)
-    try {
-      const chosen = recipes.filter((_, i) => selected.has(i))
-      let lastMainId = ''
-      for (const imp of chosen) {
-        const { mainId } = await importRecipe(cleanImport(imp, new Set()))
-        lastMainId = mainId
+      let lastId = ''
+      for (const i of chosen) {
+        const { mainId } = await importRecipe(cleanImport(recipes[i]))
+        lastId = mainId
       }
-      if (chosen.length === 1) navigate(`/recipe/${lastMainId}`, { replace: true })
+      if (chosen.length === 1) navigate(`/recipe/${lastId}`, { replace: true })
       else navigate('/', { replace: true })
     } finally {
       setSaving(false)
     }
   }
 
-  const placeholder = MODES.find((m) => m.key === mode)!.placeholder
   const hasText = text.trim().length > 0
-  const runPrimary = () => (aiEnabled ? void smartParse() : parse())
 
   return (
     <div className={styles.screen}>
@@ -194,9 +259,14 @@ export function ImportScreen() {
           <option key={n} value={n} />
         ))}
       </datalist>
-      <datalist id="import-spirits">
+      <datalist id={SPIRIT_LIST_ID}>
         {spiritSuggestions.map((s) => (
           <option key={s} value={s} />
+        ))}
+      </datalist>
+      <datalist id={GLASS_LIST_ID}>
+        {GLASSES.map((g) => (
+          <option key={g} value={g} />
         ))}
       </datalist>
 
@@ -204,308 +274,367 @@ export function ImportScreen() {
         <button className={styles.back} aria-label="Back" onClick={goBack}>
           <ChevronLeftIcon size={20} />
         </button>
-        <h1 className={styles.title}>Import a recipe</h1>
+        <h1 className={styles.title}>Import</h1>
       </header>
 
-      {!draft ? (
+      {drafts ? (
         <div className={styles.body}>
-          <p className={styles.intro}>
-            Paste a link, a video description, or the recipe text — we’ll pull out the ingredients
-            and steps.
-          </p>
+          {recipes.length > 1 && (
+            <p className={styles.foundNote}>
+              <SparkleIcon size={15} /> {recipes.length} recipes found
+            </p>
+          )}
 
-          <div className={styles.modes}>
-            {MODES.map((m) => (
-              <button
-                key={m.key}
-                className={`${styles.mode} ${mode === m.key ? styles.modeOn : ''}`}
-                onClick={() => setMode(m.key)}
-              >
-                <span className={styles.modeEmoji}>{m.emoji}</span>
-                {m.label}
-              </button>
-            ))}
+          {recipes.map((imp, i) => (
+            <RecipeCard
+              key={imp.main.tempId}
+              imp={imp}
+              collapsible={recipes.length > 1}
+              open={expanded === i}
+              selected={selected.has(i)}
+              dupe={dupes.get(i)}
+              excluded={excluded}
+              onOpen={() => setExpanded(expanded === i ? null : i)}
+              onSelect={() => toggleSelected(i)}
+              onPatchMain={(patch, clears) => editMain(i, patch, clears)}
+              onSetKind={(kind) => setKind(i, kind)}
+              onToggleTag={(tag) => toggleTag(i, tag)}
+              onPatchIngredients={(tempId, ings) => patchIngredients(i, tempId, ings)}
+              onPatchComponent={(tempId, patch) => patchComponent(i, tempId, patch)}
+              onToggleComponent={toggleComponent}
+            />
+          ))}
+
+          {dupeBusy && <p className={styles.dupeBusy}>Checking your library…</p>}
+
+          <div className={styles.previewActions}>
+            <button className={styles.ghostBtn} disabled={saving} onClick={() => setDrafts(null)}>
+              Start over
+            </button>
+            <button
+              className={styles.solidBtn}
+              disabled={!chosen.length || saving}
+              onClick={() => void doImport()}
+            >
+              {saving ? 'Saving…' : chosen.length > 1 ? `Import ${chosen.length}` : 'Import'}
+            </button>
           </div>
-
+        </div>
+      ) : !auth.configured ? (
+        <div className={styles.body}>
+          <div className={styles.gate}>
+            <p className={styles.gateTitle}>Import isn’t available in this build</p>
+            <p className={styles.gateText}>It needs a configured AI project.</p>
+            <Link className={styles.gateGhost} to="/new">
+              Add a recipe by hand
+            </Link>
+          </div>
+        </div>
+      ) : !auth.ready ? (
+        <div className={styles.body} />
+      ) : !auth.aiAvailable ? (
+        <div className={styles.body}>
+          <div className={styles.gate}>
+            <SparkleIcon size={26} className={styles.gateIcon} />
+            <p className={styles.gateTitle}>Sign in to import</p>
+            <p className={styles.gateText}>
+              Import runs through Google’s AI. Everything else works signed out.
+            </p>
+            <button className={styles.gateBtn} onClick={() => void auth.signIn()}>
+              Sign in with Google
+            </button>
+            <Link className={styles.gateGhost} to="/new">
+              Add a recipe by hand
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.body}>
           <div className={styles.textareaCard}>
             <textarea
               className={styles.textarea}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={placeholder}
+              placeholder="Paste a recipe, or a whole video description…"
               autoFocus
             />
           </div>
 
-          <button className={styles.example} onClick={pasteExample}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 5h6M9 5a2 2 0 0 0-4 0M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-            </svg>
+          <button className={styles.example} onClick={() => setText(EXAMPLE)}>
             Paste an example
           </button>
 
-          {aiError && (
-            <p className={styles.warn}>
-              {aiError} <span className={styles.warnDim}>Basic parse still works.</span>
-            </p>
-          )}
-
-          {aiEnabled && (
-            <button className={styles.basicLink} disabled={!hasText || aiBusy} onClick={parse}>
-              Use basic parser instead
-            </button>
-          )}
-          {!aiEnabled && auth.configured && (
-            <button className={styles.aiNudge} onClick={() => void auth.signIn()}>
-              <SparkleIcon size={15} /> Sign in with Google for smarter, multi-drink parsing
-            </button>
-          )}
+          {error && <p className={styles.warn}>{error}</p>}
 
           <div className={styles.ctaWrap}>
             <button
               className={`${styles.cta} ${hasText ? '' : styles.ctaOff}`}
-              disabled={!hasText || aiBusy}
-              onClick={runPrimary}
+              disabled={!hasText || busy}
+              onClick={() => void extract(text)}
             >
               <SparkleIcon size={19} />
-              {aiBusy ? 'Parsing…' : hasText ? 'Extract recipe' : 'Paste something to start'}
+              {busy ? 'Reading…' : hasText ? 'Extract recipe' : 'Paste something to start'}
             </button>
           </div>
         </div>
-      ) : single ? (
-        <SinglePreview
-          imp={single}
-          ok={draft.ok}
-          excluded={excluded}
-          saving={saving}
-          canImport={canImportSingle}
-          onPatchMain={patchMain}
-          onPatchComponent={patchComponent}
-          onPatchIngredients={patchRecipeIngredients}
-          onToggleComponent={toggleComponent}
-          onStartOver={() => setDraft(null)}
-          onImport={doImportSingle}
-        />
-      ) : (
-        <MultiPreview
-          recipes={recipes}
-          selected={selected}
-          saving={saving}
-          onToggle={toggleSelected}
-          onStartOver={() => setDraft(null)}
-          onImport={doImportSelected}
-        />
       )}
     </div>
   )
 }
 
-function SinglePreview({
+// ── Review card ────────────────────────────────────────────────────────────
+
+function RecipeCard({
   imp,
-  ok,
+  collapsible,
+  open,
+  selected,
+  dupe,
   excluded,
-  saving,
-  canImport,
+  onOpen,
+  onSelect,
   onPatchMain,
-  onPatchComponent,
+  onSetKind,
+  onToggleTag,
   onPatchIngredients,
+  onPatchComponent,
   onToggleComponent,
-  onStartOver,
-  onImport,
 }: {
   imp: StructuredImport
-  ok: boolean
+  collapsible: boolean
+  open: boolean
+  selected: boolean
+  dupe?: DupeInfo
   excluded: Set<string>
-  saving: boolean
-  canImport: boolean
-  onPatchMain: (patch: Partial<RecipeDraft>) => void
-  onPatchComponent: (tempId: string, patch: Partial<RecipeDraft>) => void
+  onOpen: () => void
+  onSelect: () => void
+  onPatchMain: (patch: Partial<RecipeDraft>, clears?: GuessedField) => void
+  onSetKind: (kind: RecipeDraft['kind']) => void
+  onToggleTag: (tag: string) => void
   onPatchIngredients: (tempId: string, ings: IngredientDraft[]) => void
+  onPatchComponent: (tempId: string, patch: Partial<RecipeDraft>) => void
   onToggleComponent: (tempId: string) => void
-  onStartOver: () => void
-  onImport: () => void
 }) {
   const { main, components } = imp
+  const isComponent = main.kind === 'component'
+  const guessed = new Set(imp.guessed ?? [])
+  const tags = main.tags ?? []
+  // Selected tags first so the row opens on what's already chosen; the rest of
+  // the vocabulary scrolls in behind them.
+  const tagChoices = [...tags, ...TAG_KEYS.filter((t) => !tags.includes(t))]
+  const body = open || !collapsible
+
   return (
-    <div className={styles.body}>
-      {!ok && (
-        <p className={styles.warn}>
-          I couldn’t confidently find a recipe — check the text below and edit as needed, or go back
-          and paste again.
-        </p>
+    <div className={`${styles.card} ${collapsible && selected ? styles.cardOn : ''}`}>
+      {collapsible && (
+        <div className={styles.cardHead}>
+          <button
+            className={`${styles.check} ${selected ? styles.checkOn : ''}`}
+            aria-label={selected ? 'Deselect' : 'Select'}
+            aria-pressed={selected}
+            onClick={onSelect}
+          >
+            {selected ? '✓' : ''}
+          </button>
+          <button className={styles.cardTitle} onClick={onOpen} aria-expanded={open}>
+            <span className={styles.cardName}>{main.name || 'Untitled'}</span>
+            <span className={styles.cardMeta}>
+              {isComponent ? 'syrup' : main.spirit ?? 'cocktail'} ·{' '}
+              {main.ingredients.length} ingredient{main.ingredients.length === 1 ? '' : 's'}
+              {dupe && (
+                <span className={dupe.relation === 'same' ? styles.pillSame : styles.pillVariation}>
+                  {dupe.relation === 'same' ? 'already saved' : 'variation'}
+                </span>
+              )}
+            </span>
+          </button>
+          <ChevronRightIcon
+            size={20}
+            className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}
+          />
+        </div>
       )}
 
-      {main.kind === 'component' && (
-        <p className={styles.kindNote}>
-          <FlaskIcon size={14} /> Detected as a sub-recipe (syrup / cordial)
-        </p>
-      )}
-      <label className={styles.label}>
-        {main.kind === 'component' ? 'Sub-recipe name' : 'Cocktail name'}
-      </label>
-      <div className={styles.inputCard}>
-        <input
-          className={styles.nameInput}
-          value={main.name}
-          onChange={(e) => onPatchMain({ name: e.target.value })}
-          placeholder="Name"
-        />
-      </div>
+      {body && (
+        <div className={collapsible ? styles.cardBody : undefined}>
+          {dupe && (
+            <div
+              className={`${styles.dupe} ${dupe.relation === 'same' ? styles.dupeSame : styles.dupeVariation}`}
+            >
+              <strong>
+                {dupe.relation === 'same' ? 'Already in your library' : 'Variation of'}
+              </strong>{' '}
+              <Link className={styles.dupeLink} to={`/recipe/${dupe.id}`}>
+                {dupe.name}
+              </Link>
+              {dupe.reason && <span className={styles.dupeReason}> — {dupe.reason}</span>}
+            </div>
+          )}
 
-      <h2 className={styles.h2}>Ingredients</h2>
-      <IngredientList recipe={main} onChange={(ings) => onPatchIngredients(main.tempId, ings)} />
+          <div className={styles.segment}>
+            {(['cocktail', 'component'] as const).map((k) => (
+              <button
+                key={k}
+                className={`${styles.segBtn} ${main.kind === k ? styles.segActive : ''}`}
+                onClick={() => onSetKind(k)}
+              >
+                {k === 'cocktail' ? 'Cocktail' : 'Sub-recipe'}
+                {guessed.has('kind') && main.kind === k && <GuessMark />}
+              </button>
+            ))}
+          </div>
 
-      {(main.garnish || main.method) && (
-        <p className={styles.meta}>
-          {main.method && <span>{main.method}</span>}
-          {main.method && main.garnish ? ' · ' : ''}
-          {main.garnish && <span>Garnish: {main.garnish}</span>}
-        </p>
-      )}
-
-      {main.kind !== 'component' && (
-        <div className={styles.spiritRow}>
-          <label className={styles.label}>Base spirit</label>
           <div className={styles.inputCard}>
             <input
-              className={styles.spiritInput}
-              list="import-spirits"
-              value={main.spirit ?? ''}
-              onChange={(e) => onPatchMain({ spirit: e.target.value || undefined })}
-              placeholder="gin, cachaça…"
-              autoCapitalize="none"
-              autoCorrect="off"
+              className={styles.nameInput}
+              value={main.name}
+              onChange={(e) => onPatchMain({ name: e.target.value })}
+              placeholder="Name"
             />
           </div>
+
+          <IngredientList
+            recipe={main}
+            onChange={(ings) => onPatchIngredients(main.tempId, ings)}
+          />
+
+          <div className={styles.grid2}>
+            <Field label="Build" guessed={guessed.has('method')}>
+              <select
+                value={main.method ?? ''}
+                onChange={(e) => onPatchMain({ method: e.target.value || undefined }, 'method')}
+              >
+                <option value="">—</option>
+                {METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {!isComponent && (
+              <Field label="Glass" guessed={guessed.has('glassware')}>
+                <input
+                  list={GLASS_LIST_ID}
+                  value={main.glassware ?? ''}
+                  onChange={(e) =>
+                    onPatchMain({ glassware: e.target.value || undefined }, 'glassware')
+                  }
+                  placeholder="Coupe…"
+                />
+              </Field>
+            )}
+            {!isComponent && (
+              <Field label="Spirit" guessed={guessed.has('spirit')}>
+                <input
+                  list={SPIRIT_LIST_ID}
+                  value={main.spirit ?? ''}
+                  onChange={(e) => onPatchMain({ spirit: e.target.value || undefined }, 'spirit')}
+                  placeholder="gin, cachaça…"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+              </Field>
+            )}
+            {/* last and full-width: garnishes are phrases ("Lime wheel & salt rim"),
+                not one-word values like the three above */}
+            {!isComponent && (
+              <Field label="Garnish" guessed={guessed.has('garnish')} wide>
+                <input
+                  value={main.garnish ?? ''}
+                  onChange={(e) => onPatchMain({ garnish: e.target.value || undefined }, 'garnish')}
+                  placeholder="Lime wheel…"
+                />
+              </Field>
+            )}
+          </div>
+
+          <div className={styles.tagsHead}>
+            <span className={styles.label}>Tags</span>
+            {guessed.has('tags') && <GuessMark />}
+          </div>
+          <div className={`${styles.chipRow} hg-scroll`}>
+            {tagChoices.map((t) => (
+              <button
+                key={t}
+                className={`${styles.tagChip} ${tags.includes(t) ? styles.tagChipOn : ''}`}
+                onClick={() => onToggleTag(t)}
+              >
+                {tagEmoji(t)} {t}
+              </button>
+            ))}
+          </div>
+
+          {guessed.size > 0 && <p className={styles.legend}>✨ guessed — tap to change</p>}
+
+          {components.length > 0 && (
+            <>
+              <span className={`${styles.label} ${styles.subsLabel}`}>Sub-recipes</span>
+              {components.map((c) => {
+                const on = !excluded.has(c.tempId)
+                return (
+                  <div key={c.tempId} className={`${styles.compCard} ${on ? '' : styles.compOff}`}>
+                    <div className={styles.compHead}>
+                      <FlaskIcon size={15} className={styles.compFlask} />
+                      <input
+                        className={styles.compName}
+                        value={c.name}
+                        onChange={(e) => onPatchComponent(c.tempId, { name: e.target.value })}
+                      />
+                      <label className={styles.compToggle}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => onToggleComponent(c.tempId)}
+                        />
+                        save
+                      </label>
+                    </div>
+                    {on && (
+                      <IngredientList
+                        recipe={c}
+                        onChange={(ings) => onPatchIngredients(c.tempId, ings)}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          )}
         </div>
       )}
-
-      {(main.tags?.length ?? 0) > 0 && (
-        <div className={styles.chipsRow}>
-          {(main.tags ?? []).map((t) => (
-            <span key={t} className={styles.tagChip}>
-              #{t}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {components.length > 0 && (
-        <>
-          <h2 className={styles.h2}>Sub-recipes found</h2>
-          {components.map((c) => {
-            const on = !excluded.has(c.tempId)
-            return (
-              <div key={c.tempId} className={`${styles.compCard} ${on ? '' : styles.compOff}`}>
-                <div className={styles.compHead}>
-                  <FlaskIcon size={15} className={styles.compFlask} />
-                  <input
-                    className={styles.compName}
-                    value={c.name}
-                    onChange={(e) => onPatchComponent(c.tempId, { name: e.target.value })}
-                  />
-                  <label className={styles.compToggle}>
-                    <input type="checkbox" checked={on} onChange={() => onToggleComponent(c.tempId)} />
-                    link
-                  </label>
-                </div>
-                {on && (
-                  <IngredientList recipe={c} onChange={(ings) => onPatchIngredients(c.tempId, ings)} />
-                )}
-              </div>
-            )
-          })}
-        </>
-      )}
-
-      <div className={styles.previewActions}>
-        <button className={styles.ghostBtn} onClick={onStartOver}>
-          Start over
-        </button>
-        <button className={styles.solidBtn} disabled={!canImport || saving} onClick={onImport}>
-          {saving ? 'Importing…' : 'Import recipe'}
-        </button>
-      </div>
     </div>
   )
 }
 
-function MultiPreview({
-  recipes,
-  selected,
-  saving,
-  onToggle,
-  onStartOver,
-  onImport,
-}: {
-  recipes: StructuredImport[]
-  selected: Set<number>
-  saving: boolean
-  onToggle: (idx: number) => void
-  onStartOver: () => void
-  onImport: () => void
-}) {
-  const count = selected.size
+/** The "the model made this up" mark. Labelled, so it isn't just a sparkle emoji to a screen reader. */
+function GuessMark() {
   return (
-    <div className={styles.body}>
-      <p className={styles.foundNote}>
-        <SparkleIcon size={15} /> {recipes.length} cocktails found — pick which to save.
-      </p>
+    <span className={styles.guessMark} title="Guessed — tap to change" aria-label="guessed">
+      ✨
+    </span>
+  )
+}
 
-      {recipes.map((imp, i) => {
-        const on = selected.has(i)
-        const m = imp.main
-        return (
-          <button
-            key={m.tempId}
-            type="button"
-            className={`${styles.pickCard} ${on ? styles.pickOn : ''}`}
-            onClick={() => onToggle(i)}
-            aria-pressed={on}
-          >
-            <span className={`${styles.pickCheck} ${on ? styles.pickCheckOn : ''}`} aria-hidden>
-              {on ? '✓' : ''}
-            </span>
-            <span className={styles.pickBody}>
-              <span className={styles.pickName}>
-                {m.name || (m.kind === 'component' ? 'Untitled syrup' : 'Untitled drink')}
-              </span>
-              <span className={styles.pickMeta}>
-                {m.kind === 'component' ? (
-                  <span className={styles.pickSpirit}>syrup</span>
-                ) : m.spirit ? (
-                  <span className={styles.pickSpirit}>{m.spirit}</span>
-                ) : null}
-                <span>
-                  {m.ingredients.length} ingredient{m.ingredients.length === 1 ? '' : 's'}
-                </span>
-                {imp.components.length > 0 && (
-                  <span>
-                    · {imp.components.length} sub-recipe{imp.components.length === 1 ? '' : 's'}
-                  </span>
-                )}
-              </span>
-              <span className={styles.pickIngs}>
-                {m.ingredients
-                  .map((ing) => ing.name)
-                  .filter(Boolean)
-                  .slice(0, 5)
-                  .join(' · ')}
-                {m.ingredients.length > 5 ? ' …' : ''}
-              </span>
-            </span>
-          </button>
-        )
-      })}
-
-      <div className={styles.previewActions}>
-        <button className={styles.ghostBtn} onClick={onStartOver} disabled={saving}>
-          Start over
-        </button>
-        <button className={styles.solidBtn} disabled={count === 0 || saving} onClick={onImport}>
-          {saving ? 'Importing…' : count <= 1 ? 'Import recipe' : `Import ${count} recipes`}
-        </button>
-      </div>
+function Field({
+  label,
+  guessed,
+  wide,
+  children,
+}: {
+  label: string
+  guessed: boolean
+  wide?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className={`${styles.field} ${guessed ? styles.fieldGuessed : ''} ${wide ? styles.fieldWide : ''}`}
+    >
+      <span className={styles.fieldLabel}>
+        {label} {guessed && <GuessMark />}
+      </span>
+      {children}
     </div>
   )
 }
@@ -532,7 +661,9 @@ function IngredientList({
             inputMode="decimal"
             step="any"
             value={ing.amount ?? ''}
-            onChange={(e) => update(idx, { amount: e.target.value === '' ? null : Number(e.target.value) })}
+            onChange={(e) =>
+              update(idx, { amount: e.target.value === '' ? null : Number(e.target.value) })
+            }
             placeholder="—"
           />
           <select

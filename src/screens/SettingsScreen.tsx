@@ -71,17 +71,19 @@ export function SettingsScreen() {
 
             {!auth.configured ? (
               <p className={styles.desc}>
-                Cloud AI isn’t set up for this build. Basic (offline) recipe parsing always works
-                without it. To enable “Smart parse” and “Scan my shelf”, configure a Firebase
-                project (see <code>docs/cloud-ai-backend.md</code>).
+                Cloud AI isn’t set up for this build, so recipe import and “Scan my shelf” are
+                hidden. Everything else — your library, My Bar, notes, backups — works without it.
+                To enable them, configure a Firebase project (see{' '}
+                <code>docs/cloud-ai-backend.md</code>).
               </p>
             ) : (
               <>
                 <p className={styles.desc}>
-                  Sign in with Google to unlock <strong>Smart parse</strong> (messy descriptions →
-                  clean recipes) and <strong>Scan my shelf</strong> (photos → bottles). Requests run
+                  Sign in with Google to unlock <strong>Import</strong> (messy descriptions → clean
+                  recipes) and <strong>Scan my shelf</strong> (photos → bottles). Requests run
                   through Google — <strong>no API key is stored in this app</strong>, and your login
-                  is used only to run those AI features. Everything else works signed out.
+                  is used only to run those AI features. Everything else — browsing, editing, My
+                  Bar, backups — works signed out.
                 </p>
 
                 {auth.user ? (

@@ -22,9 +22,10 @@ export interface AuthState {
 const SIGNED_IN_HINT = 'cocktail.signedIn'
 
 /**
- * Optional Google sign-in state for the cloud-AI features. The app works fully
- * logged-out; only Smart parse and Shelf scan require `aiAvailable`. When the
- * deployment has no Firebase project configured, this stays inert (no SDK load).
+ * Optional Google sign-in state for the cloud-AI features. Recipe import and
+ * Shelf scan are the only things that require `aiAvailable`; every other screen
+ * works logged out and offline. When the deployment has no Firebase project
+ * configured, this stays inert (no SDK load).
  */
 export function useAuth(): AuthState {
   const configured = FEATURES.cloudAI && isCloudAIConfigured()
