@@ -6,13 +6,15 @@
 // on one machine, and none of which had been run in months. One script that
 // stays true is worth more than sixteen that rot.
 //
-//   npm i -D playwright                  # once; not a repo dependency
+//   npx playwright install chromium      # once per machine (caches outside the repo)
 //   npm run build && npm run preview     # in another shell (serves :4173)
 //   node scripts/smoke.mjs
 //
-// Playwright is deliberately NOT in package.json: it drags a browser download
-// into every `npm ci`, including CI runs that never open a browser. It stays a
-// one-command local install.
+// Playwright IS a devDependency, but the workflow sets
+// PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 on `npm ci`, so no CI run — none of which
+// opens a browser — pays for the ~100 MB download. Locally the browsers live in
+// a shared cache (~/Library/Caches/ms-playwright), so every worktree and every
+// reinstall reuses the same one.
 //
 // Not part of `npm test` — it needs a browser and a running server.
 import { mkdirSync } from 'node:fs'
