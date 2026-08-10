@@ -112,13 +112,40 @@ export const BOTTLES_SCHEMA: OpenApiSchema = {
         type: 'object',
         properties: {
           name: { type: 'string' },
+          brand: { type: 'string' },
           category: { type: 'string' },
+          confidence: { type: 'string' },
         },
         required: ['name'],
       },
     },
   },
   required: ['bottles'],
+}
+
+// Pass 2 of the shelf scan. The model gets each detected bottle plus the few
+// bottles the user already has that *look* closest (picked on-device by
+// `domain/bottleMatch`), and decides which are genuinely the same. Deciding
+// that "Tanqueray No. Ten" is not "Tanqueray" is a judgement call about bottles,
+// which is exactly the part worth spending a call on.
+export const RECONCILE_SCHEMA: OpenApiSchema = {
+  type: 'object',
+  properties: {
+    matches: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          detected: { type: 'string' },
+          verdict: { type: 'string' },
+          match: { type: 'string' },
+          canonicalName: { type: 'string' },
+        },
+        required: ['detected', 'verdict'],
+      },
+    },
+  },
+  required: ['matches'],
 }
 
 /**
@@ -174,9 +201,19 @@ Return one verdict per entry, echoing its "index":
 - "reason": at most 8 words, addressed to the user ("same drink, different name", "adds mezcal and agave"). No preamble.`
 
 export const VISION_PROMPT = `You are looking at photo(s) of a home bar or liquor shelf. List every distinct liquor, spirit, wine, or liqueur BOTTLE you can identify.
-- "name": the bottle's brand/label as printed (e.g. "Woodford Reserve", "Tanqueray", "Campari"). If the brand is unreadable but the type is clear, use the type (e.g. "London dry gin").
+- "name": the bottle's full name as printed, brand plus expression (e.g. "Woodford Reserve", "Tanqueray No. Ten", "Campari"). If the brand is unreadable but the type is clear, use the type (e.g. "London dry gin"). No bottle size, no ABV, no age unless it is part of the name.
+- "brand": the producer alone (e.g. "Woodford Reserve", "Tanqueray", "Plantation"). Omit if unreadable.
 - "category": a short lowercase base category — one of gin, vodka, rum, whiskey, tequila, mezcal, brandy, cognac, cachaça, pisco, wine, liqueur. Omit if unsure.
+- "confidence": "high" when you can read the label clearly, "low" when you are inferring from bottle shape, colour, or a partial label.
 - One entry per distinct bottle. Ignore glassware, mixers, garnishes and non-bottle items. Do not invent bottles you cannot clearly see.`
+
+export const RECONCILE_PROMPT = `You are matching bottles just detected in a photo against bottles the user already has in their bar.
+For each DETECTED bottle you are given the few existing bottles whose names look closest. Return one entry per DETECTED bottle, repeating its name verbatim in "detected", with a "verdict":
+- "same": it IS one of the listed bottles, written differently ("Plantation 3 Stars" vs "Plantation Three Stars White Rum"). Set "match" to the existing name EXACTLY as listed.
+- "variant": the same producer or family, but a genuinely different bottle the user would want to keep separately ("Tanqueray No. Ten" vs "Tanqueray", "Plantation O.F.T.D." vs "Plantation 3 Stars"). Set "match" to the closest existing name.
+- "new": none of the listed bottles is the same bottle or a near variant.
+Judge on the bottle's identity, not on string similarity. Different expressions, age statements or proofs of one brand are "variant", never "same".
+Also return "canonicalName": the cleanest display name for the detected bottle — brand plus expression, no bottle size, no ABV.`
 
 // ── Raw model output types ─────────────────────────────────────────────────
 export interface AiIngredient {
@@ -203,7 +240,26 @@ export interface AiRecipe {
 
 export interface IdentifiedBottle {
   name: string
+  brand?: string
   category?: string
+  /** 'low' when the model was reading a partial label — the UI pre-unticks these */
+  confidence?: 'high' | 'low'
+}
+
+/** One detected bottle plus the few existing bottles worth comparing it against. */
+export interface ReconcileInput {
+  detected: string
+  category?: string
+  /** existing bottle labels, picked on-device by `domain/bottleMatch` */
+  candidates: string[]
+}
+
+export interface ReconcileMatch {
+  detected: string
+  verdict: 'same' | 'variant' | 'new'
+  /** the existing label this points at, when the verdict names one */
+  match?: string
+  canonicalName?: string
 }
 
 // ── Duplicate detection ────────────────────────────────────────────────────
@@ -476,7 +532,9 @@ export function finishDupeJudgement(parsed: unknown, queries: DupeQuery[]): Dupe
 }
 
 /** Pure: clean + dedupe a model's bottle list, letting our categorizer win on category. */
-export function dedupeBottles(raw: { name?: string; category?: string }[]): IdentifiedBottle[] {
+export function dedupeBottles(
+  raw: { name?: string; brand?: string; category?: string; confidence?: string }[],
+): IdentifiedBottle[] {
   const seen = new Set<string>()
   const out: IdentifiedBottle[] = []
   for (const b of raw) {
@@ -485,7 +543,71 @@ export function dedupeBottles(raw: { name?: string; category?: string }[]): Iden
     if (!key || seen.has(key)) continue
     seen.add(key)
     const fromModel = b.category?.trim().toLowerCase() || undefined
-    out.push({ name, category: categoryForName(name) ?? fromModel })
+    const brand = b.brand?.trim()
+    out.push({
+      name,
+      category: categoryForName(name) ?? fromModel,
+      ...(brand ? { brand } : {}),
+      // Anything but an explicit "low" is treated as readable — an omitted
+      // confidence shouldn't quietly untick a bottle in the review sheet.
+      ...(b.confidence?.trim().toLowerCase() === 'low' ? { confidence: 'low' as const } : {}),
+    })
+  }
+  return out
+}
+
+/**
+ * Pure: the text sent for pass 2. Only the detected names and their few local
+ * candidates travel — never the rest of the bar. Entries with no candidates are
+ * dropped, since there is nothing for the model to compare them against; when
+ * that empties the list the caller skips the call entirely.
+ */
+export function buildReconcilePrompt(inputs: ReconcileInput[]): string {
+  const lines = inputs
+    .filter((i) => i.candidates.length > 0)
+    .map((i, n) => {
+      const category = i.category ? ` [${i.category}]` : ''
+      const candidates = i.candidates.map((c) => `"${c}"`).join(', ')
+      return `${n + 1}. "${i.detected}"${category} — already in the bar: ${candidates}`
+    })
+  return `${RECONCILE_PROMPT}\n\nDETECTED:\n${lines.join('\n')}`
+}
+
+const VERDICTS = new Set(['same', 'variant', 'new'])
+
+/**
+ * Pure: validate a reconcile response against what we actually asked about.
+ * The model is told to echo each detected name, so anything it returns that we
+ * didn't send is dropped, and a `match` that isn't one of that entry's own
+ * candidates is discarded rather than trusted — a hallucinated match would
+ * silently hide a real bottle from the review sheet.
+ */
+export function parseReconcile(parsed: unknown, inputs: ReconcileInput[]): ReconcileMatch[] {
+  const raw = (parsed as { matches?: unknown[] })?.matches
+  if (!Array.isArray(raw)) return []
+
+  const asked = new Map(inputs.map((i) => [normIngredient(i.detected), i]))
+  const seen = new Set<string>()
+  const out: ReconcileMatch[] = []
+  for (const entry of raw) {
+    const m = entry as { detected?: string; verdict?: string; match?: string; canonicalName?: string }
+    const key = normIngredient(m.detected ?? '')
+    const input = asked.get(key)
+    if (!input || seen.has(key)) continue
+    seen.add(key)
+
+    const verdict = m.verdict?.trim().toLowerCase()
+    if (!verdict || !VERDICTS.has(verdict)) continue
+
+    const match = input.candidates.find((c) => normIngredient(c) === normIngredient(m.match ?? ''))
+    const canonicalName = m.canonicalName?.trim()
+    out.push({
+      detected: input.detected,
+      // A same/variant verdict is meaningless without a candidate to point at.
+      verdict: verdict === 'new' || match ? (verdict as ReconcileMatch['verdict']) : 'new',
+      ...(match ? { match } : {}),
+      ...(canonicalName ? { canonicalName } : {}),
+    })
   }
   return out
 }

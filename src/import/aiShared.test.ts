@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   INGREDIENT_SCHEMA,
   RESPONSE_SCHEMA,
+  buildReconcilePrompt,
   dedupeBottles,
   finishDupeJudgement,
   finishParse,
   mapAiRecipe,
   namespaceTempIds,
+  parseReconcile,
   toJsonSchema,
   type AiRecipe,
   type DupeQuery,
+  type ReconcileInput,
 } from './aiShared'
 
 describe('toJsonSchema', () => {
@@ -176,6 +179,98 @@ describe('dedupeBottles', () => {
     expect(dedupeBottles([{ name: 'Mystery Bottle', category: 'gin' }])).toEqual([
       { name: 'Mystery Bottle', category: 'gin' },
     ])
+  })
+
+  it('carries brand and a low-confidence flag through', () => {
+    expect(
+      dedupeBottles([{ name: 'Tanqueray No. Ten', brand: ' Tanqueray ', confidence: 'LOW' }]),
+    ).toEqual([
+      { name: 'Tanqueray No. Ten', category: 'gin', brand: 'Tanqueray', confidence: 'low' },
+    ])
+  })
+
+  it('treats a missing confidence as readable, not doubtful', () => {
+    // An omitted confidence must not quietly untick the bottle in the review sheet.
+    const [out] = dedupeBottles([{ name: 'Campari', confidence: 'high' }])
+    expect(out).not.toHaveProperty('confidence')
+  })
+})
+
+describe('buildReconcilePrompt', () => {
+  const inputs: ReconcileInput[] = [
+    {
+      detected: 'Plantation 3 Stars',
+      category: 'rum',
+      candidates: ['Plantation Three Stars White Rum'],
+    },
+    { detected: 'Campari', category: 'liqueur', candidates: [] },
+  ]
+
+  it('sends only the detections that have something to compare against', () => {
+    const prompt = buildReconcilePrompt(inputs)
+    expect(prompt).toContain('Plantation 3 Stars')
+    expect(prompt).toContain('Plantation Three Stars White Rum')
+    expect(prompt).not.toContain('Campari')
+  })
+
+  it('leaks nothing about the rest of the bar', () => {
+    // The whole point of picking candidates on-device: a bottle the user owns
+    // that isn't a candidate must never appear in the payload.
+    expect(buildReconcilePrompt(inputs)).not.toContain('Green Chartreuse')
+  })
+})
+
+describe('parseReconcile', () => {
+  const inputs: ReconcileInput[] = [
+    { detected: 'Tanqueray No. Ten', candidates: ['Tanqueray'] },
+  ]
+
+  it('keeps a well-formed verdict and resolves the match to our own spelling', () => {
+    const out = parseReconcile(
+      { matches: [{ detected: 'tanqueray no ten', verdict: 'Variant', match: 'tanqueray', canonicalName: 'Tanqueray No. Ten' }] },
+      inputs,
+    )
+    expect(out).toEqual([
+      {
+        detected: 'Tanqueray No. Ten',
+        verdict: 'variant',
+        match: 'Tanqueray',
+        canonicalName: 'Tanqueray No. Ten',
+      },
+    ])
+  })
+
+  it('drops an entry we never asked about', () => {
+    expect(parseReconcile({ matches: [{ detected: 'Campari', verdict: 'new' }] }, inputs)).toEqual([])
+  })
+
+  it('drops an unknown verdict', () => {
+    expect(
+      parseReconcile({ matches: [{ detected: 'Tanqueray No. Ten', verdict: 'maybe' }] }, inputs),
+    ).toEqual([])
+  })
+
+  it('falls back to "new" when the match is not one of that entry\'s candidates', () => {
+    // A hallucinated match would silently hide a real bottle from the review sheet.
+    const out = parseReconcile(
+      { matches: [{ detected: 'Tanqueray No. Ten', verdict: 'same', match: 'Beefeater' }] },
+      inputs,
+    )
+    expect(out).toEqual([{ detected: 'Tanqueray No. Ten', verdict: 'new' }])
+  })
+
+  it('ignores a repeated detection and a malformed response', () => {
+    const out = parseReconcile(
+      {
+        matches: [
+          { detected: 'Tanqueray No. Ten', verdict: 'new' },
+          { detected: 'Tanqueray No. Ten', verdict: 'same', match: 'Tanqueray' },
+        ],
+      },
+      inputs,
+    )
+    expect(out).toHaveLength(1)
+    expect(parseReconcile({}, inputs)).toEqual([])
   })
 })
 
