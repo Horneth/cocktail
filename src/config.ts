@@ -8,7 +8,7 @@ export const FEATURES = {
    * `false` to remove every AI entry point, leaving the app fully offline-only.
    */
   cloudAI: true,
-} as const
+} as const;
 
 // ── Firebase (public client config, NOT secrets) ────────────────────────────
 // These identify the Firebase project from the browser; they're safe to ship.
@@ -21,27 +21,29 @@ export const FEATURES = {
 //   VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_RECAPTCHA_SITE_KEY
 //
 // See docs/cloud-ai-backend.md for the one-time Firebase console setup.
-const env = import.meta.env
+const env = import.meta.env;
 
 export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY ?? '',
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN ?? '',
-  projectId: env.VITE_FIREBASE_PROJECT_ID ?? '',
-  appId: env.VITE_FIREBASE_APP_ID ?? '',
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET ?? '',
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
-}
+  apiKey: env.VITE_FIREBASE_API_KEY ?? "",
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN ?? "",
+  projectId: env.VITE_FIREBASE_PROJECT_ID ?? "",
+  appId: env.VITE_FIREBASE_APP_ID ?? "",
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET ?? "",
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "",
+};
 
 /** reCAPTCHA v3 site key for Firebase App Check (required to call AI Logic). */
-export const recaptchaSiteKey = env.VITE_RECAPTCHA_SITE_KEY ?? ''
+export const recaptchaSiteKey = env.VITE_RECAPTCHA_SITE_KEY ?? "";
 
 /** The Gemini model used for cloud calls. */
-export const CLOUD_AI_MODEL = 'gemini-2.5-flash'
+export const CLOUD_AI_MODEL = "gemini-3.5-flash-lite";
 
 /**
  * True only when the Firebase project is wired up. Until then the AI features
  * stay hidden/disabled and the app runs as a pure offline recipe book.
  */
 export function isCloudAIConfigured(): boolean {
-  return Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId)
+  return Boolean(
+    firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId,
+  );
 }

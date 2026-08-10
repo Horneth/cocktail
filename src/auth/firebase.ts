@@ -29,11 +29,24 @@ function ensureFirebase(): Promise<FirebaseHandles> {
       const app = initializeApp(firebaseConfig)
 
       // App Check attests calls come from the real app; it's required to call
-      // AI Logic. In dev, allow a debug token so localhost works without a
-      // registered reCAPTCHA domain.
+      // AI Logic. localhost has no registered reCAPTCHA domain, so we hand the
+      // SDK a debug token instead.
+      //
+      // `true` makes it mint one and log it for you to register. That is fine
+      // until you clear site data and have to re-register — so setting
+      // VITE_APPCHECK_DEBUG_TOKEN to an already-registered token pins it.
+      //
+      // Not gated on DEV alone: `npm run preview` serves a production build,
+      // which is exactly where you want to check the real bundle before
+      // deploying, and DEV is false there. The var is only ever set in
+      // .env.local (gitignored) and is deliberately absent from deploy.yml, so
+      // a deployed build cannot carry one.
       if (recaptchaSiteKey) {
-        if (import.meta.env.DEV) {
-          ;(globalThis as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true
+        const debugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN
+        if (debugToken || import.meta.env.DEV) {
+          ;(
+            globalThis as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }
+          ).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true
         }
         const { initializeAppCheck, ReCaptchaV3Provider } = await import('firebase/app-check')
         initializeAppCheck(app, {
