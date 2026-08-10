@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // the transport wiring (model JSON -> StructuredImport / bottles) and error paths.
 vi.mock('../auth/firebase', () => ({ getGeminiModel: vi.fn() }))
 import { getGeminiModel } from '../auth/firebase'
-import { CloudAIError, firebaseIdentifyBottles, firebaseParse } from './firebaseAI'
+import { CloudAIError, firebaseIdentifyBottles, firebaseJudgeDuplicates, firebaseParse } from './firebaseAI'
+import type { DupeQuery } from './aiShared'
 
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
 
@@ -82,5 +83,50 @@ describe('firebaseIdentifyBottles', () => {
   it('rejects an empty image list without calling the model', async () => {
     await expect(firebaseIdentifyBottles([])).rejects.toBeInstanceOf(CloudAIError)
     expect(getGeminiModel).not.toHaveBeenCalled()
+  })
+})
+
+describe('firebaseJudgeDuplicates', () => {
+  const QUERIES: DupeQuery[] = [
+    { index: 0, name: 'Rum Sour', aka: ['Daiquiri'], candidates: ['Daiquiri'] },
+    { index: 1, name: 'Negroni', aka: [], candidates: [] },
+  ]
+
+  it('sends only names — never ingredients or ids — and only for shortlisted drinks', async () => {
+    // This is the privacy contract: the library never leaves the device beyond
+    // the handful of names a local pass already matched.
+    const generateContent = mockModel(JSON.stringify({ verdicts: [] }))
+    await firebaseJudgeDuplicates(QUERIES)
+
+    const sent = generateContent.mock.calls[0][0] as string
+    const payload = JSON.parse(sent.slice(sent.indexOf('[')))
+    expect(payload).toEqual([
+      { index: 0, name: 'Rum Sour', aka: ['Daiquiri'], candidates: ['Daiquiri'] },
+    ])
+  })
+
+  it('returns matched verdicts', async () => {
+    mockModel(
+      JSON.stringify({
+        verdicts: [{ index: 0, relation: 'same', match: 'Daiquiri', reason: 'same drink' }],
+      }),
+    )
+    await expect(firebaseJudgeDuplicates(QUERIES)).resolves.toEqual([
+      { index: 0, relation: 'same', match: 'Daiquiri', reason: 'same drink' },
+    ])
+  })
+
+  it('never calls the model when nothing matched locally', async () => {
+    await expect(firebaseJudgeDuplicates([QUERIES[1]])).resolves.toEqual([])
+    await expect(firebaseJudgeDuplicates([])).resolves.toEqual([])
+    expect(getGeminiModel).not.toHaveBeenCalled()
+  })
+
+  it('degrades to no verdicts rather than throwing — a failed check must not block an import', async () => {
+    mockModel('not json at all')
+    await expect(firebaseJudgeDuplicates(QUERIES)).resolves.toEqual([])
+
+    vi.mocked(getGeminiModel).mockRejectedValueOnce(new Error('offline'))
+    await expect(firebaseJudgeDuplicates(QUERIES)).resolves.toEqual([])
   })
 })

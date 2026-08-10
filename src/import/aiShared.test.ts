@@ -3,11 +3,13 @@ import {
   INGREDIENT_SCHEMA,
   RESPONSE_SCHEMA,
   dedupeBottles,
+  finishDupeJudgement,
   finishParse,
   mapAiRecipe,
   namespaceTempIds,
   toJsonSchema,
   type AiRecipe,
+  type DupeQuery,
 } from './aiShared'
 
 describe('toJsonSchema', () => {
@@ -228,5 +230,143 @@ describe('finishParse', () => {
     const out = finishParse({ recipes: [RECIPE] }, 'Recipe from https://youtu.be/abcdefghijk enjoy')
     expect(out[0].main.source?.type).toBe('youtube')
     expect(out[0].main.source?.videoId).toBe('abcdefghijk')
+  })
+})
+
+describe('mapAiRecipe — vocabulary and inferred fields', () => {
+  const DAIQUIRI: AiRecipe = {
+    name: 'Daiquiri',
+    spirit: 'rum',
+    method: 'shake',
+    glassware: 'coupe',
+    garnish: 'Lime wheel',
+    ingredients: [{ name: 'White rum', unit: 'oz', amount: 2 }],
+  }
+
+  it('snaps method and glass onto the shared vocabulary casing', () => {
+    const { main } = mapAiRecipe(DAIQUIRI)
+    expect(main.method).toBe('Shake')
+    expect(main.glassware).toBe('Coupe')
+  })
+
+  it('marks a field as guessed when its value is nowhere in the source text', () => {
+    const { guessed } = mapAiRecipe(DAIQUIRI, undefined, 'Daiquiri\n2 oz white rum')
+    expect(guessed).toEqual(expect.arrayContaining(['method', 'glassware', 'garnish']))
+  })
+
+  it('un-marks a field the model claimed to guess but actually read', () => {
+    const { guessed } = mapAiRecipe(
+      { ...DAIQUIRI, guessed: ['method', 'glassware'] },
+      undefined,
+      'Daiquiri\n2 oz rum\nShake and strain into a coupe.',
+    )
+    expect(guessed ?? []).not.toContain('method')
+    expect(guessed ?? []).not.toContain('glassware')
+  })
+
+  it('trusts the model on tags and kind, which are never literal quotes', () => {
+    const withClaim = mapAiRecipe({ ...DAIQUIRI, guessed: ['tags', 'kind'] }, undefined, 'anything')
+    expect(withClaim.guessed).toEqual(expect.arrayContaining(['tags', 'kind']))
+    const without = mapAiRecipe(DAIQUIRI, undefined, 'anything')
+    expect(without.guessed ?? []).not.toContain('tags')
+  })
+
+  it('omits guessed entirely when everything came from the text', () => {
+    const source = 'Daiquiri\n2 oz white rum\nShake into a Coupe with a Lime wheel, rum base'
+    expect(mapAiRecipe(DAIQUIRI, undefined, source).guessed).toBeUndefined()
+  })
+
+  it('keeps a serve off a sub-recipe, which is an ingredient and not a drink', () => {
+    const { main } = mapAiRecipe({
+      name: 'Simple Syrup',
+      kind: 'component',
+      glassware: 'Coupe',
+      garnish: 'Mint',
+      spirit: 'rum',
+      ingredients: [{ name: 'Sugar', unit: 'part', amount: 1 }],
+    })
+    expect(main.glassware).toBeUndefined()
+    expect(main.garnish).toBeUndefined()
+    expect(main.spirit).toBeUndefined()
+  })
+
+  it('dedupes and caps aka, and drops it when empty', () => {
+    const { aka } = mapAiRecipe({ ...DAIQUIRI, aka: [' Rum Sour ', 'rum sour', 'Bacardi'] })
+    expect(aka).toEqual(['Rum Sour', 'Bacardi'])
+    expect(mapAiRecipe(DAIQUIRI).aka).toBeUndefined()
+  })
+
+  it('carries guessed and aka through tempId namespacing', () => {
+    const imp = mapAiRecipe({ ...DAIQUIRI, aka: ['Rum Sour'] }, undefined, 'Daiquiri')
+    const out = namespaceTempIds(imp, 3)
+    expect(out.aka).toEqual(['Rum Sour'])
+    expect(out.guessed).toEqual(imp.guessed)
+  })
+})
+
+describe('finishDupeJudgement', () => {
+  const QUERIES: DupeQuery[] = [
+    { index: 0, name: 'Rum Sour', aka: ['Daiquiri'], candidates: ['Daiquiri'] },
+    { index: 1, name: 'Oaxacan Old Fashioned', aka: [], candidates: ['Old Fashioned'] },
+  ]
+
+  it('keeps same/variation verdicts and echoes the candidate verbatim', () => {
+    const out = finishDupeJudgement(
+      {
+        verdicts: [
+          { index: 0, relation: 'same', match: 'daiquiri', reason: 'same drink, other name' },
+          { index: 1, relation: 'variation', match: 'Old Fashioned' },
+        ],
+      },
+      QUERIES,
+    )
+    expect(out).toEqual([
+      { index: 0, relation: 'same', match: 'Daiquiri', reason: 'same drink, other name' },
+      { index: 1, relation: 'variation', match: 'Old Fashioned' },
+    ])
+  })
+
+  it('drops "different", unknown relations, and unasked indexes', () => {
+    const out = finishDupeJudgement(
+      {
+        verdicts: [
+          { index: 0, relation: 'different', match: 'Daiquiri' },
+          { index: 1, relation: 'maybe?', match: 'Old Fashioned' },
+          { index: 9, relation: 'same', match: 'Daiquiri' },
+        ],
+      },
+      QUERIES,
+    )
+    expect(out).toEqual([])
+  })
+
+  it('drops a match the model invented rather than picked from the candidates', () => {
+    // Otherwise the preview would claim a duplicate against a recipe the user
+    // does not own, with a link that goes nowhere.
+    const out = finishDupeJudgement(
+      { verdicts: [{ index: 0, relation: 'same', match: 'Hemingway Daiquiri' }] },
+      QUERIES,
+    )
+    expect(out).toEqual([])
+  })
+
+  it('keeps only the first verdict for a repeated index', () => {
+    const out = finishDupeJudgement(
+      {
+        verdicts: [
+          { index: 0, relation: 'same', match: 'Daiquiri' },
+          { index: 0, relation: 'variation', match: 'Daiquiri' },
+        ],
+      },
+      QUERIES,
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].relation).toBe('same')
+  })
+
+  it('returns [] for junk instead of throwing', () => {
+    expect(finishDupeJudgement(null, QUERIES)).toEqual([])
+    expect(finishDupeJudgement({ verdicts: 'nope' }, QUERIES)).toEqual([])
+    expect(finishDupeJudgement({}, QUERIES)).toEqual([])
   })
 })

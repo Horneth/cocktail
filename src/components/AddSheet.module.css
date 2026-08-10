@@ -1,15 +1,9 @@
 .title {
-  margin: 2px 0 3px;
+  margin: 2px 0 18px;
   font-family: var(--serif);
   font-weight: 400;
   font-size: 28px;
   letter-spacing: -0.01em;
-}
-.subtitle {
-  margin: 0 0 18px;
-  font-size: 14px;
-  color: var(--muted);
-  font-weight: 500;
 }
 
 .opt,
@@ -57,13 +51,10 @@
   background: rgba(255, 255, 255, 0.22);
 }
 
-.optBody {
-  flex: 1;
-  min-width: 0;
-}
 .optTitle,
 .optTitleLight {
-  display: block;
+  flex: 1;
+  min-width: 0;
   font-size: 16.5px;
   font-weight: 800;
 }
@@ -72,19 +63,6 @@
 }
 .optTitleLight {
   color: #fff;
-}
-.optSub,
-.optSubLight {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  margin-top: 2px;
-}
-.optSub {
-  color: var(--muted);
-}
-.optSubLight {
-  color: rgba(255, 255, 255, 0.85);
 }
 
 .chevron {

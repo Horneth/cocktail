@@ -69,6 +69,8 @@ src/
     units.ts      oz⇄ml conversion, bar-fraction rendering (¾ oz)
     availability.ts  "Can I make this?" matching (staples + recursion + category substitution)
     spiritCategory.ts  categoryForName() — infers a spirit category from a bottle name (brands too)
+    vocab.ts      TAGS / METHODS / GLASSES — the one list the prompt, editor and import picker share
+    dupeMatch.ts  normalizeRecipeName() + shortlistCandidates() — local phase of duplicate detection
     spirits.ts    Spirit tile metadata, known-spirit order, generated art for custom spirits
     spiritVisual.ts  spiritVisual() — resolves a spirit to the redesign's tile colours/glyph
     search.ts     Recipe text search
@@ -82,9 +84,8 @@ src/
   import/         The single write seam for bulk recipe creation
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (tempId-based links)
     importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents()
-    parseRecipeText.ts  Offline heuristic parser (pasted description → StructuredImport)
     aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
-    firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse() + firebaseIdentifyBottles()
+    firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse() + firebaseJudgeDuplicates() + firebaseIdentifyBottles()
     image.ts      Browser canvas downscale + data-URL split for the photo scan
     backup.ts     Whole-library export/import (the only way data crosses an origin)
     shared.ts     Android share-target stash/consume helpers
@@ -201,9 +202,9 @@ emoji, gradient) for known spirits and **generates deterministic tile art** for
 anything else, so a custom spirit (cachaça, pisco, sake) gets its own mosaic tile
 without code changes. `'none'` is the sentinel for "no base spirit".
 
-### Optional cloud AI — Firebase AI Logic, behind a sign-in
-Two opt-in AI paths: **smart parse** (description → recipes, wired in
-`ImportScreen`) and **shelf scan** (photos → bottles, wired in `BarScreen`). Both
+### Cloud AI — Firebase AI Logic, behind a sign-in
+Two AI paths: **import** (description → recipes, wired in `ImportScreen`) and
+**shelf scan** (photos → bottles, wired in `BarScreen`). Both
 call **`src/import/firebaseAI.ts`**, which goes through **Firebase AI Logic** —
 Google proxies the request and the Gemini key lives in the Firebase project, so
 **no credential ships in this app or sits in a user's browser**. The pure part
@@ -228,9 +229,46 @@ in. `scripts/smoke.mjs` asserts the chunk is never fetched for a signed-out user
 precache, for the same reason. Setup, console steps and the preview-channel
 caveat are in **`docs/cloud-ai-backend.md`**.
 
-Rules that still hold: never introduce a repo-side secret, and keep the offline
-`parseRecipeText` path fully working for signed-out users — that is the default
-experience, not a fallback.
+**Import is the one gated feature.** There used to be an offline heuristic parser
+(`parseRecipeText.ts`) as the signed-out default; it was deleted, because
+maintaining two parsers meant a screen that apologised for whichever one you were
+using. Signed out, `/import` is a sign-in panel and `AddSheet` hides the import
+row when the build has no AI at all — `/new` (the manual editor) is the offline
+path, and everything else in the app still works signed out and offline. That is
+the *only* feature allowed to require sign-in; never gate a second one without
+saying so here.
+
+Rule that still holds: never introduce a repo-side secret.
+
+### Import: what the AI decides, and what it admits to guessing
+`ImportScreen` makes **two** calls, and the second one is optional.
+
+1. **`firebaseParse(text)`** → one `StructuredImport` per drink. Beyond the
+   recipe, the model returns two preview-only fields (siblings of `main` on
+   `StructuredImport`, never persisted — `draftToRecipe` is explicit-field):
+   - **`guessed`** — which of method/glass/garnish/tags/spirit/kind it *inferred*
+     rather than read. The prompt tells it to always fill those in; `guessed` is
+     how the review screen marks them "✨". `mapAiRecipe` doesn't take the model's
+     word for it: a value that appears verbatim in the source text is demoted out
+     of `guessed`, and one that appears nowhere is promoted into it. Models are
+     unreliable narrators about their own reasoning in both directions.
+   - **`aka`** — other names for the drink, including the classic it riffs on.
+2. **`firebaseJudgeDuplicates(queries)`** → relation verdicts. This runs *after*
+   the preview renders and **never throws**; a failed check is a preview without
+   badges, not a failed import.
+
+The dedup split is deliberate. `domain/dupeMatch.ts` does a **local** lexical
+shortlist over `useRecipeNameIndex()` first, so the only thing that reaches the
+cloud is `{name, aka, candidates}` — a handful of names that already matched, and
+nothing at all in the common case where nothing did. `aka` is what makes that
+work without shipping the library: "Rum Sour" has no lexical overlap with
+"Daiquiri", but its `aka` does. Judging on **identity, not proportions** is the
+point — two bartenders' Daiquiris differ by a quarter ounce and are the same
+drink, while a Hemingway Daiquiri is its own. A `same` verdict unchecks the card
+so the obvious action can't create a duplicate; a `variation` only labels it.
+
+Vocabularies live in **`domain/vocab.ts`** and the prompt is *built* from them.
+They used to be three lists in three files that disagreed — don't re-fork them.
 
 ### Error resilience
 `components/ErrorBoundary.tsx` wraps the router outlet and resets on route change,
@@ -243,7 +281,7 @@ in `main.tsx` and don't block boot.
 - Environment is **jsdom**; `src/test/setup.ts` loads `@testing-library/jest-dom`
   and **`fake-indexeddb/auto`** so Dexie works in tests without a real browser.
 - The strongest coverage is on the **pure domain logic** (`scaling`, `units`,
-  `availability`) and the **import pipeline** (`parseRecipeText`, `importRecipe`
+  `availability`, `dupeMatch`, `vocab`) and the **import pipeline** (`importRecipe`
   dedup/linking, `aiShared`, `firebaseAI`, `shared`) plus `useAuth`'s lazy-boot
   gate. New domain/import logic should come with a
   vitest test — that's the established pattern and the cheapest safety net.
@@ -328,6 +366,18 @@ library in one transaction. Two invariants worth keeping:
   theme is the "Nightcap" warm-paper light palette (`theme_color: #F6F4EF`) —
   use the tokens (`--paper`, `--ink`, `--accent`, `--danger`, …), not literals.
 - **IDs** come from `domain/ids.ts` (`newId()`) — don't hand-roll ids.
+- **No explanatory subtitles under UI labels.** A button that says *Import a
+  recipe* does not need "Paste text — we pull out the recipe" underneath it, and
+  *Scan my shelf* does not need "Snap a photo — we read the rest". People know
+  what import means. This filler reads like a landing page, makes the app look
+  amateurish, and it is the first thing to delete when a screen feels cluttered —
+  the whole `AddSheet` sub-line set and its `.optSub` styles were removed for
+  exactly this reason. Write **one** label and stop.
+  Text earns its place only when it answers a question the user actually has at
+  that moment — *why does this need my Google account* on the import sign-in
+  panel, or *what will this overwrite* before a destructive action. If you can't
+  name the question, cut the sentence. The same goes for the AI's own voice:
+  never narrate what the app is about to do, and never apologise for it.
 - **Comments in this codebase explain *why*** (invariants, edge cases,
   history). Match that: comment the non-obvious reasoning, not the obvious code.
 - No secrets in the repo, ever. The Gemini key lives in the Firebase project and

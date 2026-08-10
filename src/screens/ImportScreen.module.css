@@ -30,39 +30,8 @@
 .body {
   padding-bottom: 120px;
 }
-.intro {
-  margin: 0 0 16px;
-  font-size: 14.5px;
-  line-height: 1.5;
-  color: var(--muted);
-  font-weight: 500;
-}
 
-.modes {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.mode {
-  display: inline-flex;
-  align-items: center;
-  padding: 9px 14px;
-  border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--ink);
-}
-.modeOn {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.modeEmoji {
-  margin-right: 5px;
-}
-
+/* ── Input ─────────────────────────────────────────────────────────────── */
 .textareaCard {
   background: var(--card);
   border: 1px solid var(--line);
@@ -72,7 +41,7 @@
 }
 .textarea {
   width: 100%;
-  min-height: 130px;
+  min-height: 170px;
   resize: none;
   border: none;
   background: none;
@@ -87,9 +56,6 @@
 
 .example {
   margin-top: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
   padding: 9px 14px;
   border-radius: 999px;
   background: var(--card);
@@ -109,25 +75,52 @@
   font-weight: 600;
   line-height: 1.45;
 }
-.warnDim {
-  opacity: 0.75;
-  font-weight: 500;
+
+/* ── Sign-in / unavailable gate ────────────────────────────────────────── */
+.gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  margin-top: 34px;
+  padding: 30px 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
-.basicLink {
-  display: block;
-  margin-top: 14px;
+.gateIcon {
+  color: var(--accent);
+}
+.gateTitle {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+}
+.gateText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.gateBtn {
+  margin-top: 6px;
+  width: 100%;
+  padding: 15px;
+  border-radius: 18px;
+  background: var(--accent-grad);
+  box-shadow: var(--shadow-accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+}
+.gateGhost {
   font-size: 14px;
   font-weight: 700;
-  color: var(--accent);
-}
-.aiNudge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 14px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--accent);
+  color: var(--muted);
+  text-decoration: none;
 }
 
 .ctaWrap {
@@ -160,16 +153,153 @@
   box-shadow: none;
 }
 
-/* ── Preview states ────────────────────────────────────────────────────── */
-.kindNote {
+/* ── Review ────────────────────────────────────────────────────────────── */
+.foundNote {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--accent);
-  margin: 0 0 12px;
+  margin: 0 0 14px;
 }
+.dupeBusy {
+  margin: 14px 2px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--faint);
+}
+
+.card {
+  margin-bottom: 12px;
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 15px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+.cardOn > .cardHead {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.check {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  color: transparent;
+  font-size: 13px;
+  font-weight: 800;
+}
+.checkOn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.cardTitle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+.cardName {
+  font-size: 16px;
+  font-weight: 800;
+}
+.cardMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.chevron {
+  flex: 0 0 auto;
+  color: var(--faint);
+  transform: rotate(90deg);
+  transition: transform 0.18s ease;
+}
+.chevronOpen {
+  transform: rotate(270deg);
+}
+.cardBody {
+  padding: 16px 15px 4px;
+}
+
+.pillSame,
+.pillVariation {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pillSame {
+  color: var(--missing-fg);
+  background: var(--missing-bg);
+}
+.pillVariation {
+  color: var(--ready-fg);
+  background: var(--ready-bg);
+}
+
+.dupe {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.dupeSame {
+  background: var(--missing-bg);
+  color: var(--missing-fg);
+}
+.dupeVariation {
+  background: var(--ready-bg);
+  color: var(--ready-fg);
+}
+.dupeLink {
+  color: inherit;
+  font-weight: 800;
+}
+.dupeReason {
+  opacity: 0.8;
+}
+
+.segment {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.segBtn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.segActive {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 .label {
   display: block;
   font-size: 13px;
@@ -184,10 +314,9 @@
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 14px 16px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
-.nameInput,
-.spiritInput {
+.nameInput {
   width: 100%;
   border: none;
   background: none;
@@ -196,37 +325,80 @@
   font-weight: 700;
   color: var(--ink);
 }
-.nameInput:focus,
-.spiritInput:focus {
+.nameInput:focus {
   border: none;
 }
-.h2 {
-  margin: 6px 0 12px;
-  font-size: 18px;
-  font-weight: 800;
-}
-.meta {
-  margin: 8px 2px 0;
-  font-size: 13.5px;
-  color: var(--muted);
-}
-.spiritRow {
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   margin-top: 18px;
 }
-.chipsRow {
+.field {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 5px;
+}
+.fieldWide {
+  grid-column: 1 / -1;
+}
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+/* A guessed value is a suggestion until the user looks at it: dashed, the way
+   an unconfirmed field reads everywhere else in this app (see .addRow). */
+.fieldGuessed input,
+.fieldGuessed select {
+  border-style: dashed;
+  border-color: var(--faint);
+}
+.guessMark {
+  color: var(--accent);
+}
+.legend {
+  margin: 12px 2px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--faint);
+}
+
+.tagsHead {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 20px;
+}
+.subsLabel {
+  margin-top: 22px;
+}
+.chipRow {
+  display: flex;
   gap: 8px;
-  margin-top: 14px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  margin: 0 -22px;
+  padding-inline: 22px;
 }
 .tagChip {
-  padding: 7px 12px;
+  flex: 0 0 auto;
+  padding: 8px 13px;
   border-radius: 999px;
   background: var(--card);
   border: 1px solid var(--line);
   font-size: 13px;
   font-weight: 700;
   color: var(--muted);
+  white-space: nowrap;
+}
+.tagChipOn {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
 }
 
 .compCard {
@@ -276,14 +448,21 @@
 .ings {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
 }
+/* Two lines per ingredient: measure on top, name on its own full-width row.
+   One line looks tidier but leaves the name ~120px on a phone, which truncates
+   "Blackstrap rum" to "Blacks" — and reading back what the AI extracted is the
+   entire point of this screen. `order` keeps the DOM (and tab order) at
+   amount → unit → name → delete while the delete button sits up top. */
 .ingRow {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 .amt {
+  order: 1;
   width: 62px;
   flex: 0 0 auto;
   border-radius: 12px;
@@ -291,22 +470,27 @@
   text-align: center;
 }
 .unit {
+  order: 2;
   width: 88px;
   flex: 0 0 auto;
   border-radius: 12px;
   padding: 11px 8px;
 }
 .ingName {
-  flex: 1;
+  order: 4;
+  flex: 1 0 100%;
   min-width: 0;
   border-radius: 12px;
   padding: 11px 12px;
+  font-weight: 600;
 }
 .del {
+  order: 3;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
   width: 38px;
+  margin-left: auto;
   color: var(--faint);
 }
 .addRow {
@@ -322,84 +506,10 @@
   color: var(--accent);
 }
 
-.foundNote {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--accent);
-  margin: 0 0 14px;
-}
-.pickCard {
-  display: flex;
-  align-items: flex-start;
-  gap: 13px;
-  width: 100%;
-  text-align: left;
-  padding: 15px;
-  margin-bottom: 10px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-}
-.pickOn {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-.pickCheck {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid var(--line);
-  color: transparent;
-  font-size: 13px;
-  font-weight: 800;
-  margin-top: 2px;
-}
-.pickCheckOn {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.pickBody {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.pickName {
-  font-size: 16px;
-  font-weight: 800;
-}
-.pickMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  font-size: 12.5px;
-  color: var(--muted);
-  font-weight: 600;
-}
-.pickSpirit {
-  color: var(--accent);
-  text-transform: capitalize;
-}
-.pickIngs {
-  font-size: 13px;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .previewActions {
   display: flex;
   gap: 10px;
-  margin-top: 20px;
+  margin-top: 22px;
 }
 .ghostBtn {
   flex: 1;

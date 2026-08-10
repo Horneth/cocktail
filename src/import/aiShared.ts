@@ -2,8 +2,10 @@ import { coerceUnit } from '../domain/units'
 import { normalizeComponentName } from '../domain/textNormalize'
 import { normIngredient } from '../domain/availability'
 import { categoryForName } from '../domain/spiritCategory'
+import { GLASSES, METHODS, TAG_KEYS, canonical } from '../domain/vocab'
 import type { RecipeKind, SpiritCategory } from '../db/schema'
-import type { IngredientDraft, RecipeDraft, StructuredImport } from './types'
+import { GUESSABLE_FIELDS } from './types'
+import type { GuessedField, IngredientDraft, RecipeDraft, StructuredImport } from './types'
 
 // Transport-agnostic AI core. Everything here is pure and shared by every AI
 // backend (cloud Gemini today, on-device WebLLM/transformers.js next): the
@@ -48,6 +50,13 @@ export const RECIPE_SCHEMA: OpenApiSchema = {
     instructions: { type: 'string' },
     tags: { type: 'array', items: { type: 'string' } },
     spirit: { type: 'string' },
+    // Fields the model INFERRED rather than read. Drives the "✨ guessed" marks
+    // in the import preview so a user can see what to double-check.
+    guessed: { type: 'array', items: { type: 'string' } },
+    // Alternate names for the drink, including the classic it riffs on. Lets us
+    // shortlist library duplicates locally ("Rum Sour" → your Daiquiri) without
+    // shipping the library to the cloud.
+    aka: { type: 'array', items: { type: 'string' } },
     ingredients: { type: 'array', items: INGREDIENT_SCHEMA },
     subRecipes: {
       type: 'array',
@@ -72,6 +81,26 @@ export const RESPONSE_SCHEMA: OpenApiSchema = {
     recipes: { type: 'array', items: RECIPE_SCHEMA },
   },
   required: ['recipes'],
+}
+
+export const DUPE_SCHEMA: OpenApiSchema = {
+  type: 'object',
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          index: { type: 'number' },
+          match: { type: 'string' },
+          relation: { type: 'string' },
+          reason: { type: 'string' },
+        },
+        required: ['index', 'relation'],
+      },
+    },
+  },
+  required: ['verdicts'],
 }
 
 export const BOTTLES_SCHEMA: OpenApiSchema = {
@@ -114,16 +143,35 @@ export function toJsonSchema(schema: OpenApiSchema): Record<string, unknown> {
 }
 
 // ── Prompts ────────────────────────────────────────────────────────────────
+// Built from `domain/vocab.ts` so the model, the recipe editor and the import
+// preview can never drift onto three different tag/method/glass vocabularies.
 export const PROMPT = `You extract EVERY drink recipe from a pasted recipe or video description. A single description frequently contains SEVERAL cocktails — return all of them.
 Return JSON matching the schema: a "recipes" array with one entry per drink, in the order they appear. Rules per recipe:
 - "name": the drink's name only (no channel or video title fluff).
-- "kind": "cocktail" for a mixed drink, OR "component" if the entry is purely a syrup/cordial/orgeat/infusion/mix recipe with no cocktail build. Prefer attaching syrups as "subRecipes" of the cocktail that uses them; only emit a top-level "component" recipe when a syrup stands entirely on its own.
+- "kind": "cocktail" for a drink someone sits down and drinks, OR "component" for a syrup/cordial/orgeat/infusion/tincture/mix — something that is an INGREDIENT in a drink rather than a drink itself. A component has no glass, no garnish and no serve. Prefer attaching a syrup as a "subRecipes" entry of the cocktail that uses it; only emit a top-level "component" recipe when the syrup stands entirely on its own with no cocktail alongside it.
 - "ingredients": each line of that drink's build. Keep the amount as a number in the unit as written (oz, ml, cl, dash, barspoon, tsp, tbsp, part). Use amount null for "to taste", garnishes, or "top with" items. Strip any parenthetical unit conversion like "(30 ml)" from the name.
 - "subRecipes": any syrups/cordials/orgeat/etc. that drink relies on, described as their OWN ingredient block. Use unit "part" for ratio recipes ("1 part sugar"). Give each the EXACT name used in that drink's ingredient list so they can be linked. If two cocktails share the same syrup, include it under each. Always split these out rather than leaving them as one ingredient.
 - "spirit": the primary base spirit as a short lowercase word. Use the SPECIFIC spirit the recipe names — e.g. gin, vodka, rum, cachaça, whiskey, tequila, mezcal, brandy, cognac, pisco, sake, wine, liqueur. Do NOT collapse a specific spirit into a broader one (a Caipirinha is "cachaça", not "rum"). Only normalize spelling/family: bourbon/rye/scotch/whisky -> whiskey. Use "mocktail" for any non-alcoholic / zero-proof / "virgin" drink. Omit spirit for a component/syrup.
-- "tags": 2 to 4 short lowercase tags describing style and flavor. Choose from ideas like: sour, spirit-forward, stirred, shaken, built, tiki, citrusy, refreshing, bitter, herbal, creamy, fruity, boozy, low-abv, zero-proof, mocktail, hot, classic, dry. No "#".
+- "method": how it is built. Use exactly one of: ${METHODS.join(', ')}.
+- "glassware": what it is served in. Use exactly one of: ${GLASSES.join(', ')} — unless the text names a different vessel, in which case use the text's.
+- "garnish": the garnish, as short as possible ("Lime wheel", "Orange peel").
+- "tags": 2 to 4 tags describing style and flavour, taken from this list: ${TAG_KEYS.join(', ')}. Use "syrup" for a component. No "#".
+- "aka": 0 to 3 other names this exact drink is commonly known by, PLUS the name of the classic it is a variation of when it clearly is one (a "Oaxacan Old Fashioned" gets ["Old Fashioned"]; a "Rum Sour" made with rum, lime and sugar gets ["Daiquiri"]). Leave empty for an original drink with no ancestor.
+- "guessed": ALWAYS fill in "method", "glassware", "garnish" and "tags" — when the text does not state one, infer the standard serve for that drink from your own bartending knowledge, and list that field's name here. Also list "spirit" or "kind" if you inferred those. A field is "guessed" only when the text did not state it; do not list fields you read straight from the text. NEVER guess ingredients or amounts — those come from the text only, and a drink with no ingredients in the text is not a recipe.
 - Ignore non-recipe text: links, chapters/timestamps, gear lists, socials, sponsorships.
-- If a value is unknown, omit it. Do not invent ingredients. If the description has exactly one drink, return a one-element "recipes" array.`
+- Do not invent ingredients. If the description has exactly one drink, return a one-element "recipes" array.`
+
+// Second pass: only the names that already survived a LOCAL fuzzy match are sent
+// here, so the payload is a handful of strings rather than the user's library.
+export const DUPE_PROMPT = `You decide whether drinks someone is importing are already in their collection.
+For each entry you get the incoming drink's "name", its "aka" (other names/ancestors), and "candidates" — names already in the collection that looked similar.
+Judge on the DRINK'S IDENTITY, not on the exact proportions: the same classic written by two bartenders with slightly different specs is still the same drink, and a named riff is still its own drink.
+Return one verdict per entry, echoing its "index":
+- "relation": "same" when a candidate IS this drink (including the same classic under another name — a "Rum Sour" of rum/lime/sugar is a Daiquiri).
+- "relation": "variation" when this drink is a recognised riff ON a candidate but is its own named drink (Oaxacan Old Fashioned vs Old Fashioned, Hemingway Daiquiri vs Daiquiri).
+- "relation": "different" when no candidate is related — a shared word in the name is not a relationship.
+- "match": the candidate name EXACTLY as given, or omit it when the relation is "different".
+- "reason": at most 8 words, addressed to the user ("same drink, different name", "adds mezcal and agave"). No preamble.`
 
 export const VISION_PROMPT = `You are looking at photo(s) of a home bar or liquor shelf. List every distinct liquor, spirit, wine, or liqueur BOTTLE you can identify.
 - "name": the bottle's brand/label as printed (e.g. "Woodford Reserve", "Tanqueray", "Campari"). If the brand is unreadable but the type is clear, use the type (e.g. "London dry gin").
@@ -147,6 +195,8 @@ export interface AiRecipe {
   instructions?: string
   tags?: string[]
   spirit?: string
+  guessed?: string[]
+  aka?: string[]
   ingredients?: AiIngredient[]
   subRecipes?: { name?: string; ingredients?: AiIngredient[] }[]
 }
@@ -154,6 +204,25 @@ export interface AiRecipe {
 export interface IdentifiedBottle {
   name: string
   category?: string
+}
+
+// ── Duplicate detection ────────────────────────────────────────────────────
+export type DupeRelation = 'same' | 'variation' | 'different'
+
+/** One incoming drink plus the library names a local pass thought looked close. */
+export interface DupeQuery {
+  index: number
+  name: string
+  aka: string[]
+  candidates: string[]
+}
+
+export interface DupeVerdict {
+  index: number
+  relation: DupeRelation
+  /** the candidate name the model matched, verbatim; absent when `different` */
+  match?: string
+  reason?: string
 }
 
 // ── Mappers (pure) ─────────────────────────────────────────────────────────
@@ -191,6 +260,51 @@ function normalizeTags(tags: string[] | undefined): string[] {
   return out.slice(0, 6)
 }
 
+function normalizeAka(aka: string[] | undefined): string[] {
+  if (!aka) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const a of aka) {
+    const v = a.trim()
+    const key = v.toLowerCase()
+    if (v && !seen.has(key)) {
+      seen.add(key)
+      out.push(v)
+    }
+  }
+  return out.slice(0, 4)
+}
+
+/**
+ * Reconcile the model's self-reported `guessed` list against the source text.
+ *
+ * Models are unreliable narrators about their own reasoning in both directions:
+ * they mark a field as inferred when they actually read it, and they quietly
+ * invent a glass without saying so. The text is the ground truth we have, so a
+ * field whose value appears in the source is never a guess, and a field with a
+ * value that appears nowhere in the source always is. Only `tags` and `kind`
+ * fall back to the model's own claim — neither is a literal quote.
+ */
+function reconcileGuessed(
+  claimed: string[] | undefined,
+  values: Partial<Record<GuessedField, string | undefined>>,
+  sourceText: string,
+): GuessedField[] {
+  const said = new Set((claimed ?? []).map((f) => f.trim().toLowerCase()))
+  const haystack = sourceText.toLowerCase()
+  const out: GuessedField[] = []
+  for (const field of GUESSABLE_FIELDS) {
+    const value = values[field]
+    if (field === 'tags' || field === 'kind') {
+      if (said.has(field)) out.push(field)
+      continue
+    }
+    if (!value) continue
+    if (!haystack.includes(value.toLowerCase())) out.push(field)
+  }
+  return out
+}
+
 function toDraftIngredient(g: AiIngredient): IngredientDraft {
   const ing: IngredientDraft = {
     name: (g.name ?? '').trim(),
@@ -202,8 +316,12 @@ function toDraftIngredient(g: AiIngredient): IngredientDraft {
   return ing
 }
 
-/** Pure: map a raw AI recipe JSON object into our StructuredImport, wiring cross-links by name. */
-export function mapAiRecipe(r: AiRecipe, sourceUrl?: string): StructuredImport {
+/**
+ * Pure: map a raw AI recipe JSON object into our StructuredImport, wiring
+ * cross-links by name. `sourceText` (when given) is what the model was shown —
+ * used only to sanity-check its `guessed` claims, never to parse anything.
+ */
+export function mapAiRecipe(r: AiRecipe, sourceUrl?: string, sourceText = ''): StructuredImport {
   counter = 0
   const components: RecipeDraft[] = (r.subRecipes ?? [])
     .filter((c) => c.name && (c.ingredients?.length ?? 0) > 0)
@@ -237,6 +355,14 @@ export function mapAiRecipe(r: AiRecipe, sourceUrl?: string): StructuredImport {
 
   const videoId = sourceUrl?.match(/(?:v=|youtu\.be\/)([\w-]{11})/)?.[1]
   const kind: RecipeKind = r.kind === 'component' ? 'component' : 'cocktail'
+  // A component is an ingredient, not a serve — a glass or garnish on one is the
+  // model over-applying the "always fill these in" rule.
+  const isComponent = kind === 'component'
+  const method = canonical(r.method, METHODS)
+  const glassware = isComponent ? undefined : canonical(r.glassware, GLASSES)
+  const garnish = isComponent ? undefined : r.garnish?.trim() || undefined
+  const spirit = isComponent ? undefined : coerceSpirit(r.spirit)
+
   const main: RecipeDraft = {
     tempId: tempId('main'),
     kind,
@@ -245,19 +371,31 @@ export function mapAiRecipe(r: AiRecipe, sourceUrl?: string): StructuredImport {
     // a component described in "1 part" ratios is a parts recipe
     measureBasis:
       kind === 'component' && ingredients.some((i) => i.unit === 'part') ? 'parts' : 'absolute',
-    method: r.method,
-    glassware: r.glassware,
-    garnish: r.garnish,
+    method,
+    glassware,
+    garnish,
     instructions: r.instructions,
     tags: normalizeTags(r.tags),
-    spirit: kind === 'component' ? undefined : coerceSpirit(r.spirit),
+    spirit,
     source: {
       type: sourceUrl ? 'youtube' : 'web',
       ...(sourceUrl ? { url: sourceUrl, videoId } : {}),
     },
   }
 
-  return { main, components }
+  const guessed = reconcileGuessed(
+    r.guessed,
+    { method, glassware, garnish, spirit, tags: undefined, kind: undefined },
+    sourceText,
+  )
+  const aka = normalizeAka(r.aka)
+
+  return {
+    main,
+    components,
+    ...(guessed.length ? { guessed } : {}),
+    ...(aka.length ? { aka } : {}),
+  }
 }
 
 // mapAiRecipe resets its tempId counter per call, so ids collide across the
@@ -266,6 +404,7 @@ export function mapAiRecipe(r: AiRecipe, sourceUrl?: string): StructuredImport {
 export function namespaceTempIds(imp: StructuredImport, i: number): StructuredImport {
   const rename = (id: string) => `r${i}.${id}`
   return {
+    ...imp,
     main: {
       ...imp.main,
       tempId: rename(imp.main.tempId),
@@ -297,8 +436,43 @@ export function finishParse(parsed: unknown, sourceText: string): StructuredImpo
     /https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}/i,
   )?.[0]
   return list
-    .map((r, i) => namespaceTempIds(mapAiRecipe(r, url), i))
+    .map((r, i) => namespaceTempIds(mapAiRecipe(r, url, sourceText), i))
     .filter((r) => r.main.ingredients.length > 0)
+}
+
+/**
+ * Pure: clean a model's duplicate verdicts. Drops entries whose index or match
+ * we didn't ask about — a hallucinated match name would otherwise render as
+ * "already in your library · <drink you don't own>". Unknown relations degrade
+ * to `different` so a bad verdict can only ever under-flag, never block an
+ * import the user wanted.
+ */
+export function finishDupeJudgement(parsed: unknown, queries: DupeQuery[]): DupeVerdict[] {
+  const raw = (parsed as { verdicts?: unknown[] })?.verdicts
+  if (!Array.isArray(raw)) return []
+  const byIndex = new Map(queries.map((q) => [q.index, q]))
+  const out: DupeVerdict[] = []
+  const seen = new Set<number>()
+
+  for (const entry of raw) {
+    const v = entry as { index?: unknown; relation?: unknown; match?: unknown; reason?: unknown }
+    const index = typeof v.index === 'number' ? v.index : NaN
+    const query = byIndex.get(index)
+    if (!query || seen.has(index)) continue
+
+    const relation: DupeRelation =
+      v.relation === 'same' || v.relation === 'variation' ? v.relation : 'different'
+    if (relation === 'different') continue
+
+    const claimed = typeof v.match === 'string' ? v.match.trim() : ''
+    const match = query.candidates.find((c) => c.toLowerCase() === claimed.toLowerCase())
+    if (!match) continue
+
+    seen.add(index)
+    const reason = typeof v.reason === 'string' ? v.reason.trim() : ''
+    out.push({ index, relation, match, ...(reason ? { reason } : {}) })
+  }
+  return out
 }
 
 /** Pure: clean + dedupe a model's bottle list, letting our categorizer win on category. */

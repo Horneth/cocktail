@@ -8,19 +8,10 @@ import { makeableIds } from '../domain/availability'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
+import { tagEmoji } from '../domain/vocab'
 import { useCocktails, useComponents } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
 import styles from './BrowseScreen.module.css'
-
-// A handful of the most common tags get a leading glyph; the rest fall back to a
-// generic label chip (the tag name alone still reads fine).
-const TAG_EMOJI: Record<string, string> = {
-  classic: '🎩', sour: '🍋', citrusy: '🍊', refreshing: '💧', 'spirit-forward': '🥃',
-  bitter: '🌿', bubbly: '🫧', herbal: '🌱', sweet: '🍬', nightcap: '🌙', 'low-abv': '🍃',
-  tropical: '🏝️', smoky: '💨', creamy: '🥛', fruity: '🍓', brunch: '🥂', spicy: '🌶️',
-  frozen: '🧊', tiki: '🗿',
-}
-const tagEmoji = (t: string) => TAG_EMOJI[t] ?? '🏷️'
 
 export function BrowseScreen() {
   const cocktails = useCocktails()

@@ -3,13 +3,16 @@ import { getGeminiModel } from '../auth/firebase'
 import { splitDataUrl } from './image'
 import {
   BOTTLES_SCHEMA,
+  DUPE_PROMPT,
+  DUPE_SCHEMA,
   PROMPT,
   RESPONSE_SCHEMA,
   VISION_PROMPT,
   dedupeBottles,
+  finishDupeJudgement,
   finishParse,
 } from './aiShared'
-import type { IdentifiedBottle, OpenApiSchema } from './aiShared'
+import type { DupeQuery, DupeVerdict, IdentifiedBottle, OpenApiSchema } from './aiShared'
 import type { StructuredImport } from './types'
 
 // Cloud AI transport via Firebase AI Logic. Signature-compatible in spirit with
@@ -54,7 +57,7 @@ function friendlyError(err: unknown): string {
   if (/network|fetch|timeout/i.test(msg)) {
     return 'Could not reach the AI service — check your connection and try again.'
   }
-  return 'Cloud AI request failed — try again, or use Basic parse.'
+  return 'Cloud AI request failed — try again in a moment.'
 }
 
 /** Parse recipe text into one StructuredImport per drink. Throws CloudAIError. */
@@ -76,12 +79,48 @@ export async function firebaseParse(text: string): Promise<StructuredImport[]> {
   try {
     parsed = JSON.parse(jsonText)
   } catch {
-    throw new CloudAIError('The AI returned malformed JSON — try again, or use Basic parse.')
+    throw new CloudAIError('The AI returned malformed JSON — try again.')
   }
 
   const recipes = finishParse(parsed, text)
   if (!recipes.length) throw new CloudAIError('No recipes found in that text.')
   return recipes
+}
+
+/**
+ * Ask whether any incoming drink is already in the collection.
+ *
+ * The payload is only what a local pass already shortlisted: a drink's name, its
+ * aliases, and the few library names that looked close. No ingredients, no ids,
+ * no notes, and nothing at all when nothing matched locally — which is the
+ * common case, so most imports never make this call.
+ *
+ * Never throws. A duplicate check that fails is a preview without badges, not a
+ * failed import.
+ */
+export async function firebaseJudgeDuplicates(queries: DupeQuery[]): Promise<DupeVerdict[]> {
+  const asked = queries.filter((q) => q.candidates.length > 0)
+  if (!asked.length) return []
+
+  try {
+    const model = await getGeminiModel({
+      responseMimeType: 'application/json',
+      responseSchema: toFirebaseSchema(DUPE_SCHEMA),
+      temperature: 0,
+    })
+    const payload = asked.map((q) => ({
+      index: q.index,
+      name: q.name,
+      aka: q.aka,
+      candidates: q.candidates,
+    }))
+    const result = await model.generateContent(
+      `${DUPE_PROMPT}\n\nENTRIES:\n${JSON.stringify(payload)}`,
+    )
+    return finishDupeJudgement(JSON.parse(result.response.text()), asked)
+  } catch {
+    return []
+  }
 }
 
 /** Identify bottles in photos (data URLs). Throws CloudAIError. */
