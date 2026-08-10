@@ -95,6 +95,24 @@ export function useBars(): Bar[] | undefined {
   return useLiveQuery(() => db.bars.orderBy('createdAt').toArray(), [])
 }
 
+/**
+ * Bottle count per bar id. `usePantry` only loads the active bar, so anything
+ * listing every bar (the bar switcher, a delete confirmation) needs this rather
+ * than inferring a count it can't see.
+ */
+export function useBottleCounts(): Map<string, number> {
+  const counts = useLiveQuery(async () => {
+    const out = new Map<string, number>()
+    // Counting keys off the `barId` index avoids deserializing every bottle.
+    await db.bottles.orderBy('barId').eachKey((barId) => {
+      const id = String(barId)
+      out.set(id, (out.get(id) ?? 0) + 1)
+    })
+    return out
+  }, [])
+  return counts ?? new Map()
+}
+
 export interface ActiveBar {
   /** the resolved active bar id (stored choice, or the first bar as fallback) */
   barId: string | undefined

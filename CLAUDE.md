@@ -44,7 +44,7 @@ npm run test:watch # vitest in watch mode
 npm run typecheck  # tsc -b --noEmit
 ```
 
-Both `npm run typecheck` and `npm test` are green on the current tree (129 tests).
+Both `npm run typecheck` and `npm test` are green on the current tree (181 tests).
 Run them before committing — they are the fast feedback loop. There is **no
 linter/formatter** configured; match the surrounding code style.
 
@@ -74,7 +74,9 @@ src/
     spirits.ts    Spirit tile metadata, known-spirit order, generated art for custom spirits
     spiritVisual.ts  spiritVisual() — resolves a spirit to the redesign's tile colours/glyph
     search.ts     Recipe text search
-    pantry.ts     Bar-scoped bottle add/remove helpers (take a barId)
+    barInsights.ts   unlocksFor() / oneAwaySuggestions() — "what does this bottle unlock?", on-device
+    bottleMatch.ts   Local near-duplicate detection for the shelf scan (candidates, verdicts)
+    pantry.ts     Bar-scoped bottle add/remove/patch helpers (take a barId)
     bars.ts       Bar CRUD + ensureDefaultBar()
     textNormalize.ts  normalizeComponentName() + duplicateComponentGroups() (dedup/merge)
     recipeSummary.ts  Short ingredient summaries for cards
@@ -85,7 +87,8 @@ src/
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (tempId-based links)
     importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents()
     aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
-    firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse() + firebaseJudgeDuplicates() + firebaseIdentifyBottles()
+    firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse(), firebaseJudgeDuplicates(),
+                  firebaseIdentifyBottles(), firebaseReconcileBottles()
     image.ts      Browser canvas downscale + data-URL split for the photo scan
     backup.ts     Whole-library export/import (the only way data crosses an origin)
     shared.ts     Android share-target stash/consume helpers
@@ -94,14 +97,17 @@ src/
     firebase.ts   Lazy Firebase bootstrap (App Check + Auth + AI Logic); sign-in/out; model handles
 
   hooks/
-    useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useActiveBar, …)
+    useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useBottleCounts, useActiveBar, …)
     useAvailability.ts  Active bar's `have` set + the makeable check, for the screens
     useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId)
     useAuth.ts      Optional Google sign-in; `aiAvailable` is the single gate for AI features
 
   screens/        One component per route (+ co-located *.module.css)
     HomeScreen, SearchScreen, BrowseScreen, RecipeDetailScreen,
-    EditRecipeScreen, ImportScreen, BarScreen, SettingsScreen
+    EditRecipeScreen, ImportScreen, SettingsScreen
+    bar/          My Bar is the one screen with a folder — it owns four sheets:
+                  BarScreen + ManageBarsSheet / AddBottleSheet / BottleSheet /
+                  ScanReviewSheet, plus sheet.module.css for their shared chrome
 
   components/     Reusable UI (TabBar, RecipeRow, IngredientRow, AddSheet,
                   BottomSheet, ServingStepper, SwipeableRow, ErrorBoundary, icons)
@@ -168,6 +174,22 @@ in `bottles`. The active bar id is in localStorage (`useActiveBarId`), resolved 
 a real bar (falling back to the first) by `useActiveBar()`. All pantry mutations
 (`domain/pantry.ts`) and `usePantry()` take a `barId`; Home/Browse/Detail read the
 active bar's `have` set — the availability logic itself is bar-agnostic.
+`usePantry()` deliberately loads only the active bar, so anything listing *every*
+bar (the switcher, a delete confirmation) uses `useBottleCounts()` instead of
+guessing.
+
+A bottle is `{barId, name, label}` plus optional **`category`** and **`brand`**.
+`category` is resolved once at write time (`categoryForName()` when the caller
+didn't supply one) rather than re-inferred per render, and stays user-correctable
+from the bottle sheet — the guess is good but not always right, and it decides
+what the bottle substitutes for. `label` derives the primary key, so `updateBottle`
+patches category/brand only; renaming is a remove + add.
+
+**The Bar screen has two deliberately separate paths.** `AddBottleSheet` is the
+manual one: it imports nothing from `import/` or `auth/` and must stay that way —
+it is the path that works offline, signed out, forever. `ScanReviewSheet` is the
+AI one. "What does this bottle unlock?" is answered by `domain/barInsights.ts` on
+both paths and never involves AI.
 
 `domain/availability.ts` matches a recipe's ingredients against that set. Three
 rules keep it usable: an **assume-staples** switch (on by default, global) treats
@@ -180,13 +202,34 @@ Chartreuse. Matching keys go through `normIngredient()`; category inference (als
 used to group the Bar screen and label scanned bottles) goes through
 `categoryForName()`.
 
-### Photo → bar (Gemini vision)
-"Scan my shelf" on the Bar screen downscales photos client-side (`import/image.ts`)
-and sends them to `firebaseIdentifyBottles()`, which reuses the same model handle,
-schema and error handling as smart-parse (just with `inlineData` image parts + a
-bottle-list `responseSchema`). Results dedupe (our `categoryForName()` wins on
-category) into a review sheet, then land in the active bar via `bulkAddPantry`.
-Gated on `auth.aiAvailable`.
+### Photo → bar (Gemini vision), in two passes
+"Scan my shelf" downscales photos client-side (`import/image.ts`, max 4) and runs
+**two** model calls with an on-device step between them. Gated on `auth.aiAvailable`.
+
+1. **Vision.** `firebaseIdentifyBottles()` reuses smart-parse's model handle and
+   error handling (just `inlineData` parts + `BOTTLES_SCHEMA`) and returns
+   `{name, brand?, category?, confidence?}` per bottle. `dedupeBottles()` cleans
+   the list, with our `categoryForName()` still winning on category.
+2. **Locally, no network.** `domain/bottleMatch.ts` decides which of the *user's own*
+   bottles each detection is even worth comparing against: `exactMatch()` settles
+   the easy ones, `closeCandidates()` picks at most five lookalikes for the rest.
+3. **Reconcile.** `firebaseReconcileBottles()` asks the model to rule
+   same / variant / new on those pairs. This is the call worth paying for —
+   deciding that "Tanqueray No. Ten" is *not* "Tanqueray" is a judgement about
+   bottles, not string distance.
+
+Then `resolveDetections()` folds the three inputs into one row per bottle for the
+review sheet, and confirming writes through `bulkAddPantry` with label, category
+and brand.
+
+Two properties hold and should keep holding:
+- **Minimal egress.** Pass 2 sends detected names plus a handful of candidate
+  labels — never the inventory — and `firebaseReconcileBottles` returns early
+  when nothing has a candidate, so a scan into an empty bar still costs one call.
+- **Pass 2 is an enhancement, not a dependency.** Like `firebaseJudgeDuplicates`,
+  it never throws — it resolves to `[]` and `resolveDetections` falls back to the
+  local verdicts. An exact string match is also never overruled by the model —
+  it was never asked.
 
 ### Merging duplicate components
 Imports can create near-duplicate syrups (a hand-added "Simple Syrup" plus an
@@ -234,9 +277,12 @@ caveat are in **`docs/cloud-ai-backend.md`**.
 maintaining two parsers meant a screen that apologised for whichever one you were
 using. Signed out, `/import` is a sign-in panel and `AddSheet` hides the import
 row when the build has no AI at all — `/new` (the manual editor) is the offline
-path, and everything else in the app still works signed out and offline. That is
-the *only* feature allowed to require sign-in; never gate a second one without
-saying so here.
+path, and everything else in the app still works signed out and offline.
+
+Import and the Bar screen's **shelf scan** are the *only two* gated entry points,
+and each has an ungated twin doing the same job by hand: `/new` for import,
+`AddBottleSheet` for the scan. Never gate a third without saying so here, and
+never gate one without leaving a manual path to the same result.
 
 Rule that still holds: never introduce a repo-side secret.
 

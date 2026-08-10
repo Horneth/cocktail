@@ -71,10 +71,18 @@ managing the secret. Kept as an escape hatch, not the first move.
   book shouldn't ship 350 KB of SDK to everyone on first install.
 - **`src/import/firebaseAI.ts`** replaced the raw `fetch` transport:
   `getAI()` → `getGenerativeModel({ model, generationConfig: { responseMimeType, responseSchema } })`
-  → `generateContent(parts)`. `firebaseParse` / `firebaseIdentifyBottles` take no key.
-  `toFirebaseSchema()` converts our OpenAPI-subset schema to the SDK's `Schema` builder.
-  Everything downstream (mappers, prompts, `StructuredImport`) is unchanged and lives in
-  `src/import/aiShared.ts`. Vision still sends `inlineData` parts via `splitDataUrl`.
+  → `generateContent(parts)`. `firebaseParse` / `firebaseIdentifyBottles` /
+  `firebaseReconcileBottles` take no key. `toFirebaseSchema()` converts our OpenAPI-subset
+  schema to the SDK's `Schema` builder. Everything downstream (mappers, prompts,
+  `StructuredImport`) is unchanged and lives in `src/import/aiShared.ts`. Vision still
+  sends `inlineData` parts via `splitDataUrl`.
+- **Shelf scan is two calls, not one** (see CLAUDE.md, "Photo → bar"): vision, then a
+  tiny text-only `firebaseReconcileBottles` that rules same/variant/new on bottles the
+  user might already own. Its payload is picked on-device by `domain/bottleMatch.ts` and
+  carries only the detected names plus a handful of candidate labels — the inventory
+  never leaves the browser — and the call is skipped entirely when nothing is close, so
+  a first scan into an empty bar costs exactly one request. It is also non-blocking:
+  a failure degrades to the local verdicts rather than breaking the scan.
 - **`src/auth/firebase.ts`** initializes the app + App Check + Auth once, all behind dynamic
   `import()`s, and exposes `signInWithGoogle()` / `signOutUser()` / `getGeminiModel()`. The
   Firebase config values (`apiKey`, `projectId`, `appId`, …) are **public client config, not
@@ -93,10 +101,12 @@ managing the secret. Kept as an escape hatch, not the first move.
   `AddSheet` hides the row entirely on a build with no Firebase config. `/new` is the offline
   path in; every non-import feature must keep working signed out.
 
-### The two calls a backend has to implement
+### The four calls a backend has to implement
 
-A replacement transport needs **both** entry points in `src/import/firebaseAI.ts` — the pure
-schemas, prompts and mappers for each live in `aiShared.ts` and should be reused verbatim:
+A replacement transport needs **all four** entry points in `src/import/firebaseAI.ts` — the pure
+schemas, prompts and mappers for each live in `aiShared.ts` and should be reused verbatim.
+Note the symmetry: import and shelf scan are each a *heavy* first call followed by an
+*optional, must-not-throw* second call whose payload a local pass already shortlisted.
 
 1. `firebaseParse(text) → StructuredImport[]` — `PROMPT` + `RESPONSE_SCHEMA`, through
    `finishParse(json, text)`. Beyond the recipes it yields preview-only `guessed` and `aka`.
@@ -106,6 +116,15 @@ schemas, prompts and mappers for each live in `aiShared.ts` and should be reused
    The payload is only `{index, name, aka, candidates}` — a shortlist `domain/dupeMatch.ts`
    already computed locally. Do not "improve" this by sending the whole library; keeping the
    user's collection on the device is the design, not an accident.
+3. `firebaseIdentifyBottles(images) → IdentifiedBottle[]` — `VISION_PROMPT` + `BOTTLES_SCHEMA`
+   with `inlineData` image parts, through `dedupeBottles(json.bottles)`. Photos are already
+   downscaled by `import/image.ts`; a transport should not re-encode them.
+4. `firebaseReconcileBottles(inputs) → ReconcileMatch[]` — `RECONCILE_PROMPT` +
+   `RECONCILE_SCHEMA`, through `parseReconcile(json, inputs)`. The shelf-scan twin of (2), and
+   **must not throw** for the same reason: `domain/bottleMatch.ts` already has a local verdict
+   for every detection, so a failure costs accuracy, not the scan. Its payload is only the
+   detected names plus the few candidate labels that same local pass shortlisted — same rule,
+   don't send the inventory.
 
 ### Lazy boot (why `useAuth` looks the way it does)
 

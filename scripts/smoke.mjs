@@ -175,6 +175,23 @@ check(
 )
 await shot('11-import-gate')
 
+// My Bar's manual path is the other half of "signed out is the whole product":
+// adding a bottle must never need AI, a sign-in, or a network.
+await go('#/bar')
+await page.locator('button', { hasText: 'Add a bottle' }).click()
+await page.locator('input[aria-label="Search or type a bottle"]').fill('Smith & Cross')
+await page.locator('button', { hasText: 'Add “Smith & Cross”' }).click()
+await page.locator('button', { hasText: /^Add 1 bottle/ }).click()
+await page.waitForTimeout(600)
+check(
+  'manual bottle add works signed out',
+  (await page.locator('button', { hasText: 'Smith & Cross' }).count()) > 0,
+)
+// The bottle is a rum, so it must land under the Rum group rather than "Other" —
+// that is the stored category doing its job.
+check('the new bottle is categorized', (await page.locator('text=/^Rum$/').count()) > 0)
+await shot('12-bar-manual-add')
+
 // ── Backup round trip ───────────────────────────────────────────────────────
 // The reason this feature exists is the origin move, so a green unit test isn't
 // enough — the file has to actually leave the browser and come back.
