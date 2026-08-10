@@ -1,0 +1,395 @@
+.screen {
+  padding: calc(24px + var(--safe-top)) 22px 118px;
+}
+
+.head {
+  padding: 6px 0 14px;
+}
+.count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* The bar's own name is the page title, and tapping it is how you switch or
+   manage bars — the select + New/Rename/Delete pills this replaced were the
+   loudest chrome on the screen for a control most people touch once. */
+.title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.titleChevron {
+  color: var(--faint);
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 18px;
+  background: var(--accent-grad);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-accent);
+  color: #fff;
+  text-align: left;
+  transition: transform 0.1s ease;
+}
+.hero:active {
+  transform: scale(0.985);
+}
+.heroNum {
+  font-family: var(--serif);
+  font-size: 44px;
+  line-height: 1;
+}
+.heroText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.heroHint {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+.heroBtn {
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* The two paths — manual and AI — as equally legible options, on the same
+   footing as the app's other big choose-one rows (see AddSheet). */
+.paths {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.path,
+.pathAccent {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 22px;
+  text-align: left;
+  transition: transform 0.1s ease;
+}
+.path:active,
+.pathAccent:active {
+  transform: scale(0.98);
+}
+.path {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+.pathAccent {
+  background: var(--accent-grad);
+  box-shadow: 0 12px 24px -14px rgba(216, 73, 42, 0.7);
+  color: #fff;
+}
+.pathAccent:disabled {
+  opacity: 0.75;
+}
+.pathGlyph {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 22px;
+}
+.path .pathGlyph {
+  background: var(--paper);
+}
+.pathText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pathTitle {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.pathSub {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.pathAccent .pathSub {
+  color: var(--accent-ink);
+  opacity: 0.9;
+}
+.pathChevron {
+  flex: 0 0 auto;
+  color: var(--faint);
+}
+.pathSparkle {
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
+.signIn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  border-radius: var(--radius-xs);
+  border: 1px dashed var(--faint);
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.scanError {
+  margin: 10px 2px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.section {
+  margin-top: 26px;
+}
+.h2 {
+  margin-bottom: 12px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 13px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.1s ease;
+}
+.suggestion:active {
+  transform: scale(0.99);
+}
+.suggestionGlyph {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  font-size: 20px;
+}
+.suggestionText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.suggestionName {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.suggestionSub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ready-fg);
+}
+.suggestionAdd {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--accent);
+}
+
+.group + .group {
+  margin-top: 18px;
+}
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  margin-bottom: 10px;
+}
+.groupGlyph {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 16px;
+}
+.groupLabel {
+  flex: 1;
+  text-align: left;
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.groupCount {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--faint);
+}
+.groupChevron {
+  color: var(--faint);
+  transition: transform 0.15s ease;
+}
+.groupChevronUp {
+  transform: rotate(-90deg);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.itemText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+.itemName {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.itemSub {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.itemChevron {
+  flex: 0 0 auto;
+  color: var(--faint);
+}
+
+.empty {
+  padding: 46px 30px;
+  text-align: center;
+}
+.emptyGlyph {
+  font-size: 40px;
+}
+.emptyTitle {
+  margin-top: 12px;
+  font-size: 17px;
+  font-weight: 800;
+}
+.emptyHint {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* Set-once preference, so it sits below the shelf rather than above it — but it
+   moves the "drinks you can make" number, so it stays on this screen. */
+.staples {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.staplesText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.staplesTitle {
+  font-size: 15px;
+  font-weight: 700;
+}
+.staplesHint {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.switch {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 28px;
+  appearance: none;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  border: none;
+  position: relative;
+  transition: background 0.2s ease;
+}
+.switch:checked {
+  background: var(--green);
+}
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--card);
+  transition: transform 0.2s ease;
+}
+.switch:checked::after {
+  transform: translateX(18px);
+}

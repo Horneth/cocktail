@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // the transport wiring (model JSON -> StructuredImport / bottles) and error paths.
 vi.mock('../auth/firebase', () => ({ getGeminiModel: vi.fn() }))
 import { getGeminiModel } from '../auth/firebase'
-import { CloudAIError, firebaseIdentifyBottles, firebaseJudgeDuplicates, firebaseParse } from './firebaseAI'
+import {
+  CloudAIError,
+  firebaseIdentifyBottles,
+  firebaseJudgeDuplicates,
+  firebaseParse,
+  firebaseReconcileBottles,
+} from './firebaseAI'
 import type { DupeQuery } from './aiShared'
 
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
@@ -128,5 +134,56 @@ describe('firebaseJudgeDuplicates', () => {
 
     vi.mocked(getGeminiModel).mockRejectedValueOnce(new Error('offline'))
     await expect(firebaseJudgeDuplicates(QUERIES)).resolves.toEqual([])
+  })
+})
+
+describe('firebaseReconcileBottles', () => {
+  const inputs = [{ detected: 'Plantation 3 Stars', candidates: ['Plantation Three Stars White Rum'] }]
+
+  it('maps the model verdict back onto what we asked about', async () => {
+    mockModel(
+      JSON.stringify({
+        matches: [
+          {
+            detected: 'Plantation 3 Stars',
+            verdict: 'same',
+            match: 'Plantation Three Stars White Rum',
+            canonicalName: 'Plantation 3 Stars',
+          },
+        ],
+      }),
+    )
+    const out = await firebaseReconcileBottles(inputs)
+    expect(out).toEqual([
+      {
+        detected: 'Plantation 3 Stars',
+        verdict: 'same',
+        match: 'Plantation Three Stars White Rum',
+        canonicalName: 'Plantation 3 Stars',
+      },
+    ])
+  })
+
+  it('sends only the detected names and their candidates', async () => {
+    const generateContent = mockModel(JSON.stringify({ matches: [] }))
+    await firebaseReconcileBottles(inputs)
+    const prompt = generateContent.mock.calls[0][0] as string
+    expect(prompt).toContain('Plantation 3 Stars')
+    expect(prompt).toContain('Plantation Three Stars White Rum')
+  })
+
+  it('never calls the model when nothing has a candidate', async () => {
+    // A scan into an empty bar must cost exactly one AI call, not two.
+    expect(await firebaseReconcileBottles([{ detected: 'Campari', candidates: [] }])).toEqual([])
+    expect(await firebaseReconcileBottles([])).toEqual([])
+    expect(getGeminiModel).not.toHaveBeenCalled()
+  })
+
+  it('degrades to no verdicts rather than throwing — a failed pass 2 must not break the scan', async () => {
+    mockModel('not json')
+    await expect(firebaseReconcileBottles(inputs)).resolves.toEqual([])
+
+    vi.mocked(getGeminiModel).mockRejectedValueOnce(new Error('429 resource-exhausted'))
+    await expect(firebaseReconcileBottles(inputs)).resolves.toEqual([])
   })
 })

@@ -11,7 +11,7 @@ import { EditRecipeScreen } from './screens/EditRecipeScreen'
 import { ImportScreen } from './screens/ImportScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { BrowseScreen } from './screens/BrowseScreen'
-import { BarScreen } from './screens/BarScreen'
+import { BarScreen } from './screens/bar/BarScreen'
 import { SearchScreen } from './screens/SearchScreen'
 import { stashSharedImport } from './import/shared'
 

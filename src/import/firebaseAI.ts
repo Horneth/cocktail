@@ -6,13 +6,23 @@ import {
   DUPE_PROMPT,
   DUPE_SCHEMA,
   PROMPT,
+  RECONCILE_SCHEMA,
   RESPONSE_SCHEMA,
   VISION_PROMPT,
+  buildReconcilePrompt,
   dedupeBottles,
   finishDupeJudgement,
   finishParse,
+  parseReconcile,
 } from './aiShared'
-import type { DupeQuery, DupeVerdict, IdentifiedBottle, OpenApiSchema } from './aiShared'
+import type {
+  DupeQuery,
+  DupeVerdict,
+  IdentifiedBottle,
+  OpenApiSchema,
+  ReconcileInput,
+  ReconcileMatch,
+} from './aiShared'
 import type { StructuredImport } from './types'
 
 // Cloud AI transport via Firebase AI Logic. Signature-compatible in spirit with
@@ -156,6 +166,34 @@ export async function firebaseIdentifyBottles(images: string[]): Promise<Identif
     throw new CloudAIError('The AI returned malformed JSON — try again.')
   }
 
-  const raw = (parsed as { bottles?: { name?: string; category?: string }[] })?.bottles ?? []
+  const raw = (parsed as { bottles?: Parameters<typeof dedupeBottles>[0] })?.bottles ?? []
   return dedupeBottles(raw)
+}
+
+/**
+ * Pass 2 of the shelf scan: decide which detections are bottles the user already
+ * has. Only the detected names and their few on-device-picked candidates are
+ * sent — never the inventory — and detections with no candidates are already
+ * "new", so a scan into an empty bar never reaches this call at all.
+ *
+ * Never throws, for the same reason as `firebaseJudgeDuplicates`: this runs after
+ * the shelf has already been read, and `domain/bottleMatch` has a local verdict
+ * for every detection. A failure here means a review sheet built from those
+ * instead of the model's, not a failed scan.
+ */
+export async function firebaseReconcileBottles(inputs: ReconcileInput[]): Promise<ReconcileMatch[]> {
+  const comparable = inputs.filter((i) => i.candidates.length > 0)
+  if (!comparable.length) return []
+
+  try {
+    const model = await getGeminiModel({
+      responseMimeType: 'application/json',
+      responseSchema: toFirebaseSchema(RECONCILE_SCHEMA),
+      temperature: 0,
+    })
+    const result = await model.generateContent(buildReconcilePrompt(comparable))
+    return parseReconcile(JSON.parse(result.response.text()), comparable)
+  } catch {
+    return []
+  }
 }

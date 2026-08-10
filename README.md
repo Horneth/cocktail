@@ -26,13 +26,17 @@ sign-in; everything else never does).
   gets its own generated art; the import keeps the specific spirit a recipe
   names rather than collapsing it.
 - **My Bar(s) & "what can I make"** — tell the app which bottles you actually
-  have (a tap-to-toggle inventory at `/bar`, grouped by spirit), then flip
-  **Only what I can make** on the Browse screen to see just the drinks you can
-  build right now. Home shows a live *"N you can make right now"* banner. Keep
-  **several bars** — "My Bar" plus a friend's place or a travel kit — and switch
-  the active one; "what I can make" follows. You can even **scan your shelf**:
-  snap a photo of your bottles and AI adds them for you (opt-in, needs a Google
-  sign-in). Matching is smart: an **Assume I have the basics** switch (on by default)
+  have (your shelf at `/bar`, grouped by spirit), then flip **Only what I can
+  make** on the Browse screen to see just the drinks you can build right now.
+  Home shows a live *"N you can make right now"* banner. Adding a bottle shows
+  what it unlocks before you commit, and **Worth buying next** names the one
+  bottle standing between you and the most new drinks — all worked out on your
+  device, no account needed. Keep **several bars** — "My Bar" plus a friend's
+  place or a travel kit — and switch the active one; "what I can make" follows.
+  You can also **scan your shelf**: snap a photo and AI reads the labels, works
+  out which bottles you already have and which are near-variants of them, and
+  hands you a list to confirm (opt-in, needs a Google sign-in).
+  Matching is smart: an **Assume I have the basics** switch (on by default)
   covers water/ice/citrus/sugar/sodas/garnishes/egg so the bar only tracks
   *bottles*; sub-recipes recurse (a drink that needs Simple Syrup counts if you
   can make the syrup); and a **generic bottle covers a specific call** — any rum

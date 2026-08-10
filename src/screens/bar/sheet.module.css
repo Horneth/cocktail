@@ -1,0 +1,105 @@
+/*
+ * Chrome shared by every My Bar sheet — title, scrolling body, footer buttons,
+ * status pills. Extracted because the three sheets here are the same object with
+ * different contents; per-sheet modules carry only what is genuinely their own.
+ */
+
+.title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 24px;
+  letter-spacing: -0.01em;
+}
+.subtitle {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.head {
+  margin-bottom: 14px;
+}
+
+/* Sheets are bottom-anchored, so the body scrolls rather than pushing the
+   footer off-screen on a short phone. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 2px 4px;
+}
+
+.hint {
+  padding: 18px 4px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.ghost {
+  flex: 1;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-weight: 700;
+  transition: transform 0.1s ease;
+}
+.solid {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-grad);
+  box-shadow: var(--shadow-accent);
+  color: #fff;
+  font-weight: 800;
+  transition: transform 0.1s ease;
+}
+.ghost:active,
+.solid:active {
+  transform: scale(0.98);
+}
+.solid:disabled {
+  background: var(--line);
+  box-shadow: none;
+  color: var(--faint);
+}
+.solidSub {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* Status pills, on the same 10.5px uppercase footing as RecipeRow's badges. */
+.pill {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+}
+.pillReady {
+  color: var(--ready-fg);
+  background: var(--ready-bg);
+}
+.pillWarn {
+  color: var(--missing-fg);
+  background: var(--missing-bg);
+}
+.pillMuted {
+  color: var(--muted);
+  background: var(--line);
+}
