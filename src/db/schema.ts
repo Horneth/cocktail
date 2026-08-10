@@ -109,12 +109,21 @@ export interface Bar {
  * One bottle/ingredient in a specific bar. `name` is the normalized match key,
  * unique *within a bar* — the store's primary key is the compound
  * `[barId+name]`. `label` keeps the nice casing the user saw when adding it.
+ *
+ * `category` and `brand` are optional and additive (no schema bump — see db.ts).
+ * `category` is stored rather than re-inferred on every render, and stays
+ * user-correctable: `categoryForName()` guesses well but not always, and a
+ * wrong guess changes what the bottle substitutes for.
  */
 export interface PantryItem {
   barId: string
   name: string
   label: string
   addedAt: number
+  /** base-spirit family, inferred at write time or set by the user */
+  category?: string
+  /** producer alone ("Plantation"), when a scan or the user supplied one */
+  brand?: string
 }
 
 /**
