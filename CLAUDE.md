@@ -98,6 +98,7 @@ src/
 
   auth/
     firebase.ts   Lazy Firebase bootstrap (App Check + Auth + AI Logic); sign-in/out; model handles
+    analytics.ts  logAiCall() — one `ai_call` event per AI call. Counts only, never content
 
   hooks/
     useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useBottleCounts, useActiveBar, …)
@@ -345,6 +346,15 @@ the same result. `AddSheet` gates both rows on the **build** config only (never 
 shelf* lands on My Bar, which offers the sign-in.
 
 Rule that still holds: never introduce a repo-side secret.
+
+**Measuring AI usage.** `auth/analytics.ts` logs one `ai_call` event per call that reached
+the model — `kind`, `outcome`, `results` — so we can see what a real user consumes before
+deciding any free allowance or price. Three invariants, all covered by `analytics.test.ts`:
+it **never boots Firebase** (it reads the app a prior AI call initialized, which is what
+keeps `useAuth`'s lazy boot and the smoke assertion honest), it **never throws or blocks**,
+and it **never logs content** — no recipe or bottle names, no pasted text, no photos. The
+library staying on the device has no exceptions, and a metrics pipeline is not one. Silent
+without `VITE_FIREBASE_MEASUREMENT_ID`.
 
 **Every AI call is capped, and the transport is where it's enforced.**
 `import/limits.ts` owns the ceilings — pasted characters, photo count, bytes per

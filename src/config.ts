@@ -32,6 +32,10 @@ export const firebaseConfig = {
   appId: env.VITE_FIREBASE_APP_ID ?? "",
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET ?? "",
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "",
+  // Optional, and deliberately not part of isCloudAIConfigured(): without it
+  // `auth/analytics.ts` stays silent and everything else works unchanged. AI is
+  // not gated on being measurable.
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID ?? "",
 };
 
 /** reCAPTCHA v3 site key for Firebase App Check (required to call AI Logic). */

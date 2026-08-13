@@ -29,6 +29,7 @@ import {
   MAX_PARSE_CHARS,
   MAX_SCAN_IMAGES,
 } from './limits'
+import { logAiCall } from '../auth/analytics'
 import type { StructuredImport } from './types'
 
 // Cloud AI transport via Firebase AI Logic. Signature-compatible in spirit with
@@ -95,6 +96,7 @@ export async function firebaseParse(text: string): Promise<StructuredImport[]> {
     const result = await model.generateContent(`${PROMPT}\n\nDESCRIPTION:\n${text}`)
     jsonText = result.response.text()
   } catch (err) {
+    logAiCall('parse', 'error')
     throw new CloudAIError(friendlyError(err))
   }
 
@@ -102,10 +104,16 @@ export async function firebaseParse(text: string): Promise<StructuredImport[]> {
   try {
     parsed = JSON.parse(jsonText)
   } catch {
+    // Counted: malformed output still cost a request against the quota.
+    logAiCall('parse', 'error')
     throw new CloudAIError('The AI returned malformed JSON — try again.')
   }
 
   const recipes = finishParse(parsed, text)
+  // `results: 0` is a real outcome, not a failure — the call worked and the text
+  // simply held no recipe. Worth telling apart from a transport error when
+  // reading how much a user actually gets per call.
+  logAiCall('parse', 'ok', { results: recipes.length })
   if (!recipes.length) throw new CloudAIError('No recipes found in that text.')
   return recipes
 }
@@ -141,8 +149,11 @@ export async function firebaseJudgeDuplicates(queries: DupeQuery[]): Promise<Dup
     const result = await model.generateContent(
       `${DUPE_PROMPT}\n\nENTRIES:\n${JSON.stringify(payload)}`,
     )
-    return finishDupeJudgement(JSON.parse(result.response.text()), asked)
+    const verdicts = finishDupeJudgement(JSON.parse(result.response.text()), asked)
+    logAiCall('dupes', 'ok', { results: verdicts.length })
+    return verdicts
   } catch {
+    logAiCall('dupes', 'error')
     return []
   }
 }
@@ -180,6 +191,7 @@ export async function firebaseIdentifyBottles(images: string[]): Promise<Identif
     const result = await model.generateContent(parts)
     jsonText = result.response.text()
   } catch (err) {
+    logAiCall('vision', 'error')
     throw new CloudAIError(friendlyError(err))
   }
 
@@ -187,11 +199,14 @@ export async function firebaseIdentifyBottles(images: string[]): Promise<Identif
   try {
     parsed = JSON.parse(jsonText)
   } catch {
+    logAiCall('vision', 'error')
     throw new CloudAIError('The AI returned malformed JSON — try again.')
   }
 
   const raw = (parsed as { bottles?: Parameters<typeof dedupeBottles>[0] })?.bottles ?? []
-  return dedupeBottles(raw)
+  const bottles = dedupeBottles(raw)
+  logAiCall('vision', 'ok', { results: bottles.length })
+  return bottles
 }
 
 /**
@@ -217,8 +232,11 @@ export async function firebaseReconcileBottles(inputs: ReconcileInput[]): Promis
       maxOutputTokens: MAX_OUTPUT_TOKENS.reconcile,
     })
     const result = await model.generateContent(buildReconcilePrompt(comparable))
-    return parseReconcile(JSON.parse(result.response.text()), comparable)
+    const matches = parseReconcile(JSON.parse(result.response.text()), comparable)
+    logAiCall('reconcile', 'ok', { results: matches.length })
+    return matches
   } catch {
+    logAiCall('reconcile', 'error')
     return []
   }
 }
