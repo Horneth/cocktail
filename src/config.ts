@@ -43,9 +43,18 @@ export const CLOUD_AI_MODEL = "gemini-3.5-flash-lite";
 /**
  * True only when the Firebase project is wired up. Until then the AI features
  * stay hidden/disabled and the app runs as a pure offline recipe book.
+ *
+ * `recaptchaSiteKey` counts as part of "wired up" on purpose. `ensureFirebase()`
+ * skips App Check entirely when it's empty, so without this a build that lost
+ * the variable would keep calling Gemini with no attestation at all and nothing
+ * would say so — our main defence against someone reusing this (deliberately
+ * public) config on our quota. Better to ship no AI than unprotected AI.
  */
 export function isCloudAIConfigured(): boolean {
   return Boolean(
-    firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId,
+    firebaseConfig.apiKey &&
+      firebaseConfig.projectId &&
+      firebaseConfig.appId &&
+      recaptchaSiteKey,
   );
 }

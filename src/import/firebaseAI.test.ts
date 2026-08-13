@@ -60,6 +60,7 @@ describe('firebaseParse', () => {
     mockModel(JSON.stringify({ recipes: [] }))
     await expect(firebaseParse('x')).rejects.toThrow(/No recipes/)
   })
+
 })
 
 describe('firebaseIdentifyBottles', () => {
