@@ -152,11 +152,47 @@ Do this in the [Firebase console](https://console.firebase.google.com/) — the 
    `cocktails-c2705.web.app`, `cocktails-c2705.firebaseapp.com`, `localhost`.
 5. **(Optional) Per-user rate limit →** in the Google Cloud console, open the Firebase AI Logic
    API's **Quotas** tab and lower the per-user RPM to fit expected usage.
-6. Set the seven build variables as GitHub repo **Variables** (not Secrets — this config is
+6. **(Optional) Analytics →** enable Google Analytics on the project and copy the
+   measurement ID (`G-…`) into `VITE_FIREBASE_MEASUREMENT_ID`. This turns on the `ai_call`
+   events described under "Measuring usage" below. Leave it unset and the app behaves
+   identically, minus the measurement.
+7. Set the build variables as GitHub repo **Variables** (not Secrets — this config is
    public): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`,
    `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`,
    `VITE_RECAPTCHA_SITE_KEY`. `.github/workflows/deploy.yml` already passes them through. For
    local dev, put the same values in a `.env.local`.
+
+## Measuring usage
+
+`src/auth/analytics.ts` logs one `ai_call` event per call that actually reached the model,
+with three params and nothing else: `kind` (parse / dupes / vision / reconcile), `outcome`
+(ok / error) and `results` (recipes parsed, bottles read, verdicts returned).
+
+**Why it exists.** Every question about a free allowance or a price — how many imports a
+month is generous, what Pro should cost, whether AI can stay unmetered — is a guess until
+we know what a real user actually consumes. GA4 aggregates events per user per period for
+free on Spark, so this answers it without a backend, a billing account, or committing to
+any tier structure.
+
+`results` is there because an allowance priced per *call* would treat a parse yielding four
+recipes the same as one yielding one. Knowing the yield distribution is what makes a limit
+defensible rather than arbitrary.
+
+Three rules the file has to keep, all enforced by `analytics.test.ts`:
+
+- **It never boots Firebase.** It reaches for `getApp()` — the app a prior AI call already
+  initialized — and gives up if there isn't one. `useAuth`'s lazy-boot contract and the
+  signed-out assertion in `scripts/smoke.mjs` both depend on this.
+- **It never throws or blocks.** Fire-and-forget behind a swallowed catch; a measurement
+  failure must not become a failed import.
+- **It never logs content.** No recipe names, no bottle names, no pasted text, no photos.
+  Counts and enums only — the library staying on the device has no exceptions, and a
+  metrics pipeline is not one.
+
+No `setUserId`: GA4's device-scoped pseudo ID is enough for a per-user distribution and
+avoids linking measurement to a stable account identifier for no analytical gain.
+
+Unset `VITE_FIREBASE_MEASUREMENT_ID` and the whole thing no-ops.
 
 ## Risks / notes
 
