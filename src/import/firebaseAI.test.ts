@@ -12,6 +12,7 @@ import {
   firebaseReconcileBottles,
 } from './firebaseAI'
 import type { DupeQuery } from './aiShared'
+import { MAX_IMAGE_BYTES, MAX_PARSE_CHARS, MAX_SCAN_IMAGES } from './limits'
 
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
 
@@ -185,5 +186,48 @@ describe('firebaseReconcileBottles', () => {
 
     vi.mocked(getGeminiModel).mockRejectedValueOnce(new Error('429 resource-exhausted'))
     await expect(firebaseReconcileBottles(inputs)).resolves.toEqual([])
+  })
+})
+
+// Every input below is pasted or photographed by the user, so an uncapped call
+// bills for an unbounded number of tokens. These are cost bounds, not polish.
+describe('request limits', () => {
+  const jpeg = (bytes: number) => `data:image/jpeg;base64,${'A'.repeat(Math.ceil(bytes / 3) * 4)}`
+
+  it('rejects an over-long paste before reaching the model', async () => {
+    mockModel('{}')
+    await expect(firebaseParse('x'.repeat(MAX_PARSE_CHARS + 1))).rejects.toBeInstanceOf(CloudAIError)
+    expect(getGeminiModel).not.toHaveBeenCalled()
+  })
+
+  it('rejects more photos than a scan allows, before reaching the model', async () => {
+    mockModel('{"bottles":[]}')
+    const many = Array.from({ length: MAX_SCAN_IMAGES + 1 }, () => jpeg(100))
+    await expect(firebaseIdentifyBottles(many)).rejects.toBeInstanceOf(CloudAIError)
+    expect(getGeminiModel).not.toHaveBeenCalled()
+  })
+
+  it('rejects a photo over the byte budget', async () => {
+    mockModel('{"bottles":[]}')
+    await expect(firebaseIdentifyBottles([jpeg(MAX_IMAGE_BYTES + 1024)])).rejects.toBeInstanceOf(
+      CloudAIError,
+    )
+    expect(getGeminiModel).not.toHaveBeenCalled()
+  })
+
+  it('caps output tokens on every call', async () => {
+    mockModel('{"recipes":[]}')
+    await firebaseParse('Daiquiri').catch(() => {})
+    mockModel('{"bottles":[]}')
+    await firebaseIdentifyBottles([jpeg(100)])
+    mockModel('{"results":[]}')
+    await firebaseJudgeDuplicates([{ index: 0, name: 'Daiquiri', aka: [], candidates: ['Daiquiri'] }])
+    mockModel('{"matches":[]}')
+    await firebaseReconcileBottles([{ detected: 'Campari', candidates: ['Campari'] }])
+
+    expect(vi.mocked(getGeminiModel).mock.calls).toHaveLength(4)
+    for (const [config] of vi.mocked(getGeminiModel).mock.calls) {
+      expect(config.maxOutputTokens).toBeGreaterThan(0)
+    }
   })
 })
