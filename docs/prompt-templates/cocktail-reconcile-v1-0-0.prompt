@@ -12,11 +12,16 @@ input:
 output:
   format: json
   schema:
-    matches(array):
-      detected: string
-      verdict: string
-      match?: string
-      canonicalName?: string
+    matches:
+      type: array
+      items:
+        type: object
+        required: [detected, verdict]
+        properties:
+          detected: { type: string }
+          verdict: { type: string }
+          match: { type: string }
+          canonicalName: { type: string }
 ---
 
 {{role "system"}}

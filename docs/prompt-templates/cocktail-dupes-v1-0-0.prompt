@@ -13,11 +13,16 @@ input:
 output:
   format: json
   schema:
-    verdicts(array):
-      index: integer
-      relation: string
-      match?: string
-      reason?: string
+    verdicts:
+      type: array
+      items:
+        type: object
+        required: [index, relation]
+        properties:
+          index: { type: integer }
+          relation: { type: string }
+          match: { type: string }
+          reason: { type: string }
 ---
 
 {{role "system"}}

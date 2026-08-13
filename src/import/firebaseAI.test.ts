@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Mock the Firebase bootstrap so no real SDK/network is touched — we only verify
 // the transport wiring (model JSON -> StructuredImport / bottles) and error paths.
-vi.mock('../auth/firebase', () => ({ getGeminiModel: vi.fn() }))
-import { getGeminiModel } from '../auth/firebase'
+vi.mock('../auth/firebase', () => ({ getGeminiModel: vi.fn(), getTemplateModel: vi.fn() }))
+import { getGeminiModel, getTemplateModel } from '../auth/firebase'
 import {
   CloudAIError,
   firebaseIdentifyBottles,
@@ -23,6 +23,22 @@ function mockModel(jsonText: string) {
   }))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   vi.mocked(getGeminiModel).mockResolvedValue({ generateContent } as any)
+  return generateContent
+}
+
+/**
+ * Mock the server-template handle. The vision call runs a prompt published in
+ * the Firebase project, so what we assert is the template id and the variables
+ * we fill it with — the prompt and its config live in the console now.
+ */
+function mockTemplate(jsonText: string) {
+  const generateContent = vi.fn(
+    async (_templateId: string, _vars: Record<string, unknown>) => ({
+      response: { text: () => jsonText },
+    }),
+  )
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vi.mocked(getTemplateModel).mockResolvedValue({ generateContent } as any)
   return generateContent
 }
 
@@ -67,22 +83,27 @@ describe('firebaseIdentifyBottles', () => {
   const IMG = 'data:image/jpeg;base64,QUJD'
 
   it('dedupes and lets our categorizer win', async () => {
-    mockModel(JSON.stringify({ bottles: [{ name: 'Tanqueray' }, { name: 'Tanqueray' }] }))
+    mockTemplate(JSON.stringify({ bottles: [{ name: 'Tanqueray' }, { name: 'Tanqueray' }] }))
     const out = await firebaseIdentifyBottles([IMG])
     expect(out).toEqual([{ name: 'Tanqueray', category: 'gin' }])
   })
 
-  it('sends each photo as an inlineData part alongside the prompt', async () => {
-    const generateContent = mockModel(JSON.stringify({ bottles: [] }))
+  it('runs the published vision template, passing photos as inline data', async () => {
+    const generateContent = mockTemplate(JSON.stringify({ bottles: [] }))
     await firebaseIdentifyBottles([IMG])
 
-    const parts = generateContent.mock.calls[0][0] as ContentPart[]
-    expect(parts[0]).toHaveProperty('text')
-    expect(parts).toContainEqual({ inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } })
+    const [templateId, vars] = generateContent.mock.calls[0]
+    // The id ships in the bundle, so a rename is a code change — pin it.
+    expect(templateId).toBe('cocktail-vision-v1-0-0')
+    // `contents`, not `data` — the template's {{media}} helper names these
+    // fields, so a rename here breaks the call in a way only a 500 reveals.
+    expect(vars).toEqual({ photos: [{ mimeType: 'image/jpeg', contents: 'QUJD' }] })
+    // The prompt itself now lives in the Firebase project, not in this payload.
+    expect(JSON.stringify(vars)).not.toContain('home bar or liquor shelf')
   })
 
   it('rejects a photo that is not a data URL', async () => {
-    // Parts are built before the model handle is requested, so this never calls out.
+    // Photos are validated before the model handle is requested, so this never calls out.
     await expect(firebaseIdentifyBottles(['https://example.com/shelf.jpg'])).rejects.toBeInstanceOf(
       CloudAIError,
     )
@@ -90,7 +111,7 @@ describe('firebaseIdentifyBottles', () => {
 
   it('rejects an empty image list without calling the model', async () => {
     await expect(firebaseIdentifyBottles([])).rejects.toBeInstanceOf(CloudAIError)
-    expect(getGeminiModel).not.toHaveBeenCalled()
+    expect(getTemplateModel).not.toHaveBeenCalled()
   })
 })
 
@@ -202,33 +223,64 @@ describe('request limits', () => {
   })
 
   it('rejects more photos than a scan allows, before reaching the model', async () => {
-    mockModel('{"bottles":[]}')
+    mockTemplate('{"bottles":[]}')
     const many = Array.from({ length: MAX_SCAN_IMAGES + 1 }, () => jpeg(100))
     await expect(firebaseIdentifyBottles(many)).rejects.toBeInstanceOf(CloudAIError)
-    expect(getGeminiModel).not.toHaveBeenCalled()
+    expect(getTemplateModel).not.toHaveBeenCalled()
   })
 
   it('rejects a photo over the byte budget', async () => {
-    mockModel('{"bottles":[]}')
+    mockTemplate('{"bottles":[]}')
     await expect(firebaseIdentifyBottles([jpeg(MAX_IMAGE_BYTES + 1024)])).rejects.toBeInstanceOf(
       CloudAIError,
     )
-    expect(getGeminiModel).not.toHaveBeenCalled()
+    expect(getTemplateModel).not.toHaveBeenCalled()
   })
 
-  it('caps output tokens on every call', async () => {
+  // The vision call is absent here on purpose: its ceiling moved into the
+  // published template's frontmatter, where the client can no longer raise it.
+  it('caps output tokens on every call the client still configures', async () => {
     mockModel('{"recipes":[]}')
     await firebaseParse('Daiquiri').catch(() => {})
-    mockModel('{"bottles":[]}')
-    await firebaseIdentifyBottles([jpeg(100)])
     mockModel('{"results":[]}')
     await firebaseJudgeDuplicates([{ index: 0, name: 'Daiquiri', aka: [], candidates: ['Daiquiri'] }])
     mockModel('{"matches":[]}')
     await firebaseReconcileBottles([{ detected: 'Campari', candidates: ['Campari'] }])
 
-    expect(vi.mocked(getGeminiModel).mock.calls).toHaveLength(4)
+    expect(vi.mocked(getGeminiModel).mock.calls).toHaveLength(3)
     for (const [config] of vi.mocked(getGeminiModel).mock.calls) {
       expect(config.maxOutputTokens).toBeGreaterThan(0)
     }
+  })
+})
+
+// The SDK puts the request URL in every error message, and that URL contains
+// words this classifier used to match on — `templateGenerateContent` contains
+// "rate". A 500 was reported to users as a rate limit because of it.
+describe('friendlyError classification', () => {
+  const URL_IN_MSG =
+    'AI: Error fetching from https://firebasevertexai.googleapis.com/v1beta/projects/p/templates/t:templateGenerateContent:'
+
+  const failWith = async (message: string) => {
+    vi.mocked(getTemplateModel).mockRejectedValueOnce(new Error(message))
+    return firebaseIdentifyBottles(['data:image/jpeg;base64,QUJD']).catch((e: Error) => e.message)
+  }
+
+  it('does not read "rate" out of the endpoint name', async () => {
+    expect(await failWith(`${URL_IN_MSG} [500 ] Internal error encountered.`)).toMatch(
+      /service had a problem/i,
+    )
+  })
+
+  it('still recognises a real rate limit', async () => {
+    expect(await failWith(`${URL_IN_MSG} [429 ] Quota exceeded.`)).toMatch(/rate-limited/i)
+  })
+
+  it('does not read "fetch" out of "Error fetching from"', async () => {
+    expect(await failWith(`${URL_IN_MSG} [400 ] Bad request.`)).not.toMatch(/your connection/i)
+  })
+
+  it('still recognises a genuine network failure', async () => {
+    expect(await failWith('Failed to fetch')).toMatch(/your connection/i)
   })
 })

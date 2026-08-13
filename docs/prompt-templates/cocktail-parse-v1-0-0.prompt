@@ -12,31 +12,51 @@ input:
 output:
   format: json
   schema:
-    recipes(array):
-      name: string
-      kind?: string
-      method?: string
-      glassware?: string
-      garnish?: string
-      instructions?: string
-      spirit?: string
-      tags?(array): string
-      guessed?(array): string
-      aka?(array): string
-      ingredients(array):
-        name: string
-        unit: string
-        amount?: number
-        optional?: boolean
-        note?: string
-      subRecipes?(array):
-        name: string
-        ingredients(array):
-          name: string
-          unit: string
-          amount?: number
-          optional?: boolean
-          note?: string
+    recipes:
+      type: array
+      items:
+        type: object
+        required: [name, ingredients]
+        properties:
+          name: { type: string }
+          kind: { type: string }
+          method: { type: string }
+          glassware: { type: string }
+          garnish: { type: string }
+          instructions: { type: string }
+          spirit: { type: string }
+          tags: { type: array, items: { type: string } }
+          guessed: { type: array, items: { type: string } }
+          aka: { type: array, items: { type: string } }
+          ingredients:
+            type: array
+            items:
+              type: object
+              required: [name, unit]
+              properties:
+                name: { type: string }
+                unit: { type: string }
+                amount: { type: number, nullable: true }
+                optional: { type: boolean }
+                note: { type: string }
+          subRecipes:
+            type: array
+            items:
+              type: object
+              required: [name, ingredients]
+              properties:
+                name: { type: string }
+                ingredients:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, unit]
+                    properties:
+                      name: { type: string }
+                      unit: { type: string }
+                      amount: { type: number, nullable: true }
+                      optional: { type: boolean }
+                      note: { type: string }
 ---
 
 {{role "system"}}
