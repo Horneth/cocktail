@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// Nothing in this database is client-writable, and only the Functions runtime
+// (which bypasses rules through the Admin SDK) reads it.
+//
+// `entitlements` says whether someone has paid and `usage` says how much they
+// have spent — a client that could write either could grant itself Pro or reset
+// its own meter. A client that could *read* another user's document would be a
+// leak for no gain, since the app learns its own tier from the callable
+// responses rather than by reading Firestore. So: deny everything, explicitly.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

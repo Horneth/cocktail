@@ -36,6 +36,18 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       - run: npm run typecheck
       - run: npm test
+
+      # The Cloud Functions are a separate npm project that compiles ../src as
+      # well as its own, so a change to aiShared.ts or limits.ts can break the
+      # backend while the app still builds. Checked here; NOT deployed here —
+      # `firebase deploy --only functions` is manual until the deploy service
+      # account has the Cloud Functions and Secret Manager roles for it. That
+      # means a client change depending on a new callable needs the functions
+      # deployed first.
+      - run: npm ci --prefix functions
+      - run: npm run typecheck --prefix functions
+      - run: npm test --prefix functions
+
       - run: npm run build
         env:
           # Firebase *client* config is public, not secret (the real Gemini key

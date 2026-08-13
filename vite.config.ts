@@ -95,5 +95,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // `functions/` is its own npm project with its own vitest; without this it
+    // gets swept up here and its tests run under jsdom with the app's setup
+    // file, which is not the environment they actually ship in.
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })

@@ -13,9 +13,9 @@ import type { DupeQuery, DupeVerdict } from '../import/aiShared'
 // second Daiquiri through by accident. smoke.mjs can't reach any of it — it runs
 // signed out, where the whole flow is a sign-in wall.
 
-const firebaseParse = vi.fn<(text: string) => Promise<StructuredImport[]>>()
-const firebaseJudgeDuplicates = vi.fn<(queries: DupeQuery[]) => Promise<DupeVerdict[]>>()
-vi.mock('../import/firebaseAI', () => ({ firebaseParse, firebaseJudgeDuplicates }))
+const cloudParse = vi.fn<(text: string) => Promise<StructuredImport[]>>()
+const cloudJudgeDuplicates = vi.fn<(queries: DupeQuery[]) => Promise<DupeVerdict[]>>()
+vi.mock('../import/cloudAI', () => ({ cloudParse, cloudJudgeDuplicates }))
 
 const auth = {
   user: null as unknown,
@@ -60,7 +60,7 @@ const paste = async (text = 'some recipe text') => {
 
 beforeEach(async () => {
   vi.clearAllMocks()
-  firebaseJudgeDuplicates.mockResolvedValue([])
+  cloudJudgeDuplicates.mockResolvedValue([])
   Object.assign(auth, { ready: true, configured: true, aiAvailable: true })
   await db.recipes.clear()
   await db.recipeLinks.clear()
@@ -105,7 +105,7 @@ describe('the sign-in gate', () => {
 
 describe('the review card', () => {
   it('shows the recipe and its details, all editable', async () => {
-    firebaseParse.mockResolvedValue([draft('Daiquiri')])
+    cloudParse.mockResolvedValue([draft('Daiquiri')])
     await paste()
 
     expect(await screen.findByDisplayValue('Daiquiri')).toBeInTheDocument()
@@ -116,7 +116,7 @@ describe('the review card', () => {
   })
 
   it('marks only the fields the model inferred, and clears the mark once fixed', async () => {
-    firebaseParse.mockResolvedValue([draft('Daiquiri', { guessed: ['glassware', 'garnish'] })])
+    cloudParse.mockResolvedValue([draft('Daiquiri', { guessed: ['glassware', 'garnish'] })])
     const user = await paste()
 
     await screen.findByDisplayValue('Daiquiri')
@@ -128,7 +128,7 @@ describe('the review card', () => {
   })
 
   it('has no guess marks or legend when everything came from the text', async () => {
-    firebaseParse.mockResolvedValue([draft('Daiquiri')])
+    cloudParse.mockResolvedValue([draft('Daiquiri')])
     await paste()
 
     await screen.findByDisplayValue('Daiquiri')
@@ -137,7 +137,7 @@ describe('the review card', () => {
   })
 
   it('drops the serve fields when a drink is re-marked as a sub-recipe', async () => {
-    firebaseParse.mockResolvedValue([draft('Simple Syrup')])
+    cloudParse.mockResolvedValue([draft('Simple Syrup')])
     const user = await paste()
 
     await screen.findByDisplayValue('Simple Syrup')
@@ -148,7 +148,7 @@ describe('the review card', () => {
   })
 
   it('toggles tags', async () => {
-    firebaseParse.mockResolvedValue([draft('Daiquiri')])
+    cloudParse.mockResolvedValue([draft('Daiquiri')])
     const user = await paste()
 
     await screen.findByDisplayValue('Daiquiri')
@@ -181,8 +181,8 @@ describe('duplicate flagging', () => {
 
   it('flags a drink you already own and unticks it so Import cannot duplicate it', async () => {
     await withLibrary()
-    firebaseParse.mockResolvedValue([draft('Rum Sour', { aka: ['Daiquiri'] }), draft('Negroni')])
-    firebaseJudgeDuplicates.mockResolvedValue([
+    cloudParse.mockResolvedValue([draft('Rum Sour', { aka: ['Daiquiri'] }), draft('Negroni')])
+    cloudJudgeDuplicates.mockResolvedValue([
       { index: 0, relation: 'same', match: 'Daiquiri', reason: 'same drink, other name' },
     ])
     const user = await paste()
@@ -202,8 +202,8 @@ describe('duplicate flagging', () => {
 
   it('labels a variation but still imports it — a riff is its own drink', async () => {
     await withLibrary()
-    firebaseParse.mockResolvedValue([draft('Hemingway Daiquiri')])
-    firebaseJudgeDuplicates.mockResolvedValue([
+    cloudParse.mockResolvedValue([draft('Hemingway Daiquiri')])
+    cloudJudgeDuplicates.mockResolvedValue([
       { index: 0, relation: 'variation', match: 'Daiquiri', reason: 'adds grapefruit' },
     ])
     const user = await paste()
@@ -220,29 +220,29 @@ describe('duplicate flagging', () => {
 
   it('never asks the cloud when nothing in the library looks close', async () => {
     await withLibrary()
-    firebaseParse.mockResolvedValue([draft('Negroni')])
+    cloudParse.mockResolvedValue([draft('Negroni')])
     await paste()
 
     await screen.findByDisplayValue('Negroni')
-    expect(firebaseJudgeDuplicates).not.toHaveBeenCalled()
+    expect(cloudJudgeDuplicates).not.toHaveBeenCalled()
   })
 
   it('sends only matched names to the cloud, never the library or the recipes', async () => {
     await withLibrary()
-    firebaseParse.mockResolvedValue([draft('Rum Sour', { aka: ['Daiquiri'] })])
+    cloudParse.mockResolvedValue([draft('Rum Sour', { aka: ['Daiquiri'] })])
     await paste()
 
     await screen.findByDisplayValue('Rum Sour')
-    await waitFor(() => expect(firebaseJudgeDuplicates).toHaveBeenCalled())
-    expect(firebaseJudgeDuplicates.mock.calls[0][0]).toEqual([
+    await waitFor(() => expect(cloudJudgeDuplicates).toHaveBeenCalled())
+    expect(cloudJudgeDuplicates.mock.calls[0][0]).toEqual([
       { index: 0, name: 'Rum Sour', aka: ['Daiquiri'], candidates: ['Daiquiri'] },
     ])
   })
 
   it('still renders the preview when the duplicate check fails', async () => {
     await withLibrary()
-    firebaseParse.mockResolvedValue([draft('Rum Sour', { aka: ['Daiquiri'] })])
-    firebaseJudgeDuplicates.mockRejectedValue(new Error('offline'))
+    cloudParse.mockResolvedValue([draft('Rum Sour', { aka: ['Daiquiri'] })])
+    cloudJudgeDuplicates.mockRejectedValue(new Error('offline'))
     await paste()
 
     expect(await screen.findByDisplayValue('Rum Sour')).toBeInTheDocument()
@@ -252,7 +252,7 @@ describe('duplicate flagging', () => {
 
 describe('extraction failures', () => {
   it('surfaces the error and keeps the pasted text', async () => {
-    firebaseParse.mockRejectedValue(new Error('No recipes found in that text.'))
+    cloudParse.mockRejectedValue(new Error('No recipes found in that text.'))
     await paste('junk')
 
     expect(await screen.findByText(/no recipes found/i)).toBeInTheDocument()

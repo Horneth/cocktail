@@ -76,8 +76,8 @@ export function ImportScreen() {
 
     setDupeBusy(true)
     try {
-      const { firebaseJudgeDuplicates } = await import('../import/firebaseAI')
-      const verdicts = await firebaseJudgeDuplicates(queries)
+      const { cloudJudgeDuplicates } = await import('../import/cloudAI')
+      const verdicts = await cloudJudgeDuplicates(queries)
       const found = new Map<number, DupeInfo>()
       for (const v of verdicts) {
         if (v.relation === 'different') continue
@@ -100,7 +100,7 @@ export function ImportScreen() {
         return next
       })
     } catch {
-      // `firebaseJudgeDuplicates` swallows its own failures, but loading the
+      // `cloudJudgeDuplicates` swallows its own failures, but loading the
       // chunk at all can fail (the classic: offline, and it was never cached).
       // Either way the preview is already on screen — it just goes unbadged.
     } finally {
@@ -113,8 +113,8 @@ export function ImportScreen() {
     setError(null)
     setBusy(true)
     try {
-      const { firebaseParse } = await import('../import/firebaseAI')
-      const recipes = await firebaseParse(source)
+      const { cloudParse } = await import('../import/cloudAI')
+      const recipes = await cloudParse(source)
       setDrafts(recipes)
       setExcluded(new Set())
       setDupes(new Map())

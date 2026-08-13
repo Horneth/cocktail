@@ -12,7 +12,8 @@ there is nothing to sign up for**. The app shell is cached by a service worker s
 it works fully offline and installs to a phone's home screen.
 
 The one exception, and it is deliberate: the **optional** AI features (smart
-parse, shelf scan) call Gemini through Firebase and require a Google sign-in.
+parse, shelf scan) call Gemini through our own Cloud Functions and require a
+Google sign-in.
 Everything else — every screen, every recipe, the whole library — works signed
 out and offline, and must keep working that way. See "Optional cloud AI" below.
 
@@ -44,8 +45,21 @@ npm run test:watch # vitest in watch mode
 npm run typecheck  # tsc -b --noEmit
 ```
 
-Both `npm run typecheck` and `npm test` are green on the current tree (181 tests).
-Run them before committing — they are the fast feedback loop. There is **no
+Both `npm run typecheck` and `npm test` are green on the current tree (217 tests).
+The Cloud Functions are a separate npm project with its own suite:
+
+```bash
+npm ci --prefix functions
+npm test --prefix functions          # pure logic; the emulator suite self-skips
+npm run test:emulator --prefix functions   # + metering, against a real Firestore
+```
+
+`usage.emulator.test.ts` covers the transaction, the fail-closed abuse ceiling
+and entitlement expiry — things a unit test can only cover by reimplementing
+Firestore. It **skips** rather than fails when `FIRESTORE_EMULATOR_HOST` is
+unset, so CI and a cold checkout stay green.
+
+Run these before committing — they are the fast feedback loop. There is **no
 linter/formatter** configured; match the surrounding code style.
 
 Regenerate PWA icons from the SVG source: `node scripts/make-icons.mjs`.
@@ -87,15 +101,16 @@ src/
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (tempId-based links)
     importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents()
     aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
-    firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse(), firebaseJudgeDuplicates(),
-                  firebaseIdentifyBottles(), firebaseReconcileBottles()
+    cloudAI.ts    Client transport: cloudParse(), cloudJudgeDuplicates(),
+                  cloudIdentifyBottles(), cloudReconcileBottles() — each one callable
+                  in `functions/`, with the mappers still running here
     limits.ts     Cost ceilings on an AI request (input chars, photo count/bytes, output tokens)
     image.ts      Browser canvas downscale + data-URL split for the photo scan
     backup.ts     Whole-library export/import (the only way data crosses an origin)
     shared.ts     Android share-target stash/consume helpers
 
   auth/
-    firebase.ts   Lazy Firebase bootstrap (App Check + Auth + AI Logic); sign-in/out; model handles
+    firebase.ts   Lazy Firebase bootstrap (App Check + Auth + Functions); sign-in/out; callAi()
 
   hooks/
     useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useBottleCounts, useActiveBar, …)
@@ -112,6 +127,14 @@ src/
 
   components/     Reusable UI (TabBar, RecipeRow, IngredientRow, AddSheet,
                   BottomSheet, ServingStepper, SwipeableRow, ErrorBoundary, icons)
+
+functions/        Cloud Functions (separate npm project, own package.json/tsconfig)
+  src/ai.ts       The four onCall AI proxies: App Check + auth + caps + metering
+  src/gemini.ts   Gemini transport + MODEL (server-side, so a model swap is a
+                  Functions deploy rather than a client release)
+  src/usage.ts    Entitlement read, usage counters, kill switch
+  src/index.ts    Exports + getAccountStatus
+firestore.rules   Deny-all: entitlements and usage are server-only
 ```
 
 **Routes** (hash-based, see `main.tsx`): `/` (home), `/search`, `/browse`,
@@ -246,15 +269,39 @@ emoji, gradient) for known spirits and **generates deterministic tile art** for
 anything else, so a custom spirit (cachaça, pisco, sake) gets its own mosaic tile
 without code changes. `'none'` is the sentinel for "no base spirit".
 
-### Cloud AI — Firebase AI Logic, behind a sign-in
+### Cloud AI — a Cloud Functions proxy, behind a sign-in
 Two AI paths: **import** (description → recipes, wired in `ImportScreen`) and
-**shelf scan** (photos → bottles, wired in `BarScreen`). Both
-call **`src/import/firebaseAI.ts`**, which goes through **Firebase AI Logic** —
-Google proxies the request and the Gemini key lives in the Firebase project, so
-**no credential ships in this app or sits in a user's browser**. The pure part
-(schemas, prompts, model-JSON → `StructuredImport`) lives in
-**`src/import/aiShared.ts`** and is transport-agnostic; a future backend should
-reuse it and only supply a new transport.
+**shelf scan** (photos → bottles, wired in `BarScreen`). Both call
+**`src/import/cloudAI.ts`**, which invokes `onCall` callables in **`functions/`**.
+The Gemini key lives in Secret Manager, so **no credential ships in this app or
+sits in a user's browser**.
+
+**Why a proxy and not the browser.** Firebase AI Logic enforces App Check, *not*
+Auth — any page load mints an App Check token. So calling Gemini from the client
+meant `aiAvailable` was only ever a product gate living in our own UI, never a
+cost boundary, and the leaked resource was an unattributable Gemini bill. The
+callables add the four things a client can't be trusted to do: App Check, an
+authenticated user, payload caps, and a metered counter.
+
+**The split.** The callable returns raw model JSON; the client still runs the
+mappers. `functions/` imports only prompts and schemas from
+**`src/import/aiShared.ts`**; `finishParse` / `dedupeBottles` / `parseReconcile`
+stay in the browser, because they encode `domain/vocab.ts` product vocabulary
+that changes far more often than prompts do — a tag rename should be a web
+deploy, not a Functions deploy.
+
+**There is no second copy of the prompts.** `functions/tsconfig.json` sets
+`rootDir: ".."` and compiles the real `aiShared.ts` into `functions/lib`. Don't
+"fix" this with a shared directory that's really a duplicate — this repo has
+already been burned by three copies of one vocabulary disagreeing.
+
+Metering lives in `functions/src/usage.ts` and currently **observes**: every call
+is counted into `usage/{uid}` (lifetime) and `usage/{uid}/months/{YYYY-MM}`, but
+only an abuse ceiling fails closed. `entitlements/{uid}` holds the tier and is
+read from Firestore rather than a custom claim — claims go stale, and a refund
+doesn't invalidate a token already minted. `firestore.rules` denies every client
+read and write; the app learns its tier from the callable responses, and the
+Firestore client SDK is deliberately **not** a dependency.
 
 Three gates, in order — all three must hold before an AI call happens:
 1. `FEATURES.cloudAI` in `src/config.ts` — the **kill switch**, removes every entry point.
@@ -270,7 +317,8 @@ in. `scripts/smoke.mjs` asserts the chunk is never fetched for a signed-out user
 — if you change this hook, that check is what will catch you.
 
 `vite.config.ts` keeps `firebase-*.js` in its own chunk and out of the SW
-precache, for the same reason. Setup, console steps and the preview-channel
+precache, for the same reason. `firebase/ai` is gone from the client entirely;
+what's left is `app` + `auth` + `app-check` + `functions`. Setup, console steps and the preview-channel
 caveat are in **`docs/cloud-ai-backend.md`**.
 
 **Import is the one gated feature.** There used to be an offline heuristic parser

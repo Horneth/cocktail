@@ -1,4 +1,21 @@
 {
+  "functions": [
+    {
+      "//": "Built from ../src as well as functions/src — see functions/tsconfig.json. The prompts and schemas have exactly one home and this compiles them in; there is no copy to keep in sync.",
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" ci",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ],
+      "ignore": ["node_modules", ".git", "*.local", "**/*.test.ts"]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "hosting": {
     "public": "dist",
     "ignore": [
@@ -50,6 +67,12 @@
     "//": "Not the default 5000 — macOS AirPlay Receiver squats on that port and answers 403.",
     "hosting": {
       "port": 5055
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
     },
     "ui": {
       "enabled": false

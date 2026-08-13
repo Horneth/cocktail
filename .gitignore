@@ -11,5 +11,8 @@ scripts/shots
 
 # Firebase CLI deploy cache. .firebaserc IS committed (it only names the project).
 .firebase
+# Compiled Cloud Functions. Built from ../src on deploy, never committed —
+# a checked-in copy of the prompts is exactly the drift this setup avoids.
+functions/lib
 # Local Firebase client config for `npm run dev`; CI injects these as repo Variables.
 .env

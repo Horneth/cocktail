@@ -69,13 +69,11 @@ managing the secret. Kept as an escape hatch, not the first move.
   `firebase/app-check`). `vite.config.ts` splits it into its own `firebase-*.js` chunk and
   `globIgnores` keeps that chunk **out of the service-worker precache** — an offline recipe
   book shouldn't ship 350 KB of SDK to everyone on first install.
-- **`src/import/firebaseAI.ts`** replaced the raw `fetch` transport:
-  `getAI()` → `getGenerativeModel({ model, generationConfig: { responseMimeType, responseSchema } })`
-  → `generateContent(parts)`. `firebaseParse` / `firebaseIdentifyBottles` /
-  `firebaseReconcileBottles` take no key. `toFirebaseSchema()` converts our OpenAPI-subset
-  schema to the SDK's `Schema` builder. Everything downstream (mappers, prompts,
-  `StructuredImport`) is unchanged and lives in `src/import/aiShared.ts`. Vision still
-  sends `inlineData` parts via `splitDataUrl`.
+- **`src/import/cloudAI.ts`** is the transport. It calls four Cloud Functions callables
+  (`aiParse`, `aiJudgeDuplicates`, `aiIdentifyBottles`, `aiReconcileBottles`) through
+  `callAi()` in `src/auth/firebase.ts`. It supersedes `firebaseAI.ts`, which called Gemini
+  from the browser — see "The proxy" below for why that had to change. Same four
+  signatures, same contracts, same mappers.
 - **Shelf scan is two calls, not one** (see CLAUDE.md, "Photo → bar"): vision, then a
   tiny text-only `firebaseReconcileBottles` that rules same/variant/new on bottles the
   user might already own. Its payload is picked on-device by `domain/bottleMatch.ts` and
@@ -83,10 +81,10 @@ managing the secret. Kept as an escape hatch, not the first move.
   never leaves the browser — and the call is skipped entirely when nothing is close, so
   a first scan into an empty bar costs exactly one request. It is also non-blocking:
   a failure degrades to the local verdicts rather than breaking the scan.
-- **`src/auth/firebase.ts`** initializes the app + App Check + Auth once, all behind dynamic
-  `import()`s, and exposes `signInWithGoogle()` / `signOutUser()` / `getGeminiModel()`. The
-  Firebase config values (`apiKey`, `projectId`, `appId`, …) are **public client config, not
-  secrets**. The real Gemini key lives in the Firebase project and never ships.
+- **`src/auth/firebase.ts`** initializes the app + App Check + Auth + Functions once, all
+  behind dynamic `import()`s, and exposes `signInWithGoogle()` / `signOutUser()` /
+  `callAi()`. The Firebase config values (`apiKey`, `projectId`, `appId`, …) are **public
+  client config, not secrets**. The real Gemini key lives in Secret Manager and never ships.
 - **`src/hooks/useAuth.ts`** is the gate: `aiAvailable = configured && signed in`. It does
   **not** subscribe on mount — see "Lazy boot" below.
 - **`src/config.ts`:** `FEATURES.cloudAI` is still the kill switch; the Firebase config reads
@@ -101,30 +99,86 @@ managing the secret. Kept as an escape hatch, not the first move.
   `AddSheet` hides the row entirely on a build with no Firebase config. `/new` is the offline
   path in; every non-import feature must keep working signed out.
 
-### The four calls a backend has to implement
+## The proxy (`functions/`)
 
-A replacement transport needs **all four** entry points in `src/import/firebaseAI.ts` — the pure
-schemas, prompts and mappers for each live in `aiShared.ts` and should be reused verbatim.
-Note the symmetry: import and shelf scan are each a *heavy* first call followed by an
+The browser used to call Gemini directly, with App Check as the only thing in front of it.
+That was fine while inference was free and stopped being fine the moment a paid tier was on
+the table, for a reason worth stating plainly: **Firebase AI Logic enforces App Check, not
+Auth.** Any page load mints an App Check token, so `useAuth().aiAvailable` was only ever a
+*product* gate living in our own UI — never a cost boundary. The leaked resource wasn't a
+feature, it was an unattributable Gemini bill.
+
+So the four calls moved behind `onCall` callables in `functions/`, which put four things in
+front of the model that a client cannot be trusted to do for itself: App Check, an
+authenticated user, payload caps, and a metered counter.
+
+**The split: the callable returns raw model JSON; the client still runs the mappers.**
+`functions/` imports only the prompts and schemas from `aiShared.ts`; `finishParse`,
+`dedupeBottles` and `parseReconcile` stay in the browser. They encode product vocabulary from
+`domain/vocab.ts` that changes far more often than the prompts do, and nobody wants a
+Functions deploy in the loop for a tag rename.
+
+**There is no copy of the prompts.** `functions/tsconfig.json` sets `rootDir: ".."` and lists
+`../src/import/aiShared.ts` as an entry point, so the real file compiles into `functions/lib`.
+This repo has already been burned by three copies of one vocabulary disagreeing; don't
+reintroduce that with a "shared" directory that is really a duplicate.
+
+### The four calls
+
+Same four entry points, now in `functions/src/ai.ts` and wrapped by `src/import/cloudAI.ts`.
+The symmetry still holds: import and shelf scan are each a *heavy* first call followed by an
 *optional, must-not-throw* second call whose payload a local pass already shortlisted.
 
-1. `firebaseParse(text) → StructuredImport[]` — `PROMPT` + `RESPONSE_SCHEMA`, through
-   `finishParse(json, text)`. Beyond the recipes it yields preview-only `guessed` and `aka`.
-2. `firebaseJudgeDuplicates(queries) → DupeVerdict[]` — `DUPE_PROMPT` + `DUPE_SCHEMA`, through
-   `finishDupeJudgement(json, queries)`. **Must not throw**: the import screen fires it after
-   the preview is already on screen, and an error means "no badges", not a failed import.
-   The payload is only `{index, name, aka, candidates}` — a shortlist `domain/dupeMatch.ts`
-   already computed locally. Do not "improve" this by sending the whole library; keeping the
-   user's collection on the device is the design, not an accident.
-3. `firebaseIdentifyBottles(images) → IdentifiedBottle[]` — `VISION_PROMPT` + `BOTTLES_SCHEMA`
-   with `inlineData` image parts, through `dedupeBottles(json.bottles)`. Photos are already
-   downscaled by `import/image.ts`; a transport should not re-encode them.
-4. `firebaseReconcileBottles(inputs) → ReconcileMatch[]` — `RECONCILE_PROMPT` +
-   `RECONCILE_SCHEMA`, through `parseReconcile(json, inputs)`. The shelf-scan twin of (2), and
-   **must not throw** for the same reason: `domain/bottleMatch.ts` already has a local verdict
-   for every detection, so a failure costs accuracy, not the scan. Its payload is only the
-   detected names plus the few candidate labels that same local pass shortlisted — same rule,
-   don't send the inventory.
+1. `aiParse` / `cloudParse(text) -> StructuredImport[]` — `PROMPT` + `RESPONSE_SCHEMA`,
+   through `finishParse(json, text)`. Beyond the recipes it yields preview-only `guessed` and
+   `aka`. **Metered** as one import unit.
+2. `aiJudgeDuplicates` / `cloudJudgeDuplicates(queries) -> DupeVerdict[]` — `DUPE_PROMPT` +
+   `DUPE_SCHEMA`, through `finishDupeJudgement(json, queries)`. **Must not throw**: the import
+   screen fires it after the preview is already on screen, and an error means "no badges", not
+   a failed import. The payload is only `{index, name, aka, candidates}` — a shortlist
+   `domain/dupeMatch.ts` already computed locally, re-projected server-side so a caller can't
+   smuggle extra fields into the prompt. Do not "improve" this by sending the whole library;
+   keeping the user's collection on the device is the design, not an accident. **Not metered**
+   — it is bundled into the import the user actually asked for, and charging for a check that
+   exists to be helpful would mean punishing people for a feature they never requested.
+3. `aiIdentifyBottles` / `cloudIdentifyBottles(images) -> IdentifiedBottle[]` —
+   `VISION_PROMPT` + `BOTTLES_SCHEMA` with `inlineData` parts, through
+   `dedupeBottles(json.bottles)`. Photos are already downscaled by `import/image.ts`; nothing
+   re-encodes them. The client sends `{mimeType, data}` rather than data URLs, which is what
+   keeps DOM-dependent `image.ts` out of the Functions build. **Metered** as one scan unit —
+   the expensive call in the app.
+4. `aiReconcileBottles` / `cloudReconcileBottles(inputs) -> ReconcileMatch[]` —
+   `RECONCILE_PROMPT` + `RECONCILE_SCHEMA`, through `parseReconcile(json, inputs)`. The
+   shelf-scan twin of (2), **must not throw** for the same reason — `domain/bottleMatch.ts`
+   already has a local verdict for every detection, so a failure costs accuracy, not the scan
+   — and **not metered** for the same reason. Payload is the detected names plus the few
+   candidate labels that local pass shortlisted; same rule, don't send the inventory.
+
+Plus `getAccountStatus`, a cold-start read of tier and counters. It exists so the client never
+needs the Firestore SDK: adding it would put a few hundred KB back into a bundle we are busy
+shrinking, break the signed-out "no Firebase chunk" assertion in `scripts/smoke.mjs`, and stop
+"the app has no cloud copy of your library" from being literally true.
+
+### Metering (`functions/src/usage.ts`)
+
+Phase 1 deliberately **observes**. Every AI call is counted; nothing is refused for exceeding
+a tier's allowance, because the allowance and the price should come from real usage rather
+than a guess. The only thing that fails closed is an abuse ceiling (300 parse / 100 scan per
+user per month) — a number no human reaches and a script reaches in minutes.
+
+- `usage/{uid}` holds lifetime counters; `usage/{uid}/months/{YYYY-MM}` holds the month.
+  Lifetime is what a future one-time trial reads; monthly is fair-use on the paid tier. Month
+  keys are **UTC**, so flying west does not buy a reset.
+- `entitlements/{uid}` holds the tier. Read from Firestore, **not** from a custom claim:
+  claims go stale, a refund does not invalidate an already-minted ID token, and asking the
+  client to refresh its own token is not enforcement. The hot path already opens a transaction
+  for the counter, so the read is nearly free.
+- `config/ai` is the server-side kill switch (`FEATURES.cloudAI` is its client twin), cached
+  60s so an incident does not need a redeploy but a call does not need a read.
+- The counter increments **before** the model call. A crash therefore costs the user a unit —
+  the right way round when the alternative is an unmetered retry loop.
+- `firestore.rules` denies every client read and write. The app learns its tier from the
+  callable responses, never by reading Firestore.
 
 ### Lazy boot (why `useAuth` looks the way it does)
 
@@ -141,7 +195,10 @@ start. `scripts/smoke.mjs` asserts the chunk is never requested for a signed-out
 Do this in the [Firebase console](https://console.firebase.google.com/) — the project is
 **`cocktails-c2705`**, the same one that serves Hosting.
 
-1. Keep the project on the **Spark (free)** plan — do **not** link a billing account.
+1. **Upgrade to the Blaze (pay-as-you-go) plan.** Cloud Functions requires it. Do this
+   *together* with the guardrails, not after: a **Cloud Billing budget** with alert
+   thresholds, and the `maxInstances: 10` already set on every callable so a runaway loop
+   cannot autoscale into a four-figure bill before anyone notices.
 2. **Authentication →** enable the **Google** sign-in provider. Under **Settings → Authorized
    domains**, confirm `localhost`, `cocktails-c2705.web.app` and `cocktails-c2705.firebaseapp.com`
    are listed (Hosting adds the last two for you).
@@ -150,9 +207,18 @@ Do this in the [Firebase console](https://console.firebase.google.com/) — the 
 4. **App Check →** register the web app with **reCAPTCHA v3** and turn on **enforcement** for
    AI Logic. Domains are bare hostnames, no scheme or port:
    `cocktails-c2705.web.app`, `cocktails-c2705.firebaseapp.com`, `localhost`.
-5. **(Optional) Per-user rate limit →** in the Google Cloud console, open the Firebase AI Logic
-   API's **Quotas** tab and lower the per-user RPM to fit expected usage.
-6. Set the seven build variables as GitHub repo **Variables** (not Secrets — this config is
+5. **Gemini API key → Secret Manager.** Create a Gemini Developer API key, then
+   `firebase functions:secrets:set GEMINI_API_KEY` and paste it. It is read at runtime by the
+   callables and never appears in the repo, the bundle, or CI.
+6. **Firestore →** create the database (Native mode). `firebase deploy --only firestore:rules`
+   ships the deny-all rules. No indexes are needed; the queries are all document reads.
+7. **Deploy the functions:** `firebase deploy --only functions`. This is **manual for now** —
+   `.github/workflows/deploy.yml` typechecks and tests them but does not deploy, because the
+   Hosting service account does not have the Cloud Functions and Secret Manager roles. So a
+   client change that depends on a new callable needs the functions deployed *first*.
+8. **(Optional) Per-user rate limit →** in the Google Cloud console, open the Gemini API's
+   **Quotas** tab and lower the per-user RPM to fit expected usage. Currently set to 20.
+9. Set the seven build variables as GitHub repo **Variables** (not Secrets — this config is
    public): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`,
    `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`,
    `VITE_RECAPTCHA_SITE_KEY`. `.github/workflows/deploy.yml` already passes them through. For
@@ -161,8 +227,8 @@ Do this in the [Firebase console](https://console.firebase.google.com/) — the 
 ## Risks / notes
 
 - **Vendor lock-in** to Firebase/Google — acceptable given Gemini is the backend regardless.
-- **Free-tier ceilings:** the Gemini Developer API free tier has project-wide limits; sustained
-  or heavy use could require upgrading to Blaze. Fine for a hobby app; worth watching.
+- **Cost is now attributable per user**, which is the point of the proxy. Watch the Cloud
+  Billing budget and the `usage/` collection rather than guessing.
 - **AI does not work on PR preview channels.** Preview URLs look like
   `cocktails-c2705--pr-12-a1b2c3d4.web.app` — a *sibling* of the live domain, not a subdomain,
   so neither Auth's authorized-domain list (no wildcards) nor the reCAPTCHA key covers them.
@@ -172,7 +238,9 @@ Do this in the [Firebase console](https://console.firebase.google.com/) — the 
   `FIREBASE_APPCHECK_DEBUG_TOKEN` in DEV, which prints a token to the console on first run;
   paste it into **App Check → Apps → Manage debug tokens** or localhost calls will 403. It is
   per-browser, so each machine registers its own.
-- **No hard daily per-user cap** until the optional Functions/Firestore metering layer is added.
+- **Metering observes, it does not yet enforce a product allowance.** Only the abuse ceiling
+  fails closed. Setting a real free allowance and a price is deliberately deferred until there
+  is usage data to set them from.
 
 ## Verification
 

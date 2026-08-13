@@ -37,8 +37,11 @@ export const firebaseConfig = {
 /** reCAPTCHA v3 site key for Firebase App Check (required to call AI Logic). */
 export const recaptchaSiteKey = env.VITE_RECAPTCHA_SITE_KEY ?? "";
 
-/** The Gemini model used for cloud calls. */
-export const CLOUD_AI_MODEL = "gemini-3.5-flash-lite";
+/**
+ * Optional: point the client at a local Functions emulator (`host:port`, e.g.
+ * `localhost:5001`) so `npm run dev` never spends real inference.
+ */
+export const functionsEmulator = env.VITE_FUNCTIONS_EMULATOR ?? "";
 
 /**
  * True only when the Firebase project is wired up. Until then the AI features

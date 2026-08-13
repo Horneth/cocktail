@@ -1,15 +1,16 @@
 import type { Auth, User } from 'firebase/auth'
-import type { AI, GenerationConfig, GenerativeModel } from 'firebase/ai'
-import { CLOUD_AI_MODEL, firebaseConfig, isCloudAIConfigured, recaptchaSiteKey } from '../config'
+import type { Functions } from 'firebase/functions'
+import { firebaseConfig, functionsEmulator, isCloudAIConfigured, recaptchaSiteKey } from '../config'
 
 // Firebase bootstrap for the optional cloud-AI features. Everything here is
 // lazy: the (large) Firebase SDK is only imported when this runs, so browsing
-// the app offline never pays for it. The Gemini key stays in the Firebase
-// project — this file only handles Google sign-in and getting a model handle.
+// the app offline never pays for it. This file handles Google sign-in and
+// invoking the AI callables — the model, its prompts and the Gemini key all
+// live in Cloud Functions, so none of them ship in this bundle.
 
 interface FirebaseHandles {
   auth: Auth
-  ai: AI
+  functions: Functions
 }
 
 let handles: Promise<FirebaseHandles> | null = null
@@ -21,10 +22,10 @@ function ensureFirebase(): Promise<FirebaseHandles> {
   }
   if (!handles) {
     handles = (async () => {
-      const [{ initializeApp }, { getAuth }, { getAI, GoogleAIBackend }] = await Promise.all([
+      const [{ initializeApp }, { getAuth }, { getFunctions }] = await Promise.all([
         import('firebase/app'),
         import('firebase/auth'),
-        import('firebase/ai'),
+        import('firebase/functions'),
       ])
       const app = initializeApp(firebaseConfig)
 
@@ -56,9 +57,17 @@ function ensureFirebase(): Promise<FirebaseHandles> {
       }
 
       const auth = getAuth(app)
-      // Gemini Developer API provider — works on the free Spark plan.
-      const ai = getAI(app, { backend: new GoogleAIBackend() })
-      return { auth, ai }
+      const functions = getFunctions(app)
+
+      // Point at the local emulator when one is running, so `npm run dev`
+      // against `firebase emulators:start` never spends real inference.
+      if (functionsEmulator) {
+        const { connectFunctionsEmulator } = await import('firebase/functions')
+        const [host, port] = functionsEmulator.split(':')
+        connectFunctionsEmulator(functions, host || 'localhost', Number(port) || 5001)
+      }
+
+      return { auth, functions }
     })()
   }
   return handles
@@ -97,9 +106,14 @@ export async function signOutUser(): Promise<void> {
   await signOut(auth)
 }
 
-/** Build a Gemini model handle bound to the given generation config. */
-export async function getGeminiModel(generationConfig: GenerationConfig): Promise<GenerativeModel> {
-  const { ai } = await ensureFirebase()
-  const { getGenerativeModel } = await import('firebase/ai')
-  return getGenerativeModel(ai, { model: CLOUD_AI_MODEL, generationConfig })
+/**
+ * Invoke one of the AI callables. The App Check token and the user's ID token
+ * ride along automatically, which is what lets the function refuse anonymous or
+ * unattested traffic — the browser is no longer trusted to gate anything.
+ */
+export async function callAi(name: string, data: unknown): Promise<unknown> {
+  const { functions } = await ensureFirebase()
+  const { httpsCallable } = await import('firebase/functions')
+  const result = await httpsCallable(functions, name)(data)
+  return result.data
 }

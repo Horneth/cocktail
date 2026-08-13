@@ -98,10 +98,10 @@ export function BarScreen() {
     try {
       const chosen = [...files].slice(0, MAX_SCAN_IMAGES)
       const images = await Promise.all(chosen.map((f) => downscaleDataUrl(f)))
-      const { firebaseIdentifyBottles, firebaseReconcileBottles } = await import('../../import/firebaseAI')
+      const { cloudIdentifyBottles, cloudReconcileBottles } = await import('../../import/cloudAI')
 
       // Pass 1: what's on the shelf.
-      const detected = await firebaseIdentifyBottles(images)
+      const detected = await cloudIdentifyBottles(images)
 
       // Between the passes, on-device: which of the user's own bottles is each
       // detection even worth comparing against. Only those few names travel —
@@ -115,7 +115,7 @@ export function BarScreen() {
 
       // Pass 2 is an enhancement, not a dependency — it resolves to [] rather
       // than throwing, and the local verdicts still drive a usable review sheet.
-      const reconciled = await firebaseReconcileBottles(inputs)
+      const reconciled = await cloudReconcileBottles(inputs)
 
       setScanResults(resolveDetections(detected, items, reconciled))
     } catch (err) {

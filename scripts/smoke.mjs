@@ -57,9 +57,8 @@ page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message))
 
 // Every URL the page asks for, so we can prove the Firebase SDK chunk is NOT
-// among them. Deliberately anchored on `assets/firebase-` so it doesn't also
-// match `assets/firebaseAI-*.js` — that one is our own small shim, and it is
-// precached, so it always loads.
+// among them. Anchored on `assets/firebase-`: our own transport shim is
+// `assets/cloudAI-*.js`, which is precached and always loads.
 const requested = []
 page.on('request', (r) => requested.push(r.url()))
 const firebaseSdkLoaded = () => requested.filter((u) => /assets\/firebase-[^/]*\.js/.test(u))

@@ -19,6 +19,15 @@ export const MAX_SCAN_IMAGES = 4
 export const MAX_IMAGE_BYTES = 500_000
 
 /**
+ * Ceilings on the two optional follow-up calls. The client can't realistically
+ * exceed these — one import yields a handful of drinks, one scan a few dozen
+ * bottles — but a hand-written request to the callable can, so the server checks
+ * them anyway.
+ */
+export const MAX_DUPE_QUERIES = 25
+export const MAX_RECONCILE_INPUTS = 60
+
+/**
  * Output ceiling per call. Generous enough that real work never truncates — a
  * long description yields a handful of recipes, a crowded shelf a few dozen
  * bottles — but finite, which is the whole point.

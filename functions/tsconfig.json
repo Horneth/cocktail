@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
+
+    // rootDir spans the repo, not `functions/`, so the prompts and schemas in
+    // `src/import/aiShared.ts` compile in from their one real home instead of
+    // being copied here. Copies of a vocabulary are how this repo previously
+    // ended up with three lists that disagreed. Output therefore lands under
+    // lib/functions/src/ and lib/src/ — hence `main` in package.json.
+    "rootDir": "..",
+    "outDir": "lib",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "types": ["node"]
+  },
+  // Only the entry points are listed; TypeScript follows their imports, which is
+  // how the handful of pure `domain/` modules aiShared needs come along.
+  "include": ["src/**/*.ts", "../src/import/aiShared.ts", "../src/import/limits.ts"],
+  "exclude": ["**/*.test.ts"]
+}
