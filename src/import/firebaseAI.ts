@@ -1,6 +1,6 @@
 import { Schema } from 'firebase/ai'
 import { getGeminiModel } from '../auth/firebase'
-import { splitDataUrl } from './image'
+import { dataUrlBytes, splitDataUrl } from './image'
 import {
   BOTTLES_SCHEMA,
   DUPE_PROMPT,
@@ -23,6 +23,12 @@ import type {
   ReconcileInput,
   ReconcileMatch,
 } from './aiShared'
+import {
+  MAX_IMAGE_BYTES,
+  MAX_OUTPUT_TOKENS,
+  MAX_PARSE_CHARS,
+  MAX_SCAN_IMAGES,
+} from './limits'
 import type { StructuredImport } from './types'
 
 // Cloud AI transport via Firebase AI Logic. Signature-compatible in spirit with
@@ -72,12 +78,19 @@ function friendlyError(err: unknown): string {
 
 /** Parse recipe text into one StructuredImport per drink. Throws CloudAIError. */
 export async function firebaseParse(text: string): Promise<StructuredImport[]> {
+  if (text.length > MAX_PARSE_CHARS) {
+    throw new CloudAIError(
+      `That's longer than an import can take — trim it to about ${MAX_PARSE_CHARS / 1000}k characters.`,
+    )
+  }
+
   let jsonText: string
   try {
     const model = await getGeminiModel({
       responseMimeType: 'application/json',
       responseSchema: toFirebaseSchema(RESPONSE_SCHEMA),
       temperature: 0.2,
+      maxOutputTokens: MAX_OUTPUT_TOKENS.parse,
     })
     const result = await model.generateContent(`${PROMPT}\n\nDESCRIPTION:\n${text}`)
     jsonText = result.response.text()
@@ -117,6 +130,7 @@ export async function firebaseJudgeDuplicates(queries: DupeQuery[]): Promise<Dup
       responseMimeType: 'application/json',
       responseSchema: toFirebaseSchema(DUPE_SCHEMA),
       temperature: 0,
+      maxOutputTokens: MAX_OUTPUT_TOKENS.dupes,
     })
     const payload = asked.map((q) => ({
       index: q.index,
@@ -136,6 +150,12 @@ export async function firebaseJudgeDuplicates(queries: DupeQuery[]): Promise<Dup
 /** Identify bottles in photos (data URLs). Throws CloudAIError. */
 export async function firebaseIdentifyBottles(images: string[]): Promise<IdentifiedBottle[]> {
   if (!images.length) throw new CloudAIError('No photos to scan.')
+  // The caller already slices to this, and `downscaleDataUrl` already shrinks to
+  // fit the byte budget — but the transport is the boundary that gets billed, so
+  // it enforces both rather than trusting its callers to have done it.
+  if (images.length > MAX_SCAN_IMAGES) {
+    throw new CloudAIError(`A scan takes at most ${MAX_SCAN_IMAGES} photos at a time.`)
+  }
 
   const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
     { text: VISION_PROMPT },
@@ -143,6 +163,9 @@ export async function firebaseIdentifyBottles(images: string[]): Promise<Identif
   for (const dataUrl of images) {
     const split = splitDataUrl(dataUrl)
     if (!split) throw new CloudAIError('One of the photos was in an unsupported format.')
+    if (dataUrlBytes(dataUrl) > MAX_IMAGE_BYTES) {
+      throw new CloudAIError('One of the photos was too large to send.')
+    }
     parts.push({ inlineData: { mimeType: split.mimeType, data: split.data } })
   }
 
@@ -152,6 +175,7 @@ export async function firebaseIdentifyBottles(images: string[]): Promise<Identif
       responseMimeType: 'application/json',
       responseSchema: toFirebaseSchema(BOTTLES_SCHEMA),
       temperature: 0.1,
+      maxOutputTokens: MAX_OUTPUT_TOKENS.bottles,
     })
     const result = await model.generateContent(parts)
     jsonText = result.response.text()
@@ -190,6 +214,7 @@ export async function firebaseReconcileBottles(inputs: ReconcileInput[]): Promis
       responseMimeType: 'application/json',
       responseSchema: toFirebaseSchema(RECONCILE_SCHEMA),
       temperature: 0,
+      maxOutputTokens: MAX_OUTPUT_TOKENS.reconcile,
     })
     const result = await model.generateContent(buildReconcilePrompt(comparable))
     return parseReconcile(JSON.parse(result.response.text()), comparable)

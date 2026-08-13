@@ -11,6 +11,7 @@ import { categoryForName } from '../../domain/spiritCategory'
 import { spiritSortIndex } from '../../domain/spirits'
 import { spiritVisual } from '../../domain/spiritVisual'
 import { downscaleDataUrl } from '../../import/image'
+import { MAX_SCAN_IMAGES } from '../../import/limits'
 import { useBottleCounts, useCocktails, useIngredientCatalog, usePantry } from '../../hooks/useRecipes'
 import { useAvailability } from '../../hooks/useAvailability'
 import { useAssumeStaples } from '../../hooks/useSettings'
@@ -21,9 +22,6 @@ import { ManageBarsSheet } from './ManageBarsSheet'
 import { ScanReviewSheet, type ScanResult } from './ScanReviewSheet'
 import styles from './BarScreen.module.css'
 
-// Four photos is enough for a home shelf and keeps the vision payload (and its
-// cost) bounded; `downscaleDataUrl` shrinks each one before it leaves the device.
-const MAX_SCAN_IMAGES = 4
 const MAX_SUGGESTIONS = 3
 
 interface Group {

@@ -89,6 +89,7 @@ src/
     aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
     firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse(), firebaseJudgeDuplicates(),
                   firebaseIdentifyBottles(), firebaseReconcileBottles()
+    limits.ts     Cost ceilings on an AI request (input chars, photo count/bytes, output tokens)
     image.ts      Browser canvas downscale + data-URL split for the photo scan
     backup.ts     Whole-library export/import (the only way data crosses an origin)
     shared.ts     Android share-target stash/consume helpers
@@ -285,6 +286,20 @@ and each has an ungated twin doing the same job by hand: `/new` for import,
 never gate one without leaving a manual path to the same result.
 
 Rule that still holds: never introduce a repo-side secret.
+
+**Every AI call is capped, and the transport is where it's enforced.**
+`import/limits.ts` owns the ceilings — pasted characters, photo count, bytes per
+photo, `maxOutputTokens` per call — and `firebaseAI.ts` checks them *before*
+reaching the model, so an over-long paste costs nothing. `downscaleDataUrl`
+steps JPEG quality down to fit the byte budget rather than rejecting a photo, so
+the transport's size check is a backstop that shouldn't fire.
+
+They live in their own module for two reasons, both of which will bite if you
+move them. `image.ts` needs the byte budget and is imported *eagerly* by the Bar
+tab, so pulling the constants from `aiShared.ts` would drag 28 KB of prompts
+into a chunk that loads for everyone who opens My Bar. And when the AI calls
+move behind a server proxy, that proxy has to enforce the same numbers — a limit
+only the client knows is a limit the client can remove.
 
 ### Import: what the AI decides, and what it admits to guessing
 `ImportScreen` makes **two** calls, and the second one is optional.
