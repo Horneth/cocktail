@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { SwipeableRow } from '../../components/SwipeableRow'
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, SparkleIcon } from '../../components/icons'
 import type { PantryItem } from '../../db/schema'
@@ -32,22 +32,24 @@ interface Group {
 }
 
 export function BarScreen() {
-  const navigate = useNavigate()
   const { barId, bars, setBarId, byId, makeableCount } = useAvailability()
-  const { items, have } = usePantry(barId)
+  const { items, have, loaded } = usePantry(barId)
   const cocktails = useCocktails()
   const catalog = useIngredientCatalog()
   const barCounts = useBottleCounts()
   const auth = useAuth()
   const [assumeStaples, setAssumeStaples] = useAssumeStaples()
 
+  const [params, setParams] = useSearchParams()
   const [managingBars, setManagingBars] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [addQuery, setAddQuery] = useState('')
   const [viewing, setViewing] = useState<PantryItem | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [scanBusy, setScanBusy] = useState(false)
+  const [scanIntent, setScanIntent] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [scanResults, setScanResults] = useState<ScanResult[] | null>(null)
 
@@ -78,6 +80,35 @@ export function BarScreen() {
     [items.length, drinks, byId, have, assumeStaples],
   )
 
+  // Every way into this screen that means "do something" arrives as a query
+  // param: the + sheet sends ?add / ?scan, a recipe ingredient sends ?bottle=…
+  // or ?add=<what it calls for>. Consume the intent, then strip it so Back
+  // doesn't reopen the sheet you just closed.
+  const scanEnabled = auth.aiAvailable
+  useEffect(() => {
+    const wantAdd = params.get('add')
+    const wantBottle = params.get('bottle')
+    const wantScan = params.get('scan')
+    if (!wantAdd && !wantBottle && !wantScan) return
+    if (wantBottle && !loaded) return // the shelf hasn't arrived yet
+
+    if (wantAdd) {
+      setAddQuery(wantAdd === '1' ? '' : wantAdd)
+      setAdding(true)
+    }
+    if (wantBottle) setViewing(items.find((i) => i.name === wantBottle) ?? null)
+    if (wantScan) setScanIntent(true)
+    setParams(new URLSearchParams(), { replace: true })
+  }, [params, items, loaded, setParams])
+
+  // Open the camera roll as soon as the intent and the sign-in line up — which
+  // may be a beat later than the tap, since restoring a session boots Firebase.
+  // The row below stays up either way, so a picker the browser declines to open
+  // (or one the user cancels) still leaves something to tap.
+  useEffect(() => {
+    if (scanIntent && scanEnabled) fileRef.current?.click()
+  }, [scanIntent, scanEnabled])
+
   const add = (bottles: BottleInput[]) => {
     if (barId && bottles.length) void bulkAddPantry(barId, bottles)
     setAdding(false)
@@ -92,9 +123,9 @@ export function BarScreen() {
       return next
     })
 
-  const scanEnabled = auth.aiAvailable
   const onScanFiles = async (files: FileList | null) => {
     if (!files || !files.length || !barId) return
+    setScanIntent(false)
     setScanBusy(true)
     setScanError(null)
     try {
@@ -132,10 +163,15 @@ export function BarScreen() {
 
   return (
     <div className={styles.screen}>
+      {/* No add buttons here: every way of putting something in the app is the
+          + in the tab bar, which lands back on this screen with ?add or ?scan.
+          Three competing adds on one screen was the reason it felt busy. */}
       <div className={styles.head}>
         <div className={styles.count}>
-          {items.length} bottle{items.length === 1 ? '' : 's'} · {makeableCount} drink
-          {makeableCount === 1 ? '' : 's'}
+          {items.length} bottle{items.length === 1 ? '' : 's'} ·{' '}
+          <Link className={styles.countLink} to="/browse?makeable=1">
+            {makeableCount} drink{makeableCount === 1 ? '' : 's'} ready
+          </Link>
         </div>
         <button className={styles.title} onClick={() => setManagingBars(true)}>
           {barName}
@@ -143,56 +179,18 @@ export function BarScreen() {
         </button>
       </div>
 
-      <button
-        className={styles.hero}
-        onClick={() => navigate(makeableCount > 0 ? '/browse?makeable=1' : '/browse')}
-      >
-        <span className={styles.heroNum}>{makeableCount}</span>
-        <span className={styles.heroText}>
-          drinks you can make
-          <span className={styles.heroHint}>
-            {empty ? 'Add your first bottle to get started' : 'from what’s on your shelf right now'}
-          </span>
-        </span>
-        <span className={styles.heroBtn}>View</span>
-      </button>
-
-      <div className={styles.paths}>
-        <button className={styles.path} onClick={() => setAdding(true)}>
-          <span className={styles.pathGlyph} aria-hidden>
-            🍾
-          </span>
-          <span className={styles.pathText}>
-            <span className={styles.pathTitle}>Add a bottle</span>
-            <span className={styles.pathSub}>Search your recipes or type any name</span>
-          </span>
-          <ChevronRightIcon size={20} className={styles.pathChevron} />
+      {/* Only while a scan is actually in flight or waiting on a sign-in. */}
+      {scanBusy && <p className={styles.scanBusy}>Reading your shelf…</p>}
+      {scanIntent && !scanBusy && scanEnabled && (
+        <button className={styles.scanAgain} onClick={() => fileRef.current?.click()}>
+          <SparkleIcon size={15} /> Choose shelf photos
         </button>
-
-        {scanEnabled && (
-          <button
-            className={styles.pathAccent}
-            onClick={() => fileRef.current?.click()}
-            disabled={scanBusy}
-          >
-            <span className={styles.pathGlyph} aria-hidden>
-              📷
-            </span>
-            <span className={styles.pathText}>
-              <span className={styles.pathTitle}>{scanBusy ? 'Reading your shelf…' : 'Scan my shelf'}</span>
-              <span className={styles.pathSub}>
-                {scanBusy ? 'This takes a few seconds' : 'Photograph the labels and we’ll sort them out'}
-              </span>
-            </span>
-            <SparkleIcon size={19} className={styles.pathSparkle} />
-          </button>
-        )}
-        {!scanEnabled && auth.configured && (
-          <button className={styles.signIn} onClick={() => void auth.signIn()}>
-            <SparkleIcon size={15} /> Sign in with Google to scan your shelf from a photo
-          </button>
-        )}
-      </div>
+      )}
+      {scanIntent && !scanEnabled && auth.configured && (
+        <button className={styles.signIn} onClick={() => void auth.signIn()}>
+          <SparkleIcon size={15} /> Sign in with Google to scan your shelf
+        </button>
+      )}
       <input
         ref={fileRef}
         type="file"
@@ -244,7 +242,7 @@ export function BarScreen() {
           </div>
           <p className={styles.emptyTitle}>{barName} is empty</p>
           <p className={styles.emptyHint}>
-            Add the bottles you own and every recipe learns what you can make.
+            Tap ＋ to add the bottles you own — every recipe then knows what you can make.
           </p>
         </div>
       ) : (
@@ -316,7 +314,11 @@ export function BarScreen() {
 
       <AddBottleSheet
         open={adding}
-        onClose={() => setAdding(false)}
+        initialQuery={addQuery}
+        onClose={() => {
+          setAdding(false)
+          setAddQuery('')
+        }}
         onAdd={add}
         catalog={catalog}
         have={have}

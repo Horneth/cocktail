@@ -15,6 +15,11 @@ import { MATCHABLE_CATEGORIES, categoryForName } from './spiritCategory'
 //     Only base-spirit families substitute (see MATCHABLE_CATEGORIES); a Campari
 //     must never stand in for a Chartreuse.
 
+// A shelf (`have`) is a set of match keys, and one bottle contributes up to two:
+// its normalized name and its family ('rum'). The family key is what carries a
+// stored — and user-corrected — category into the matching below; see
+// `shelfKeys` in hooks/useRecipes.ts, which is where a shelf is built.
+
 /** Normalize an ingredient/bottle name to a stable match key. */
 export function normIngredient(name: string): string {
   return name
@@ -59,6 +64,67 @@ interface Ctx {
   haveCategories: Set<string>
   byId: Map<string, Recipe>
   assumeStaples: boolean
+}
+
+/**
+ * The match keys one bottle puts on a shelf: its own normalized name, and its
+ * family.
+ *
+ * The family key is why correcting a bottle's category changes what you can
+ * make. A shelf used to be names alone and `categoriesOf` re-guessed the family
+ * from them, which threw away both the stored category (so the bottle sheet's
+ * type picker moved a label and nothing else) and anything normalization strips
+ * — "Smith & Cross" arrives here as "smith cross", which reads as no rum at all.
+ */
+export function shelfKeys(bottle: { name: string; label: string; category?: string }): string[] {
+  const family = bottle.category ?? categoryForName(bottle.label)
+  return family ? [bottle.name, family] : [bottle.name]
+}
+
+export type BottleMatch = 'exact' | 'category'
+
+/**
+ * Whether one bottle covers one ingredient call, and how — the same two rules
+ * `makeable()` applies below, just answered for a single pair instead of a whole
+ * inventory.
+ *
+ * It exists so the *links* between a bottle and a recipe can't drift from the
+ * availability maths: a screen that says "any whiskey works here" and a bottle
+ * that lists no recipes were the same rules asked twice and answered differently.
+ * Anything that wants to say "this bottle and this ingredient are the same thing"
+ * has to come through here.
+ */
+export function bottleCovers(
+  bottleName: string,
+  ingredientName: string,
+  /** the bottle's stored family, which beats guessing from the name */
+  bottleCategory?: string,
+): BottleMatch | null {
+  const bottle = normIngredient(bottleName)
+  const ingredient = normIngredient(ingredientName)
+  if (!bottle || !ingredient) return null
+  if (bottle === ingredient) return 'exact'
+  const cat = bottleCategory ?? categoryForName(bottleName)
+  if (cat && MATCHABLE_CATEGORIES.has(cat) && categoryForName(ingredientName) === cat) return 'category'
+  return null
+}
+
+/**
+ * The bottle on a shelf that satisfies an ingredient — the exact one if it's
+ * stocked, otherwise a same-family stand-in. Powers "tap an ingredient, land on
+ * the bottle you'd actually reach for".
+ */
+export function bottleFor<T extends { label: string; category?: string }>(
+  ingredientName: string,
+  bottles: readonly T[],
+): { bottle: T; via: BottleMatch } | null {
+  let substitute: T | undefined
+  for (const bottle of bottles) {
+    const via = bottleCovers(bottle.label, ingredientName, bottle.category)
+    if (via === 'exact') return { bottle, via }
+    if (via === 'category' && !substitute) substitute = bottle
+  }
+  return substitute ? { bottle: substitute, via: 'category' } : null
 }
 
 /** The matchable spirit categories represented in a bar (e.g. a stocked rum → 'rum'). */

@@ -1,5 +1,6 @@
 import type { Recipe } from '../db/schema'
-import { makeableIds, missingBottles, normIngredient } from './availability'
+import { bottleCovers, makeableIds, missingBottles, normIngredient } from './availability'
+import { categoryForName } from './spiritCategory'
 
 // "What do I get for adding this bottle?" — the payoff signal the Bar screen
 // shows next to every add. Deliberately computed on-device from the user's own
@@ -22,6 +23,42 @@ export interface UnlockSuggestion extends UnlockResult {
 
 const EMPTY: UnlockResult = { unlocks: 0, recipeIds: [] }
 
+function usesBottle(
+  recipe: Recipe,
+  bottleName: string,
+  category: string | undefined,
+  byId: Map<string, Recipe>,
+  visited: Set<string>,
+): boolean {
+  if (visited.has(recipe.id)) return false // cycle guard
+  visited.add(recipe.id)
+  for (const ing of recipe.ingredients ?? []) {
+    if (bottleCovers(bottleName, ing.name, category)) return true
+    if (ing.subRecipeId) {
+      const sub = byId.get(ing.subRecipeId)
+      if (sub && usesBottle(sub, bottleName, category, byId, visited)) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Every recipe this bottle has a part in — the other direction of the same
+ * question the availability engine answers, so "any whiskey" reads the same from
+ * the bottle as it does from the drink. Sub-recipes count: a rum in a syrup is a
+ * rum in every cocktail that pours it.
+ */
+export function recipesUsingBottle(
+  bottleName: string,
+  recipes: Recipe[],
+  byId: Map<string, Recipe>,
+  /** the bottle's stored family, when the caller has one */
+  category?: string,
+): Recipe[] {
+  if (!bottleName.trim()) return []
+  return recipes.filter((r) => usesBottle(r, bottleName, category, byId, new Set()))
+}
+
 /**
  * Exactly how many recipes adding `labels` would unlock: |makeable(have ∪ labels)|
  * − |makeable(have)|. Correct for combinations (two bottles that only pay off
@@ -41,6 +78,11 @@ export function unlocksFor(
   for (const label of labels) {
     const key = normIngredient(label)
     if (key) after.add(key)
+    // The family key too, exactly as a real shelf would carry it — otherwise a
+    // bottle whose name normalizes past recognition ("Smith & Cross") previews
+    // as unlocking nothing and then unlocks drinks the moment it's saved.
+    const family = categoryForName(label)
+    if (family) after.add(family)
   }
   if (after.size === have.size) return EMPTY
 

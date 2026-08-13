@@ -44,7 +44,7 @@ npm run test:watch # vitest in watch mode
 npm run typecheck  # tsc -b --noEmit
 ```
 
-Both `npm run typecheck` and `npm test` are green on the current tree (181 tests).
+Both `npm run typecheck` and `npm test` are green on the current tree (222 tests).
 Run them before committing — they are the fast feedback loop. There is **no
 linter/formatter** configured; match the surrounding code style.
 
@@ -67,14 +67,16 @@ src/
   domain/         Pure, framework-free logic — unit-tested, no React, no Dexie imports
     scaling.ts    Serving rescale + per-ingredient nudge (non-destructive)
     units.ts      oz⇄ml conversion, bar-fraction rendering (¾ oz)
-    availability.ts  "Can I make this?" matching (staples + recursion + category substitution)
+    availability.ts  "Can I make this?" matching (staples + recursion + category substitution),
+                  plus shelfKeys() / bottleCovers() / bottleFor() — the same rules asked about one pair
     spiritCategory.ts  categoryForName() — infers a spirit category from a bottle name (brands too)
     vocab.ts      TAGS / METHODS / GLASSES — the one list the prompt, editor and import picker share
     dupeMatch.ts  normalizeRecipeName() + shortlistCandidates() — local phase of duplicate detection
     spirits.ts    Spirit tile metadata, known-spirit order, generated art for custom spirits
     spiritVisual.ts  spiritVisual() — resolves a spirit to the redesign's tile colours/glyph
     search.ts     Recipe text search
-    barInsights.ts   unlocksFor() / oneAwaySuggestions() — "what does this bottle unlock?", on-device
+    barInsights.ts   unlocksFor() / oneAwaySuggestions() / recipesUsingBottle() — "what does this
+                  bottle unlock?" and "what does it pour into?", on-device
     bottleMatch.ts   Local near-duplicate detection for the shelf scan (candidates, verdicts)
     pantry.ts     Bar-scoped bottle add/remove/patch helpers (take a barId)
     bars.ts       Bar CRUD + ensureDefaultBar()
@@ -101,6 +103,7 @@ src/
     useAvailability.ts  Active bar's `have` set + the makeable check, for the screens
     useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId)
     useAuth.ts      Optional Google sign-in; `aiAvailable` is the single gate for AI features
+    useWakeLock.ts  Holds the screen awake while a screen is mounted (recipe detail)
 
   screens/        One component per route (+ co-located *.module.css)
     HomeScreen, SearchScreen, BrowseScreen, RecipeDetailScreen,
@@ -110,15 +113,34 @@ src/
                   ScanReviewSheet, plus sheet.module.css for their shared chrome
 
   components/     Reusable UI (TabBar, RecipeRow, IngredientRow, AddSheet,
-                  BottomSheet, ServingStepper, SwipeableRow, ErrorBoundary, icons)
+                  SearchLauncher, BottomSheet, ServingStepper, SwipeableRow,
+                  ErrorBoundary, icons)
 ```
 
 **Routes** (hash-based, see `main.tsx`): `/` (home), `/search`, `/browse`,
 `/recipe/:id`, `/recipe/:id/edit`, `/new`, `/import`, `/bar`, `/settings`.
 
+Query params carry the links *between* screens, so every one of them is a URL
+someone can land on cold: `/bar?add=1` (open the bottle picker), `/bar?add=<name>`
+(prefilled with what a recipe called for), `/bar?bottle=<key>` (open that bottle's
+sheet), `/bar?scan=1`, `/browse?ingredient=<label>&family=<category>` (everything
+this bottle pours into), `/browse?makeable=1`, `/search?q=`. `BarScreen` consumes
+its params in an effect and strips them, so Back doesn't reopen a sheet.
+
 Navigation is the persistent **`TabBar`** (Home · Search · add-FAB · Browse ·
 My Bar). The FAB opens **`AddSheet`** over a **`BottomSheet`** — both are
 buttons with `aria-label`s, not links, which matters when writing selectors.
+
+**Every add goes through that FAB** — recipe *and* bottle. `AddSheet` is the only
+menu of add actions in the app; the bottle rows just navigate to `/bar?add` /
+`?scan` and let My Bar do the work. The Bar screen used to carry its own "Add a
+bottle" and "Scan my shelf" cards next to the FAB, which made "which add is this
+one?" a question the user had to answer. Don't add a second entry point; extend
+this sheet.
+
+**Search is one screen.** `SearchScreen` owns the only live search input in the
+app; Home and Browse carry the same `SearchLauncher` pill into it. Browse's chips
+filter what's already on screen — that's a different job, and it isn't search.
 
 ## Key concepts — read these before making changes
 
@@ -185,11 +207,18 @@ from the bottle sheet — the guess is good but not always right, and it decides
 what the bottle substitutes for. `label` derives the primary key, so `updateBottle`
 patches category/brand only; renaming is a remove + add.
 
-**The Bar screen has two deliberately separate paths.** `AddBottleSheet` is the
-manual one: it imports nothing from `import/` or `auth/` and must stay that way —
-it is the path that works offline, signed out, forever. `ScanReviewSheet` is the
-AI one. "What does this bottle unlock?" is answered by `domain/barInsights.ts` on
-both paths and never involves AI.
+**My Bar keeps two deliberately separate paths.** `AddBottleSheet` is the manual
+one: it imports nothing from `import/` or `auth/` and must stay that way — it is
+the path that works offline, signed out, forever. `ScanReviewSheet` is the AI one.
+Both are reached from the FAB's `AddSheet` now rather than from buttons on the Bar
+screen, but they are still two paths and the manual one still has to stand alone.
+"What does this bottle unlock?" is answered by `domain/barInsights.ts` on both and
+never involves AI.
+
+A bottle nobody wrote a recipe for is a **first-class row** in `AddBottleSheet`,
+not a quoted fallback: same shape as a suggested one, same type control, same
+unlock count (a rye you typed covers every bourbon call, so the count is real).
+Picked bottles the library never mentioned stay listed until you confirm.
 
 `domain/availability.ts` matches a recipe's ingredients against that set. Three
 rules keep it usable: an **assume-staples** switch (on by default, global) treats
@@ -201,6 +230,33 @@ rum" is satisfied by any rum). Only base-spirit families in `MATCHABLE_CATEGORIE
 Chartreuse. Matching keys go through `normIngredient()`; category inference (also
 used to group the Bar screen and label scanned bottles) goes through
 `categoryForName()`.
+
+**A shelf is a set of match keys, and a bottle contributes two** — its normalized
+name *and* its family (`shelfKeys()`, used by `usePantry`). The family key is what
+carries the stored category into matching. Without it, `categoriesOf` re-guessed
+the family from the name alone, so correcting a bottle's type in the bottle sheet
+changed a label and nothing else, and a "Smith & Cross" (which normalizes to
+"smith cross") stocked no rum at all.
+
+### Bottles and recipes point at each other
+Availability is symmetric, and the UI has to be too — a recipe that says "any
+whiskey works" and a bottle of rye that lists no recipes are the same rules
+answered two different ways. So there is **one** matcher, and both directions call
+it: **`bottleCovers(bottle, ingredient, category?)`** returns `'exact'`,
+`'category'` or `null` by the same rules `makeable()` applies to a whole shelf.
+
+- **Bottle → recipes.** `recipesUsingBottle()` (barInsights) lists every drink the
+  bottle has a part in, sub-recipes included, ready-now ones first. "See all" goes
+  to `/browse?ingredient=…&family=…` — the family travels so the full list matches
+  what the sheet showed even when the user corrected a wrong guess.
+- **Recipe → bottle.** `bottleFor()` finds the bottle on the shelf that covers an
+  ingredient (exact first, then a same-family stand-in). `RecipeDetailScreen` links
+  each line to `/bar?bottle=…`, noting *your Rittenhouse Rye* when it's a stand-in,
+  and a missing line to `/bar?add=<what it calls for>`.
+
+If you add a third way to ask "does this bottle count for this ingredient", make
+it call `bottleCovers` — do not re-derive it from substring matching, which is
+what the bottle sheet used to do and why it looked empty.
 
 ### Photo → bar (Gemini vision), in two passes
 "Scan my shelf" downscales photos client-side (`import/image.ts`, max 4) and runs
@@ -279,10 +335,13 @@ using. Signed out, `/import` is a sign-in panel and `AddSheet` hides the import
 row when the build has no AI at all — `/new` (the manual editor) is the offline
 path, and everything else in the app still works signed out and offline.
 
-Import and the Bar screen's **shelf scan** are the *only two* gated entry points,
-and each has an ungated twin doing the same job by hand: `/new` for import,
-`AddBottleSheet` for the scan. Never gate a third without saying so here, and
-never gate one without leaving a manual path to the same result.
+Import and the **shelf scan** are the *only two* gated entry points, and each has
+an ungated twin doing the same job by hand, listed next to it in the same
+`AddSheet`: *Build a recipe* for import, *Add a bottle* for the scan. Never gate a
+third without saying so here, and never gate one without leaving a manual path to
+the same result. `AddSheet` gates both rows on the **build** config only (never on
+`useAuth`, which it must not boot from every screen); a signed-out tap on *Scan my
+shelf* lands on My Bar, which offers the sign-in.
 
 Rule that still holds: never introduce a repo-side secret.
 
@@ -336,7 +395,14 @@ in `main.tsx` and don't block boot.
 Drives a **preview build** (`npm run build && npm run preview`, port `4173`)
 through every screen, screenshots to `scripts/shots/` (gitignored), and asserts
 the backup round trip: export a real file, wipe IndexedDB, re-import, same
-recipes back. Prints ok/FAIL per check and exits non-zero.
+recipes back. It also walks the FAB → *Add a bottle* → My Bar hand-off and both
+directions of the bottle↔recipe link, using a bottle (Smith & Cross) no seeded
+recipe names — so it only passes if the family rules are doing the work.
+Prints ok/FAIL per check and exits non-zero.
+
+> **Gotcha:** `go()` reloads, and `BarScreen` strips its query params as it
+> consumes them, so a `goto` + `reload` of `#/bar?add=1` reloads the *stripped*
+> URL and the sheet never opens. Load param URLs with a single `goto`.
 
 ```bash
 npx playwright install chromium   # once per machine, not per checkout
@@ -426,6 +492,18 @@ library in one transaction. Two invariants worth keeping:
   panel, or *what will this overwrite* before a destructive action. If you can't
   name the question, cut the sentence. The same goes for the AI's own voice:
   never narrate what the app is about to do, and never apologise for it.
+- **No decorative CTAs.** A big button that only scrolls the page down (the
+  recipe screen's old *Start making*) costs a fixed strip of every screen and
+  does nothing a thumb wasn't already doing. Same instinct as the subtitles: if
+  you can't say what tapping it changes, it isn't a button.
+- **A count is a line, not a billboard.** "N drinks you can make" is a fact worth
+  one row on Home and one line in My Bar's header — it was a full-width accent
+  card in both places, which turned every visit into an argument about the size
+  of your bar.
+- **A recipe holds the screen awake** (`useWakeLock` on `RecipeDetailScreen`).
+  You read it with wet hands and no free thumb; the auto-dim lands around the
+  second ingredient. Best-effort — an unsupported browser or a refused request
+  just behaves as before.
 - **Comments in this codebase explain *why*** (invariants, edge cases,
   history). Match that: comment the non-obvious reasoning, not the obvious code.
 - No secrets in the repo, ever. The Gemini key lives in the Firebase project and

@@ -1,28 +1,44 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { RecipeRow } from '../components/RecipeRow'
 import { SearchIcon } from '../components/icons'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { matchesQuery } from '../domain/search'
+import { tagEmoji } from '../domain/vocab'
 import { useCocktails, useComponents } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
 import styles from './SearchScreen.module.css'
 
-const SUGGESTIONS: { label: string; emoji: string; query?: string; makeable?: boolean }[] = [
-  { label: 'Whatever I can make', emoji: '🍸', makeable: true },
-  { label: 'Gin', emoji: '🍸', query: 'gin' },
-  { label: 'Sour', emoji: '🍋', query: 'sour' },
-  { label: 'Lime', emoji: '🟢', query: 'lime' },
-  { label: 'Low-ABV', emoji: '🍃', query: 'low' },
-  { label: 'Nightcap', emoji: '🌙', query: 'nightcap' },
-]
+const MAX_TAG_CHIPS = 6
 
+/**
+ * The app's one search field. Home and Browse carry a launcher pill that lands
+ * here rather than each growing an input of their own.
+ *
+ * The query lives in the URL so a search can be linked to, and so backing out of
+ * a recipe returns to the results you left rather than an empty box.
+ */
 export function SearchScreen() {
   const navigate = useNavigate()
   const cocktails = useCocktails()
   const components = useComponents()
-  const { badgeFor } = useAvailability()
-  const [query, setQuery] = useState('')
+  const { badgeFor, have } = useAvailability()
+  const [params, setParams] = useSearchParams()
+
+  const query = params.get('q') ?? ''
+  const setQuery = (value: string) =>
+    setParams(value ? { q: value } : {}, { replace: true })
+
+  // Starting points taken from the library itself — a hard-coded list ends up
+  // advertising tags the user's own recipes don't have.
+  const tags = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const r of cocktails ?? []) for (const t of r.tags) counts.set(t, (counts.get(t) ?? 0) + 1)
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, MAX_TAG_CHIPS)
+      .map(([t]) => t)
+  }, [cocktails])
 
   const q = query.trim()
   const results = useMemo(() => {
@@ -55,14 +71,16 @@ export function SearchScreen() {
         <div>
           <div className={styles.suggestLabel}>Try searching</div>
           <div className={styles.suggestions}>
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s.label}
-                className={styles.chip}
-                onClick={() => (s.makeable ? navigate('/browse?makeable=1') : setQuery(s.query ?? ''))}
-              >
-                <span>{s.emoji}</span>
-                {s.label}
+            {have.size > 0 && (
+              <button className={styles.chip} onClick={() => navigate('/browse?makeable=1')}>
+                <span>🍸</span>
+                Whatever I can make
+              </button>
+            )}
+            {tags.map((t) => (
+              <button key={t} className={styles.chip} onClick={() => setQuery(t)}>
+                <span>{tagEmoji(t)}</span>
+                {t}
               </button>
             ))}
           </div>

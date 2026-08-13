@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { Recipe } from '../db/schema'
 import {
+  bottleCovers,
+  bottleFor,
   canMake,
   categorySubstitutions,
   isStaple,
   makeableIds,
   missingBottles,
   normIngredient,
+  shelfKeys,
 } from './availability'
 
 let n = 0
@@ -162,5 +165,71 @@ describe('category substitution', () => {
     expect(
       categorySubstitutions(daiquiri, new Set([normIngredient('White rum')]), true),
     ).toEqual([])
+  })
+})
+
+describe('bottleCovers / bottleFor', () => {
+  it('answers the same question canMake does, one pair at a time', () => {
+    // Whatever canMake accepts from a one-bottle bar, bottleCovers must too —
+    // that agreement is the whole reason it exists.
+    expect(bottleCovers('rum', 'White rum')).toBe('category')
+    expect(canMake(daiquiri, new Set([normIngredient('rum')]), byId, true)).toBe(true)
+
+    expect(bottleCovers('Woodford Reserve', 'Bourbon')).toBe('category')
+    expect(bottleCovers('Campari', 'Green Chartreuse')).toBe(null)
+  })
+
+  it('reports an exact bottle as exact, whatever the spelling', () => {
+    expect(bottleCovers('White Rum', 'white rum')).toBe('exact')
+    expect(bottleCovers('Lime juice', 'Fresh lime juice')).toBe('exact')
+  })
+
+  it('does not match unrelated names', () => {
+    expect(bottleCovers('Gin', 'Lime juice')).toBe(null)
+    expect(bottleCovers('', 'Gin')).toBe(null)
+  })
+
+  it('prefers the exact bottle over a same-family stand-in', () => {
+    const shelf = [{ label: 'Rittenhouse Rye' }, { label: 'Bourbon' }]
+    expect(bottleFor('Bourbon', shelf)).toEqual({ bottle: { label: 'Bourbon' }, via: 'exact' })
+  })
+
+  it('falls back to a stand-in from the same family', () => {
+    const shelf = [{ label: 'Campari' }, { label: 'Rittenhouse Rye' }]
+    expect(bottleFor('Bourbon', shelf)).toEqual({
+      bottle: { label: 'Rittenhouse Rye' },
+      via: 'category',
+    })
+  })
+
+  it('finds nothing on a shelf that cannot cover the call', () => {
+    expect(bottleFor('Green Chartreuse', [{ label: 'Campari' }])).toBe(null)
+  })
+})
+
+describe('shelfKeys', () => {
+  const shelf = (...bottles: { name: string; label: string; category?: string }[]) =>
+    new Set(bottles.flatMap(shelfKeys))
+
+  it('carries a family the bottle name alone would lose', () => {
+    // "Smith & Cross" normalizes to "smith cross"; guessing a family from that
+    // key is how a stocked rum used to make the Daiquiri unmakeable.
+    const rum = { name: normIngredient('Smith & Cross'), label: 'Smith & Cross', category: 'rum' }
+    expect(canMake(daiquiri, shelf(rum), byId, true)).toBe(true)
+  })
+
+  it('lets a corrected category decide what the bottle substitutes for', () => {
+    const mystery = { name: 'grandpa s bottle', label: "Grandpa's bottle" }
+    expect(canMake(oldFashioned, shelf(mystery), byId, true)).toBe(false)
+    expect(canMake(oldFashioned, shelf({ ...mystery, category: 'whiskey' }), byId, true)).toBe(true)
+  })
+
+  it('still refuses a stand-in from a family that does not substitute', () => {
+    const amaro = { name: 'campari', label: 'Campari', category: 'liqueur' }
+    expect(canMake(negroni, shelf(amaro), byId, true)).toBe(false)
+  })
+
+  it('gives a bottle with no family a single key', () => {
+    expect(shelfKeys({ name: 'lime juice', label: 'Lime juice' })).toEqual(['lime juice'])
   })
 })

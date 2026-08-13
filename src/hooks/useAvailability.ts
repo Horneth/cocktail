@@ -13,7 +13,7 @@ export function useAvailability() {
   const cocktails = useCocktails()
   const components = useComponents()
   const { barId, bars, setBarId } = useActiveBar()
-  const { have } = usePantry(barId)
+  const { items, have } = usePantry(barId)
   const [assumeStaples] = useAssumeStaples()
 
   const byId = useMemo(
@@ -35,6 +35,8 @@ export function useAvailability() {
   )
 
   return {
+    /** the active bar's bottles, for screens that link to one by name */
+    items,
     have,
     byId,
     makeable,

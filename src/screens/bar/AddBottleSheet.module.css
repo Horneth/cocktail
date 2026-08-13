@@ -22,42 +22,6 @@
   border: none;
 }
 
-/* Free-text add: the name on the left, its inferred type on the right so a
-   wrong guess is visible and fixable before it becomes a stored category. */
-.custom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.customAdd {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 13px 15px;
-  border-radius: var(--radius-sm);
-  border: 1px dashed var(--accent);
-  color: var(--accent);
-  font-weight: 700;
-}
-.customName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.customCat {
-  flex: 0 0 auto;
-  padding: 11px 13px;
-  border-radius: var(--radius-pill);
-  background: var(--card);
-  border: 1px solid var(--line);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--muted);
-}
-
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -85,20 +49,55 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
+  margin-bottom: 8px;
   padding: 11px 13px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   transition: transform 0.1s ease;
 }
-.row:active {
+button.row:active {
   transform: scale(0.99);
 }
 .rowOn {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+/* The bottle you typed, in the same shape as every suggested one. It used to be
+   a dashed “Add “x”” chip, which read as a fallback for a name the app didn't
+   recognise rather than the ordinary thing it is. */
+.rowTyped {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+.typeBtn {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.addBtn {
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+.remove {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--faint);
+  font-size: 14px;
 }
 .glyph {
   flex: 0 0 auto;
@@ -116,8 +115,14 @@
   align-items: flex-start;
   gap: 1px;
   min-width: 0;
+  padding: 0;
+  text-align: left;
 }
 .label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 15px;
   font-weight: 700;
   color: var(--ink);

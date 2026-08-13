@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Recipe } from '../db/schema'
 import { normIngredient } from './availability'
-import { oneAwaySuggestions, unlocksFor } from './barInsights'
+import { oneAwaySuggestions, recipesUsingBottle, unlocksFor } from './barInsights'
 
 let n = 0
 function recipe(partial: Partial<Recipe> & { name: string; ingredients: Recipe['ingredients'] }): Recipe {
@@ -132,5 +132,31 @@ describe('oneAwaySuggestions', () => {
 
   it('returns nothing for an empty library', () => {
     expect(oneAwaySuggestions([], byId, new Set(), true)).toEqual([])
+  })
+})
+
+describe('recipesUsingBottle', () => {
+  it('lists a drink whose exact bottle this is', () => {
+    expect(recipesUsingBottle('Gin', cocktails, byId).map((r) => r.id)).toEqual([
+      'negroni',
+      'martini',
+    ])
+  })
+
+  it('lists a drink the bottle only covers by family', () => {
+    // The Daiquiri calls for "White rum" — a bottle of Smith & Cross is still
+    // the bottle you would reach for, exactly as canMake would agree.
+    expect(recipesUsingBottle('Smith & Cross', cocktails, byId).map((r) => r.id)).toEqual([
+      'daiquiri',
+    ])
+  })
+
+  it('follows sub-recipes', () => {
+    expect(recipesUsingBottle('White sugar', cocktails, byId).map((r) => r.id)).toEqual(['daiquiri'])
+  })
+
+  it('lists nothing for a bottle no recipe calls for', () => {
+    expect(recipesUsingBottle('Green Chartreuse', cocktails, byId)).toEqual([])
+    expect(recipesUsingBottle('   ', cocktails, byId)).toEqual([])
   })
 })

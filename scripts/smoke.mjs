@@ -178,11 +178,18 @@ check(
 await shot('11-import-gate')
 
 // My Bar's manual path is the other half of "signed out is the whole product":
-// adding a bottle must never need AI, a sign-in, or a network.
+// adding a bottle must never need AI, a sign-in, or a network. Every add now
+// starts at the tab bar's +, so this also proves that hand-off still lands.
 await go('#/bar')
+await page.locator('button[aria-label="Add"]').click()
 await page.locator('button', { hasText: 'Add a bottle' }).click()
+await page.waitForTimeout(500)
+check(
+  'the + sheet opens the bottle picker on My Bar',
+  await page.locator('input[aria-label="Search or type a bottle"]').isVisible(),
+)
 await page.locator('input[aria-label="Search or type a bottle"]').fill('Smith & Cross')
-await page.locator('button', { hasText: 'Add “Smith & Cross”' }).click()
+await page.locator('button[aria-label="Add Smith & Cross"]').click()
 await page.locator('button', { hasText: /^Add 1 bottle/ }).click()
 await page.waitForTimeout(600)
 check(
@@ -193,6 +200,30 @@ check(
 // that is the stored category doing its job.
 check('the new bottle is categorized', (await page.locator('text=/^Rum$/').count()) > 0)
 await shot('12-bar-manual-add')
+
+// ── Bottles and recipes point at each other ─────────────────────────────────
+// No seeded recipe names Smith & Cross, so this only works if both directions
+// go through the availability rules: the bottle lists the rum drinks it covers,
+// and an ingredient line leads back to My Bar (to the bottle, or to adding it).
+await page.locator('button', { hasText: 'Smith & Cross' }).click()
+await page.waitForTimeout(400)
+check(
+  'a bottle lists the drinks it pours, family included',
+  (await page.locator('text=/Pours in [1-9]/').count()) > 0,
+)
+await shot('13-bottle-sheet')
+
+await go('#/')
+await page.locator('a[href^="#/recipe/"]').first().click()
+await page.waitForTimeout(400)
+check(
+  'a recipe links its ingredients into My Bar',
+  (await page.locator('a[href^="#/bar"]').count()) > 0,
+)
+check(
+  'the recipe screen has no bottom CTA',
+  (await page.locator('button', { hasText: 'Start making' }).count()) === 0,
+)
 
 // ── Backup round trip ───────────────────────────────────────────────────────
 // The reason this feature exists is the origin move, so a green unit test isn't
