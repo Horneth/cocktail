@@ -73,12 +73,6 @@
   font-weight: 600;
   color: var(--muted);
 }
-.subNote {
-  margin-top: 4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--accent);
-}
 
 /* ── Body ──────────────────────────────────────────────────────────────── */
 .body {
@@ -88,9 +82,9 @@
 .avail {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 18px;
+  gap: 10px;
+  padding: 11px 12px 11px 16px;
+  border-radius: 999px;
 }
 .availReady {
   background: var(--ready-bg);
@@ -101,23 +95,13 @@
   color: var(--missing-fg);
 }
 .availEmoji {
-  font-size: 20px;
-}
-.availText {
-  flex: 1;
-  min-width: 0;
+  font-size: 18px;
 }
 .availTitle {
+  flex: 1;
+  min-width: 0;
   font-size: 15px;
   font-weight: 800;
-}
-.availSub {
-  font-size: 12.5px;
-  font-weight: 500;
-  opacity: 0.85;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .availBtn {
   flex: 0 0 auto;
@@ -361,37 +345,8 @@
   color: #fff;
 }
 
+/* The screen ends where the content does — there is no fixed CTA under it any
+   more, just room to scroll the last line clear of the home indicator. */
 .bottomSpace {
-  height: 96px;
-}
-
-/* fixed bottom CTA */
-.ctaWrap {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  width: min(440px, 100%);
-  margin-inline: auto;
-  padding: 14px 20px calc(18px + var(--safe-bottom));
-  background: linear-gradient(transparent, var(--paper) 34%);
-}
-.cta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  width: 100%;
-  padding: 16px;
-  border-radius: 20px;
-  background: var(--accent-grad);
-  box-shadow: var(--shadow-accent);
-  color: #fff;
-  font-size: 16.5px;
-  font-weight: 800;
-  transition: transform 0.1s ease;
-}
-.cta:active {
-  transform: scale(0.98);
+  height: calc(40px + var(--safe-bottom));
 }

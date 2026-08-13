@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BottomSheet } from '../../components/BottomSheet'
-import { CheckIcon, PlusIcon, SearchIcon } from '../../components/icons'
+import { CheckIcon, SearchIcon } from '../../components/icons'
 import type { Recipe } from '../../db/schema'
 import { normIngredient } from '../../domain/availability'
 import { oneAwaySuggestions, unlocksFor } from '../../domain/barInsights'
@@ -22,6 +22,8 @@ interface Props {
   cocktails: Recipe[]
   byId: Map<string, Recipe>
   assumeStaples: boolean
+  /** prefill, e.g. the ingredient a recipe sent you here to buy */
+  initialQuery?: string
 }
 
 interface Suggestion extends CatalogItem {
@@ -33,10 +35,17 @@ interface Suggestion extends CatalogItem {
 // catalog is sorted by payoff first, so the tail is the least useful part.
 const MAX_SUGGESTIONS = 40
 
+// The key the category picker uses for the not-yet-added typed name.
+const TYPED = '__typed__'
+
 /**
  * The manual path: add bottles with no AI, no sign-in and no network. Deliberately
  * imports nothing from `import/` or `auth/` — this is the sheet that has to work
  * for everyone, offline, forever.
+ *
+ * A bottle no recipe mentions is a first-class row here, not a consolation
+ * prize: same shape, same type control, same unlock count as anything the
+ * library suggested. Your shelf is the fact; the recipes are the guesses.
  */
 export function AddBottleSheet({
   open,
@@ -47,23 +56,25 @@ export function AddBottleSheet({
   cocktails,
   byId,
   assumeStaples,
+  initialQuery,
 }: Props) {
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<Map<string, BottleInput>>(new Map())
-  const [customCategory, setCustomCategory] = useState<string | null>(null)
-  const [pickingCategory, setPickingCategory] = useState(false)
+  const [typedCategory, setTypedCategory] = useState<string | null>(null)
+  /** which row has its type picker open (TYPED for the one being typed) */
+  const [picking, setPicking] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
-    setQuery('')
+    setQuery(initialQuery ?? '')
     setPicked(new Map())
-    setCustomCategory(null)
-    setPickingCategory(false)
+    setTypedCategory(null)
+    setPicking(null)
     // A phone keyboard covering half the sheet on open is worse than one tap,
     // so focus without forcing the keyboard up until the user aims at the field.
     inputRef.current?.focus({ preventScroll: true })
-  }, [open])
+  }, [open, initialQuery])
 
   // Bottles the user doesn't have yet, best payoff first. The unlock counts come
   // from the same on-device engine the Bar screen uses — nothing is sent anywhere.
@@ -84,12 +95,18 @@ export function AddBottleSheet({
     return list.slice(0, MAX_SUGGESTIONS)
   }, [suggestions, q])
 
-  const customKey = normIngredient(q)
+  const typedKey = normIngredient(q)
   // Offer a free-text add only when the typed name isn't already an option —
   // in the catalog, on the shelf, or picked in this session.
-  const showCustom =
-    !!customKey && !have.has(customKey) && !suggestions.some((s) => s.name === customKey) && !picked.has(customKey)
-  const customGuess = customCategory ?? (q ? categoryForName(q) : undefined)
+  const showTyped =
+    !!typedKey && !have.has(typedKey) && !suggestions.some((s) => s.name === typedKey) && !picked.has(typedKey)
+  const typedGuess = typedCategory ?? (q ? categoryForName(q) : undefined)
+  // A bottle nobody wrote a recipe for can still unlock drinks — a rye covers
+  // every bourbon call. Worth saying, and it's the same on-device count.
+  const typedUnlocks = useMemo(
+    () => (showTyped ? unlocksFor([q], cocktails, byId, have, assumeStaples).unlocks : 0),
+    [showTyped, q, cocktails, byId, have, assumeStaples],
+  )
 
   const toggle = (name: string, bottle: BottleInput) =>
     setPicked((prev) => {
@@ -99,14 +116,26 @@ export function AddBottleSheet({
       return next
     })
 
-  const addCustom = () => {
-    if (!showCustom) return
-    toggle(customKey, { label: q, ...(customGuess ? { category: customGuess } : {}) })
+  const setCategory = (name: string, category: string) =>
+    setPicked((prev) => {
+      const bottle = prev.get(name)
+      if (!bottle) return prev
+      return new Map(prev).set(name, { ...bottle, category })
+    })
+
+  const addTyped = () => {
+    if (!showTyped) return
+    toggle(typedKey, { label: q, ...(typedGuess ? { category: typedGuess } : {}) })
     setQuery('')
-    setCustomCategory(null)
-    setPickingCategory(false)
+    setTypedCategory(null)
+    setPicking(null)
     inputRef.current?.focus()
   }
+
+  // Picked bottles the library never mentioned would otherwise vanish the moment
+  // the field clears — the count at the bottom being the only trace of them.
+  const catalogKeys = useMemo(() => new Set(catalog.map((c) => c.name)), [catalog])
+  const customPicks = [...picked.entries()].filter(([key]) => !catalogKeys.has(key))
 
   const chosen = [...picked.values()]
   const total = useMemo(
@@ -115,11 +144,27 @@ export function AddBottleSheet({
     [chosen, cocktails, byId, have, assumeStaples],
   )
 
+  const categoryChips = (selected: string | undefined, onPick: (key: string) => void) => (
+    <div className={styles.chips}>
+      {KNOWN_SPIRITS.map((key) => {
+        const v = spiritVisual(key)
+        return (
+          <button
+            key={key}
+            className={`${styles.chip} ${selected === key ? styles.chipOn : ''}`}
+            onClick={() => onPick(key)}
+          >
+            <span aria-hidden>{v.emoji}</span> {v.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <BottomSheet open={open} onClose={onClose} draggable>
       <div className={sheet.head}>
         <h2 className={sheet.title}>Add a bottle</h2>
-        <p className={sheet.subtitle}>Pick as many as you like — nothing is saved until you confirm.</p>
       </div>
 
       <div className={styles.search}>
@@ -130,10 +175,10 @@ export function AddBottleSheet({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
-            setCustomCategory(null)
-            setPickingCategory(false)
+            setTypedCategory(null)
+            setPicking(null)
           }}
-          onKeyDown={(e) => e.key === 'Enter' && addCustom()}
+          onKeyDown={(e) => e.key === 'Enter' && addTyped()}
           placeholder="Search or type a bottle…"
           aria-label="Search or type a bottle"
           autoComplete="off"
@@ -142,45 +187,83 @@ export function AddBottleSheet({
         />
       </div>
 
-      {showCustom && (
-        <div className={styles.custom}>
-          <button className={styles.customAdd} onClick={addCustom}>
-            <PlusIcon size={16} />
-            <span className={styles.customName}>Add “{q}”</span>
-          </button>
-          <button
-            className={styles.customCat}
-            onClick={() => setPickingCategory((v) => !v)}
-            aria-label="Change spirit category"
-          >
-            {customGuess ? spiritVisual(customGuess).label : 'Set type'}
-          </button>
-        </div>
-      )}
-      {showCustom && pickingCategory && (
-        <div className={styles.chips}>
-          {KNOWN_SPIRITS.map((key) => {
-            const v = spiritVisual(key)
-            return (
-              <button
-                key={key}
-                className={`${styles.chip} ${customGuess === key ? styles.chipOn : ''}`}
-                onClick={() => {
-                  setCustomCategory(key)
-                  setPickingCategory(false)
-                }}
-              >
-                <span aria-hidden>{v.emoji}</span> {v.label}
-              </button>
-            )
-          })}
-        </div>
+      {showTyped && (
+        <>
+          <div className={`${styles.row} ${styles.rowTyped}`}>
+            <span
+              className={styles.glyph}
+              style={{ background: spiritVisual(typedGuess ?? 'other').tint }}
+              aria-hidden
+            >
+              {spiritVisual(typedGuess ?? 'other').emoji}
+            </span>
+            <button className={styles.text} onClick={addTyped}>
+              <span className={styles.label}>{q}</span>
+              {typedUnlocks > 0 && (
+                <span className={styles.unlock}>
+                  unlocks {typedUnlocks} drink{typedUnlocks > 1 ? 's' : ''}
+                </span>
+              )}
+            </button>
+            <button
+              className={styles.typeBtn}
+              onClick={() => setPicking((v) => (v === TYPED ? null : TYPED))}
+              aria-label="Change spirit category"
+            >
+              {typedGuess ? spiritVisual(typedGuess).label : 'Set type'}
+            </button>
+            <button className={styles.addBtn} onClick={addTyped} aria-label={`Add ${q}`}>
+              Add
+            </button>
+          </div>
+          {picking === TYPED &&
+            categoryChips(typedGuess, (key) => {
+              setTypedCategory(key)
+              setPicking(null)
+            })}
+        </>
       )}
 
+      {customPicks.map(([key, bottle]) => (
+        <div key={key}>
+          <div className={`${styles.row} ${styles.rowOn}`}>
+            <span
+              className={styles.glyph}
+              style={{ background: spiritVisual(bottle.category ?? 'other').tint }}
+              aria-hidden
+            >
+              {spiritVisual(bottle.category ?? 'other').emoji}
+            </span>
+            <span className={styles.text}>
+              <span className={styles.label}>{bottle.label}</span>
+            </span>
+            <button
+              className={styles.typeBtn}
+              onClick={() => setPicking((v) => (v === key ? null : key))}
+              aria-label={`Change spirit category for ${bottle.label}`}
+            >
+              {bottle.category ? spiritVisual(bottle.category).label : 'Set type'}
+            </button>
+            <button
+              className={styles.remove}
+              onClick={() => toggle(key, bottle)}
+              aria-label={`Remove ${bottle.label}`}
+            >
+              ✕
+            </button>
+          </div>
+          {picking === key &&
+            categoryChips(bottle.category, (cat) => {
+              setCategory(key, cat)
+              setPicking(null)
+            })}
+        </div>
+      ))}
+
       <div className={sheet.body}>
-        {shown.length === 0 && !showCustom ? (
+        {shown.length === 0 && !showTyped ? (
           <p className={sheet.hint}>
-            {q ? 'No match — keep typing to add it as a new bottle.' : 'Every bottle your recipes call for is already on the shelf.'}
+            {q ? 'Already on the shelf.' : 'Every bottle your recipes call for is already on the shelf.'}
           </p>
         ) : (
           shown.map((s) => {

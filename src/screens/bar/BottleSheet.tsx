@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { BottomSheet } from '../../components/BottomSheet'
 import { ChevronRightIcon } from '../../components/icons'
 import type { PantryItem, Recipe } from '../../db/schema'
-import { canMake } from '../../domain/availability'
+import { makeableIds } from '../../domain/availability'
+import { recipesUsingBottle } from '../../domain/barInsights'
 import { categoryForName } from '../../domain/spiritCategory'
 import { KNOWN_SPIRITS } from '../../domain/spirits'
 import { spiritVisual } from '../../domain/spiritVisual'
@@ -22,7 +23,7 @@ interface Props {
   assumeStaples: boolean
 }
 
-const MAX_DRINKS = 4
+const MAX_DRINKS = 6
 
 /** One bottle: what it is, what it lets you make, and how to get rid of it. */
 export function BottleSheet({
@@ -38,16 +39,20 @@ export function BottleSheet({
 }: Props) {
   const [editingCategory, setEditingCategory] = useState(false)
 
-  // Drinks this bottle is actually part of AND that you can make right now —
-  // "enables" has to mean both, or it reads as a promise the bar can't keep.
-  const enables = useMemo(() => {
+  // Every drink this bottle has a part in, ready-now first. It used to be a
+  // substring test against the bottle's own label, which meant a shelf of
+  // Rittenhouse Rye listed nothing while the Old Fashioned happily reported
+  // itself makeable — the same question, asked two ways. `recipesUsingBottle`
+  // is the availability engine's own answer.
+  const uses = useMemo(() => {
     if (!bottle) return []
-    return cocktails.filter(
-      (r) =>
-        r.ingredients?.some((ing) => ing.name.toLowerCase().includes(bottle.label.toLowerCase())) &&
-        canMake(r, have, byId, assumeStaples),
-    )
+    const all = recipesUsingBottle(bottle.label, cocktails, byId, bottle.category)
+    const ready = makeableIds(all, byId, have, assumeStaples)
+    return all
+      .map((recipe) => ({ recipe, ready: ready.has(recipe.id) }))
+      .sort((a, b) => Number(b.ready) - Number(a.ready))
   }, [bottle, cocktails, have, byId, assumeStaples])
+  const readyCount = uses.filter((u) => u.ready).length
 
   const category = bottle ? (bottle.category ?? categoryForName(bottle.label)) : undefined
   const visual = spiritVisual(category ?? 'other')
@@ -104,21 +109,36 @@ export function BottleSheet({
             </div>
           )}
 
-          <p className={styles.sectionLabel}>
-            {enables.length ? `Ready to make (${enables.length})` : 'Ready to make'}
-          </p>
-          {enables.length === 0 ? (
-            <p className={styles.none}>Nothing yet — this bottle needs company.</p>
+          <div className={styles.sectionHead}>
+            <p className={styles.sectionLabel}>
+              {uses.length ? `Pours in ${uses.length} · ${readyCount} ready` : 'Pours in'}
+            </p>
+            {uses.length > MAX_DRINKS && (
+              <Link
+                className={styles.seeAll}
+                to={`/browse?ingredient=${encodeURIComponent(bottle.label)}${
+                  category ? `&family=${encodeURIComponent(category)}` : ''
+                }`}
+                onClick={onClose}
+              >
+                See all
+              </Link>
+            )}
+          </div>
+          {uses.length === 0 ? (
+            <p className={styles.none}>No recipe calls for this yet.</p>
           ) : (
             <div className={styles.drinks}>
-              {enables.slice(0, MAX_DRINKS).map((r) => (
-                <Link key={r.id} to={`/recipe/${r.id}`} className={styles.drink} onClick={onClose}>
-                  {r.name}
+              {uses.slice(0, MAX_DRINKS).map(({ recipe, ready }) => (
+                <Link
+                  key={recipe.id}
+                  to={`/recipe/${recipe.id}`}
+                  className={`${styles.drink} ${ready ? styles.drinkReady : ''}`}
+                  onClick={onClose}
+                >
+                  {recipe.name}
                 </Link>
               ))}
-              {enables.length > MAX_DRINKS && (
-                <span className={styles.more}>+{enables.length - MAX_DRINKS} more</span>
-              )}
             </div>
           )}
 

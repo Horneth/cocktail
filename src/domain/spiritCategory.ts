@@ -29,7 +29,7 @@ const HINTS: [RegExp, string][] = [
   [/\b(tequila|patr[óo]n|don julio|espol[óo]n|herradura|casamigos|olmeca|fortaleza|el tesoro|tapat[íi]o)\b/i, 'tequila'],
 
   // rum / rhum / cane (+ brands)
-  [/\b(rum|rhum|bacardi|appleton|mount gay|plantation|diplomatico|el dorado|goslings?|myers'?s?|flor de ca[ñn]a|havana club|smith ?& ?cross|wray ?& ?nephew|pusser'?s)\b/i, 'rum'],
+  [/\b(rum|rhum|bacardi|appleton|mount gay|plantation|diplomatico|el dorado|goslings?|myers'?s?|flor de ca[ñn]a|havana club|smith ?&? ?cross|wray ?&? ?nephew|pusser'?s)\b/i, 'rum'],
 
   // vodka (+ brands)
   [/\b(vodka|tito'?s|grey goose|absolut|ketel one|smirnoff|belvedere|stolichnaya|stoli)\b/i, 'vodka'],

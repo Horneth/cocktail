@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { RecipeRow } from '../components/RecipeRow'
 import { BottomSheet } from '../components/BottomSheet'
+import { SearchLauncher } from '../components/SearchLauncher'
 import { CheckIcon, SearchIcon } from '../components/icons'
 import type { Recipe } from '../db/schema'
 import { makeableIds } from '../domain/availability'
+import { recipesUsingBottle } from '../domain/barInsights'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
@@ -24,15 +26,25 @@ export function BrowseScreen() {
   const scope = params.get('scope') || 'all'
   const selectedTags = (params.get('tags') || '').split(',').filter(Boolean)
   const makeableOnly = params.get('makeable') === '1'
+  // "Everything I could pour this bottle into" — where My Bar sends you. Matched
+  // by the availability rules, so a rye lands on the Old Fashioned too.
+  const ingredient = params.get('ingredient') || ''
+  // The bottle's stored family travels with it, so the full list matches what
+  // the bottle sheet showed even when the user corrected a wrong guess.
+  const ingredientFamily = params.get('family') || undefined
   const isComponents = scope === 'components'
 
   const base = useMemo<Recipe[]>(() => {
-    if (isComponents) return components ?? []
-    const list = cocktails ?? []
-    if (scope === 'all') return list
-    if (scope === 'favorites') return list.filter((c) => c.favorite)
-    return list.filter((c) => tileKeyForRecipe(c) === scope)
-  }, [cocktails, components, scope, isComponents])
+    const all = isComponents ? (components ?? []) : (cocktails ?? [])
+    const scoped = isComponents
+      ? all
+      : scope === 'all'
+        ? all
+        : scope === 'favorites'
+          ? all.filter((c) => c.favorite)
+          : all.filter((c) => tileKeyForRecipe(c) === scope)
+    return ingredient ? recipesUsingBottle(ingredient, scoped, byId, ingredientFamily) : scoped
+  }, [cocktails, components, scope, isComponents, ingredient, ingredientFamily, byId])
 
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>()
@@ -78,6 +90,12 @@ export function BrowseScreen() {
     else p.delete(key)
     setParams(p, { replace: true })
   }
+  const clearIngredient = () => {
+    const p = new URLSearchParams(params)
+    p.delete('ingredient')
+    p.delete('family')
+    setParams(p, { replace: true })
+  }
   const setTags = (next: string[]) => patch('tags', next.length ? next.join(',') : null)
   const toggleTag = (t: string) =>
     setTags(selectedTags.includes(t) ? selectedTags.filter((x) => x !== t) : [...selectedTags, t])
@@ -104,6 +122,17 @@ export function BrowseScreen() {
         <div className={styles.count}>{list.length} recipes</div>
         <h1 className={styles.title}>Browse</h1>
       </div>
+
+      <SearchLauncher />
+
+      {ingredient && (
+        <button className={styles.ingredientPill} onClick={clearIngredient}>
+          Pouring {ingredient}
+          <span className={styles.ingredientClear} aria-hidden>
+            ✕
+          </span>
+        </button>
+      )}
 
       <div className={`${styles.spiritRow} hg-scroll`}>
         {chips.map((c) => (

@@ -38,3 +38,12 @@ describe('categoryForName', () => {
     expect(MATCHABLE_CATEGORIES.has('mocktail')).toBe(false)
   })
 })
+
+describe('names that have been through normIngredient', () => {
+  it('still recognises a brand whose punctuation was stripped', () => {
+    // `normIngredient` drops the ampersand, and a shelf is built from those keys.
+    expect(categoryForName('Smith & Cross')).toBe('rum')
+    expect(categoryForName('smith cross')).toBe('rum')
+    expect(categoryForName('wray nephew')).toBe('rum')
+  })
+})

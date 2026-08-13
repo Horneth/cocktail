@@ -65,13 +65,26 @@
   color: #fff;
 }
 
-.sectionLabel {
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
   margin: 22px 0 9px;
+}
+.sectionLabel {
+  margin: 0;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--faint);
+}
+.seeAll {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
 }
 .none {
   font-size: 14px;
@@ -82,20 +95,22 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+/* Every drink the bottle is in is listed; the ready ones are the ones tinted.
+   Greying out the rest would hide the answer to "what else is this good for". */
 .drink {
   padding: 9px 13px;
   border-radius: var(--radius-pill);
-  background: var(--ready-bg);
-  color: var(--ready-fg);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--ink);
   font-size: 13.5px;
   font-weight: 700;
   text-decoration: none;
 }
-.more {
-  align-self: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
+.drinkReady {
+  background: var(--ready-bg);
+  border-color: var(--ready-bg);
+  color: var(--ready-fg);
 }
 
 .remove {

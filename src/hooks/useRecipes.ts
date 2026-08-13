@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Bar, PantryItem, Recipe } from '../db/schema'
 import { KNOWN_SPIRITS } from '../domain/spirits'
-import { isStaple, normIngredient } from '../domain/availability'
+import { isStaple, normIngredient, shelfKeys } from '../domain/availability'
 import type { NameIndexEntry } from '../domain/dupeMatch'
 import { useActiveBarId } from './useSettings'
 
@@ -72,7 +72,7 @@ export function useSpiritSuggestions(): string[] {
 
 export interface Pantry {
   items: PantryItem[]
-  /** normalized names currently in the bar */
+  /** match keys currently in the bar — see `shelfKeys` */
   have: Set<string>
   loaded: boolean
 }
@@ -86,7 +86,7 @@ export function usePantry(barId: string | undefined): Pantry {
         : Promise.resolve<PantryItem[]>([]),
     [barId],
   )
-  const have = useMemo(() => new Set((items ?? []).map((i) => i.name)), [items])
+  const have = useMemo(() => new Set((items ?? []).flatMap(shelfKeys)), [items])
   return { items: items ?? [], have, loaded: !!barId && items !== undefined }
 }
 

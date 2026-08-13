@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { RecipeRow } from '../components/RecipeRow'
-import { BottleIcon, ChevronRightIcon, GearIcon, SearchIcon } from '../components/icons'
+import { SearchLauncher } from '../components/SearchLauncher'
+import { BottleIcon, ChevronRightIcon, GearIcon } from '../components/icons'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
@@ -14,7 +15,6 @@ function greetingForHour(h: number): string {
 }
 
 export function HomeScreen() {
-  const navigate = useNavigate()
   const cocktails = useCocktails()
   const { makeableCount, badgeFor, barId, bars, setBarId } = useAvailability()
 
@@ -72,31 +72,23 @@ export function HomeScreen() {
         </div>
       </header>
 
-      <button className={styles.search} onClick={() => navigate('/search')}>
-        <SearchIcon size={19} className={styles.searchIcon} />
-        <span className={styles.searchText}>Search drinks, spirits, ingredients</span>
-      </button>
+      <SearchLauncher />
 
-      <Link className={styles.hero} to={makeableCount > 0 ? '/browse?makeable=1' : '/bar'}>
-        <span className={styles.heroBlob1} />
-        <span className={styles.heroBlob2} />
-        <span className={styles.heroContent}>
-          <span className={styles.heroEyebrow}>
-            <BottleIcon size={15} /> Ready at {barName}
-          </span>
-          <span className={styles.heroRow}>
-            <span className={styles.heroNum}>{makeableCount}</span>
-            <span className={styles.heroLabel}>
-              drinks you
-              <br />
-              can make now
-            </span>
-          </span>
-          <span className={styles.heroChip}>
-            {makeableCount > 0 ? 'Pour something' : 'Stock your bar'}
-            <ChevronRightIcon size={15} />
-          </span>
+      {/* What you can pour is a fact worth one line, not a billboard. It used to
+          be a full-width accent card and it made every visit to Home an argument
+          about the size of your bar. */}
+      <Link className={styles.ready} to={makeableCount > 0 ? '/browse?makeable=1' : '/bar'}>
+        <BottleIcon size={16} className={styles.readyIcon} />
+        <span className={styles.readyText}>
+          {makeableCount > 0 ? (
+            <>
+              <b>{makeableCount}</b> ready at {barName}
+            </>
+          ) : (
+            <>Nothing ready at {barName} yet</>
+          )}
         </span>
+        <ChevronRightIcon size={16} className={styles.readyChevron} />
       </Link>
 
       {spiritTiles.length > 0 && (

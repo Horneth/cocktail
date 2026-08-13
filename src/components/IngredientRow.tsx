@@ -10,6 +10,13 @@ export interface Override {
   unit: Unit
 }
 
+export interface IngredientLink {
+  /** where tapping the ingredient name goes (a bottle in My Bar, say) */
+  to: string
+  /** short note under the name, e.g. the stand-in bottle actually being poured */
+  hint?: string
+}
+
 interface Props {
   ingredient: Ingredient
   scale: ScaleSettings
@@ -20,6 +27,8 @@ interface Props {
   onOverride: (value: Override | undefined) => void
   /** Ownership tick: true = have it, false = missing, undefined = don't show. */
   owned?: boolean
+  /** Where this line leads when it isn't a sub-recipe (sub-recipes always win). */
+  link?: IngredientLink
 }
 
 /** The scaled + preference-converted display amount (before any override). */
@@ -43,7 +52,9 @@ export function IngredientRow({
   onStartEdit,
   onOverride,
   owned,
+  link,
 }: Props) {
+  const to = ingredient.subRecipeId ? `/recipe/${ingredient.subRecipeId}` : link?.to
   const base = displayValue(ingredient, scale, pref)
   const shown: { amount: number | null; unit: Unit } = override ?? base
   const isModified = override !== undefined
@@ -69,14 +80,17 @@ export function IngredientRow({
       )}
 
       <div className={styles.body}>
-        {ingredient.subRecipeId ? (
-          <Link className={styles.linkName} to={`/recipe/${ingredient.subRecipeId}`}>
+        {/* A sub-recipe's own screen always wins the tap — it's the deeper thing
+            behind the same words. Everything else can lead to the bottle. */}
+        {to ? (
+          <Link className={styles.linkName} to={to}>
             <span>{ingredient.name}</span>
             <ChevronRightIcon size={16} className={styles.chev} />
           </Link>
         ) : (
           <span className={styles.name}>{ingredient.name}</span>
         )}
+        {link?.hint && <span className={styles.hint}>{link.hint}</span>}
         {(ingredient.note || ingredient.optional) && (
           <span className={styles.meta}>
             {ingredient.note}

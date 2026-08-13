@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { IngredientRow, type Override } from '../components/IngredientRow'
+import { IngredientRow, type IngredientLink, type Override } from '../components/IngredientRow'
 import { ServingStepper } from '../components/ServingStepper'
 import { ChevronLeftIcon, EditIcon, HeartIcon, PlusIcon } from '../components/icons'
 import type { Ingredient, Recipe } from '../db/schema'
 import { scaleFactor, type ScaleSettings } from '../domain/scaling'
-import { categorySubstitutions, missingBottles } from '../domain/availability'
+import { bottleFor, missingBottles } from '../domain/availability'
 import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
 import { tileKeyForRecipe } from '../domain/spirits'
@@ -14,6 +14,7 @@ import { mergeComponents, saveRecipe, setFavorite } from '../import/importRecipe
 import { useBacklinks, useComponents, useRecipe } from '../hooks/useRecipes'
 import { useVolumePreference } from '../hooks/useSettings'
 import { useAvailability } from '../hooks/useAvailability'
+import { useWakeLock } from '../hooks/useWakeLock'
 import styles from './RecipeDetailScreen.module.css'
 
 const PART_PRESETS: { label: string; ml: number | undefined }[] = [
@@ -31,15 +32,11 @@ export function RecipeDetailScreen() {
   const recipe = useRecipe(id)
   const navigate = useNavigate()
   const [pref, togglePref] = useVolumePreference()
-  const { have, byId, assumeStaples } = useAvailability()
+  const { items, have, byId, assumeStaples } = useAvailability()
   const [searchParams, setSearchParams] = useSearchParams()
-  const ingredientsRef = useRef<HTMLDivElement>(null)
 
-  const substitutions = useMemo(
-    () => (recipe && recipe.kind === 'cocktail' ? categorySubstitutions(recipe, have, assumeStaples) : []),
-    [recipe, have, assumeStaples],
-  )
-  const usingCategories = [...new Set(substitutions.map((s) => s.usingCategory))]
+  // A recipe is the one screen you read with wet hands and no free thumb.
+  useWakeLock()
 
   const missing = useMemo(
     () => (recipe && recipe.kind === 'cocktail' ? missingBottles(recipe, have, byId, assumeStaples) : []),
@@ -149,8 +146,20 @@ export function RecipeDetailScreen() {
       ]
     : []
 
-  const startMaking = () =>
-    ingredientsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // Every line that names something pourable leads somewhere: to the bottle on
+  // your shelf that covers it — the stand-in included, since "any whiskey" is a
+  // real answer the availability engine already gives — or to adding the one you
+  // don't have. Sub-recipes keep their own link (IngredientRow decides).
+  const linkFor = (ing: Ingredient): IngredientLink | undefined => {
+    const match = bottleFor(ing.name, items)
+    if (match) {
+      return {
+        to: `/bar?bottle=${encodeURIComponent(match.bottle.name)}`,
+        ...(match.via === 'category' ? { hint: `your ${match.bottle.label}` } : {}),
+      }
+    }
+    return missingSet.has(ing.name) ? { to: `/bar?add=${encodeURIComponent(ing.name)}` } : undefined
+  }
 
   return (
     <div className={styles.screen}>
@@ -181,25 +190,19 @@ export function RecipeDetailScreen() {
           <div className={styles.heroEmoji}>{v.emoji}</div>
           <h1 className={styles.title}>{recipe.name}</h1>
           {subBits.length > 0 && <div className={styles.sub}>{subBits.join(' · ')}</div>}
-          {usingCategories.length > 0 && (
-            <div className={styles.subNote}>Using your {usingCategories.join(', ')}</div>
-          )}
         </div>
       </div>
 
       <div className={styles.body}>
+        {/* One line, because the ingredient list below now says which ones —
+            each missing line taps straight through to adding that bottle. */}
         {!isComponent && (
           <div className={`${styles.avail} ${canMakeIt ? styles.availReady : styles.availMissing}`}>
             <span className={styles.availEmoji}>{canMakeIt ? '✅' : '🛒'}</span>
-            <div className={styles.availText}>
-              <div className={styles.availTitle}>
-                {canMakeIt
-                  ? 'You can make this'
-                  : `Missing ${missing.length} ${missing.length === 1 ? 'thing' : 'things'}`}
-              </div>
-              <div className={styles.availSub}>
-                {canMakeIt ? 'Everything’s on your shelf' : missing.join(', ') || 'Add bottles to check'}
-              </div>
+            <div className={styles.availTitle}>
+              {canMakeIt
+                ? 'You can make this'
+                : `Missing ${missing.length} ${missing.length === 1 ? 'thing' : 'things'}`}
             </div>
             <button className={styles.availBtn} onClick={() => navigate('/bar')}>
               My Bar
@@ -243,9 +246,7 @@ export function RecipeDetailScreen() {
           </div>
         )}
 
-        <h2 className={styles.h2} ref={ingredientsRef}>
-          Ingredients
-        </h2>
+        <h2 className={styles.h2}>Ingredients</h2>
         <div className={styles.ingredients}>
           {recipe.ingredients.map((ing) => (
             <IngredientRow
@@ -258,6 +259,7 @@ export function RecipeDetailScreen() {
               onStartEdit={() => setEditingId(ing.id)}
               onOverride={(val) => setOverride(ing.id, val)}
               owned={showTicks ? !missingSet.has(ing.name) : undefined}
+              link={linkFor(ing)}
             />
           ))}
         </div>
@@ -306,17 +308,6 @@ export function RecipeDetailScreen() {
 
         <div className={styles.bottomSpace} />
       </div>
-
-      {!isComponent && (
-        <div className={styles.ctaWrap}>
-          <button className={styles.cta} onClick={startMaking}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 2h4M10.5 2v3.2a3 3 0 0 1-.6 1.8L8.8 8.5a4 4 0 0 0-.8 2.4V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-9.1a4 4 0 0 0-.8-2.4l-1.1-1.5a3 3 0 0 1-.6-1.8V2M8 13h8" />
-            </svg>
-            Start making
-          </button>
-        </div>
-      )}
     </div>
   )
 }

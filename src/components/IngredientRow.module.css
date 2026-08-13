@@ -54,6 +54,14 @@
 .chev {
   color: var(--accent);
 }
+/* The bottle actually being poured when it isn't the one the recipe names —
+   green, because it is the same "you have this" the tick means. */
+.hint {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ready-fg);
+  margin-top: 2px;
+}
 .meta {
   font-size: 12.5px;
   color: var(--muted);
