@@ -137,8 +137,10 @@ export function ImportScreen() {
     const shared = consumeSharedImport()
     if (!shared) return
     sharedApplied.current = true
-    setText(shared)
-    if (auth.aiAvailable) void extract(shared)
+    setText(shared.text)
+    // `auto` is false for anything that isn't a YouTube link — it lands in the
+    // box and waits for Extract, so no other app can spend a call on our quota.
+    if (shared.auto && auth.aiAvailable) void extract(shared.text)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.ready, auth.aiAvailable])
 

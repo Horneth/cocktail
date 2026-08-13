@@ -285,6 +285,52 @@ export interface DupeVerdict {
 let counter = 0
 const tempId = (p: string) => `${p}-${(counter += 1)}`
 
+/**
+ * How long a model-authored string may be, per field. These are containment
+ * limits, not validation: they exist so one absurd value can't dominate a
+ * recipe card, a bar label, or — via `buildReconcilePrompt` — a second prompt.
+ * Generous enough that no honest answer is ever clipped.
+ */
+export const TEXT_CAPS = {
+  name: 120,
+  garnish: 80,
+  instructions: 2000,
+  note: 200,
+  reason: 120,
+  bottle: 80,
+  tag: 32,
+  /** unlisted method/glassware/spirit, which `canonical` passes through verbatim */
+  serve: 40,
+} as const
+
+// Control characters, minus \n when the caller keeps line breaks.
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g
+const CONTROL_KEEP_NL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g
+
+/**
+ * Pure: clamp a model-authored string before it reaches the UI, the DB, or a
+ * second prompt.
+ *
+ * Everything a model returns is untrusted — the text it read was pasted by
+ * someone, and the labels it read were photographed by someone — so a value can
+ * carry newlines and control characters that forge structure downstream, or
+ * megabytes of padding. Strip and cap here, once, rather than at each use.
+ * This is containment only: the callers below still check every cross-reference
+ * against what we actually asked for, which is what stops an invented match.
+ */
+export function cleanModelText(
+  value: unknown,
+  max: number,
+  opts: { newlines?: boolean } = {},
+): string {
+  if (typeof value !== 'string') return ''
+  const stripped = value.replace(opts.newlines ? CONTROL_KEEP_NL : CONTROL, ' ')
+  const collapsed = opts.newlines
+    ? stripped.replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n')
+    : stripped.replace(/\s+/g, ' ')
+  return collapsed.trim().slice(0, max).trim()
+}
+
 // Only spelling/family normalization — specific spirits (cachaça, mezcal,
 // pisco, cognac, …) are kept as-is so they get their own category.
 const SPIRIT_SYNONYMS: Record<string, SpiritCategory> = {
@@ -296,8 +342,7 @@ const SPIRIT_SYNONYMS: Record<string, SpiritCategory> = {
 }
 
 function coerceSpirit(raw: string | undefined): SpiritCategory | undefined {
-  if (!raw) return undefined
-  const w = raw.trim().toLowerCase()
+  const w = cleanModelText(raw, TEXT_CAPS.serve).toLowerCase()
   if (!w || w === 'none') return undefined
   return SPIRIT_SYNONYMS[w] ?? w
 }
@@ -307,7 +352,7 @@ function normalizeTags(tags: string[] | undefined): string[] {
   const seen = new Set<string>()
   const out: string[] = []
   for (const t of tags) {
-    const v = t.trim().toLowerCase().replace(/^#/, '')
+    const v = cleanModelText(t, TEXT_CAPS.tag).toLowerCase().replace(/^#/, '')
     if (v && !seen.has(v)) {
       seen.add(v)
       out.push(v)
@@ -321,7 +366,7 @@ function normalizeAka(aka: string[] | undefined): string[] {
   const seen = new Set<string>()
   const out: string[] = []
   for (const a of aka) {
-    const v = a.trim()
+    const v = cleanModelText(a, TEXT_CAPS.name)
     const key = v.toLowerCase()
     if (v && !seen.has(key)) {
       seen.add(key)
@@ -363,12 +408,13 @@ function reconcileGuessed(
 
 function toDraftIngredient(g: AiIngredient): IngredientDraft {
   const ing: IngredientDraft = {
-    name: (g.name ?? '').trim(),
+    name: cleanModelText(g.name, TEXT_CAPS.name),
     amount: g.amount ?? null,
     unit: coerceUnit(g.unit),
   }
   if (g.optional) ing.optional = true
-  if (g.note) ing.note = g.note
+  const note = cleanModelText(g.note, TEXT_CAPS.note)
+  if (note) ing.note = note
   return ing
 }
 
@@ -386,7 +432,7 @@ export function mapAiRecipe(r: AiRecipe, sourceUrl?: string, sourceText = ''): S
       return {
         tempId: tempId('comp'),
         kind: 'component' as const,
-        name: (c.name ?? '').trim(),
+        name: cleanModelText(c.name, TEXT_CAPS.name),
         ingredients,
         measureBasis: ingredients.some((i) => i.unit === 'part') ? ('parts' as const) : ('absolute' as const),
         tags: [],
@@ -414,15 +460,19 @@ export function mapAiRecipe(r: AiRecipe, sourceUrl?: string, sourceText = ''): S
   // A component is an ingredient, not a serve — a glass or garnish on one is the
   // model over-applying the "always fill these in" rule.
   const isComponent = kind === 'component'
-  const method = canonical(r.method, METHODS)
-  const glassware = isComponent ? undefined : canonical(r.glassware, GLASSES)
-  const garnish = isComponent ? undefined : r.garnish?.trim() || undefined
+  const method = canonical(cleanModelText(r.method, TEXT_CAPS.serve), METHODS)
+  const glassware = isComponent
+    ? undefined
+    : canonical(cleanModelText(r.glassware, TEXT_CAPS.serve), GLASSES)
+  const garnish = isComponent ? undefined : cleanModelText(r.garnish, TEXT_CAPS.garnish) || undefined
   const spirit = isComponent ? undefined : coerceSpirit(r.spirit)
 
   const main: RecipeDraft = {
     tempId: tempId('main'),
     kind,
-    name: (r.name ?? '').trim() || (kind === 'component' ? 'Imported syrup' : 'Imported cocktail'),
+    name:
+      cleanModelText(r.name, TEXT_CAPS.name) ||
+      (kind === 'component' ? 'Imported syrup' : 'Imported cocktail'),
     ingredients,
     // a component described in "1 part" ratios is a parts recipe
     measureBasis:
@@ -430,7 +480,7 @@ export function mapAiRecipe(r: AiRecipe, sourceUrl?: string, sourceText = ''): S
     method,
     glassware,
     garnish,
-    instructions: r.instructions,
+    instructions: cleanModelText(r.instructions, TEXT_CAPS.instructions, { newlines: true }) || undefined,
     tags: normalizeTags(r.tags),
     spirit,
     source: {
@@ -525,7 +575,7 @@ export function finishDupeJudgement(parsed: unknown, queries: DupeQuery[]): Dupe
     if (!match) continue
 
     seen.add(index)
-    const reason = typeof v.reason === 'string' ? v.reason.trim() : ''
+    const reason = cleanModelText(v.reason, TEXT_CAPS.reason)
     out.push({ index, relation, match, ...(reason ? { reason } : {}) })
   }
   return out
@@ -538,19 +588,24 @@ export function dedupeBottles(
   const seen = new Set<string>()
   const out: IdentifiedBottle[] = []
   for (const b of raw) {
-    const name = (b.name ?? '').trim()
+    // Cleaned here rather than at each use: this list feeds the review sheet,
+    // the pantry label, AND pass 2's prompt, and the last of those makes a
+    // photographed label into prompt text.
+    const name = cleanModelText(b.name, TEXT_CAPS.bottle)
     const key = normIngredient(name)
     if (!key || seen.has(key)) continue
     seen.add(key)
-    const fromModel = b.category?.trim().toLowerCase() || undefined
-    const brand = b.brand?.trim()
+    const fromModel = cleanModelText(b.category, TEXT_CAPS.serve).toLowerCase() || undefined
+    const brand = cleanModelText(b.brand, TEXT_CAPS.bottle)
     out.push({
       name,
       category: categoryForName(name) ?? fromModel,
       ...(brand ? { brand } : {}),
       // Anything but an explicit "low" is treated as readable — an omitted
       // confidence shouldn't quietly untick a bottle in the review sheet.
-      ...(b.confidence?.trim().toLowerCase() === 'low' ? { confidence: 'low' as const } : {}),
+      ...(cleanModelText(b.confidence, TEXT_CAPS.serve).toLowerCase() === 'low'
+        ? { confidence: 'low' as const }
+        : {}),
     })
   }
   return out
@@ -561,16 +616,23 @@ export function dedupeBottles(
  * candidates travel — never the rest of the bar. Entries with no candidates are
  * dropped, since there is nothing for the model to compare them against; when
  * that empties the list the caller skips the call entirely.
+ *
+ * The payload is JSON, matching its twin `firebaseJudgeDuplicates`. That is not
+ * cosmetic: `detected` is pass-1 output, so it is ultimately whatever was
+ * printed on a photographed label, and hand-quoting it into prose let a label
+ * close the quote and write instructions for the *other* entries in the batch.
+ * `JSON.stringify` escapes it properly; `dedupeBottles` already stripped the
+ * control characters.
  */
 export function buildReconcilePrompt(inputs: ReconcileInput[]): string {
-  const lines = inputs
+  const payload = inputs
     .filter((i) => i.candidates.length > 0)
-    .map((i, n) => {
-      const category = i.category ? ` [${i.category}]` : ''
-      const candidates = i.candidates.map((c) => `"${c}"`).join(', ')
-      return `${n + 1}. "${i.detected}"${category} — already in the bar: ${candidates}`
-    })
-  return `${RECONCILE_PROMPT}\n\nDETECTED:\n${lines.join('\n')}`
+    .map((i) => ({
+      detected: i.detected,
+      ...(i.category ? { category: i.category } : {}),
+      candidates: i.candidates,
+    }))
+  return `${RECONCILE_PROMPT}\n\nDETECTED:\n${JSON.stringify(payload)}`
 }
 
 const VERDICTS = new Set(['same', 'variant', 'new'])
@@ -600,7 +662,9 @@ export function parseReconcile(parsed: unknown, inputs: ReconcileInput[]): Recon
     if (!verdict || !VERDICTS.has(verdict)) continue
 
     const match = input.candidates.find((c) => normIngredient(c) === normIngredient(m.match ?? ''))
-    const canonicalName = m.canonicalName?.trim()
+    // Becomes a pantry label if the user ticks the row — the one model-authored
+    // string that reaches stored data, so it gets the same cap as a bottle name.
+    const canonicalName = cleanModelText(m.canonicalName, TEXT_CAPS.bottle)
     out.push({
       detected: input.detected,
       // A same/variant verdict is meaningless without a candidate to point at.
