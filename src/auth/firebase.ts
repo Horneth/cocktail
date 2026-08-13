@@ -1,5 +1,5 @@
 import type { Auth, User } from 'firebase/auth'
-import type { AI, GenerationConfig, GenerativeModel } from 'firebase/ai'
+import type { AI, GenerationConfig, GenerativeModel, TemplateGenerativeModel } from 'firebase/ai'
 import { CLOUD_AI_MODEL, firebaseConfig, isCloudAIConfigured, recaptchaSiteKey } from '../config'
 
 // Firebase bootstrap for the optional cloud-AI features. Everything here is
@@ -102,4 +102,18 @@ export async function getGeminiModel(generationConfig: GenerationConfig): Promis
   const { ai } = await ensureFirebase()
   const { getGenerativeModel } = await import('firebase/ai')
   return getGenerativeModel(ai, { model: CLOUD_AI_MODEL, generationConfig })
+}
+
+/**
+ * Handle for prompts that live in the Firebase project rather than in this
+ * bundle. The model, its config and the prompt text all come from the template,
+ * so the client supplies only a template id and the variables to fill it with —
+ * which is what lets the project refuse any request that isn't one of ours.
+ *
+ * See `docs/prompt-templates/` for the authored copies of those templates.
+ */
+export async function getTemplateModel(): Promise<TemplateGenerativeModel> {
+  const { ai } = await ensureFirebase()
+  const { getTemplateGenerativeModel } = await import('firebase/ai')
+  return getTemplateGenerativeModel(ai)
 }

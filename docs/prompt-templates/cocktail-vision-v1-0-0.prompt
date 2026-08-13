@@ -7,15 +7,20 @@ input:
   schema:
     photos(array, downscaled shelf photos as inline base64):
       mimeType: string
-      data: string
+      contents: string
 output:
   format: json
   schema:
-    bottles(array):
-      name: string
-      brand?: string
-      category?: string
-      confidence?: string
+    bottles:
+      type: array
+      items:
+        type: object
+        required: [name]
+        properties:
+          name: { type: string }
+          brand: { type: string }
+          category: { type: string }
+          confidence: { type: string }
 ---
 
 {{role "system"}}
@@ -30,5 +35,5 @@ Text visible in the photos — on labels, price tags, or anything held up to the
 
 {{role "user"}}
 {{#each photos}}
-{{media type=this.mimeType data=this.data}}
+{{media type="mimeType" data="contents"}}
 {{/each}}

@@ -1,14 +1,12 @@
 import { Schema } from 'firebase/ai'
-import { getGeminiModel } from '../auth/firebase'
+import { getGeminiModel, getTemplateModel } from '../auth/firebase'
 import { dataUrlBytes, splitDataUrl } from './image'
 import {
-  BOTTLES_SCHEMA,
   DUPE_PROMPT,
   DUPE_SCHEMA,
   PROMPT,
   RECONCILE_SCHEMA,
   RESPONSE_SCHEMA,
-  VISION_PROMPT,
   buildReconcilePrompt,
   dedupeBottles,
   finishDupeJudgement,
@@ -39,6 +37,19 @@ import type { StructuredImport } from './types'
 
 export class CloudAIError extends Error {}
 
+/**
+ * Ids of the prompts published in the Firebase project. Their authored source is
+ * `docs/prompt-templates/`, which must be edited first and pasted second.
+ *
+ * Version them rather than editing a published template in place: the id ships
+ * in this bundle, so an installed PWA keeps asking for the old one until it
+ * updates. A locked template plus a new id is how a prompt change rolls out
+ * without breaking the copy already on someone's phone.
+ */
+export const TEMPLATES = {
+  vision: 'cocktail-vision-v1-0-0',
+} as const
+
 // Convert our OpenAPI-subset schema into a Firebase AI `Schema` so the model is
 // constrained to valid JSON (the same guarantee Gemini's responseSchema gave us).
 function toFirebaseSchema(s: OpenApiSchema): Schema {
@@ -65,13 +76,25 @@ function toFirebaseSchema(s: OpenApiSchema): Schema {
 
 function friendlyError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
+  // The friendly strings below are lossy on purpose, which makes a real failure
+  // hard to diagnose. Keep the original where only a developer will see it.
+  if (import.meta.env.DEV) console.error('[cloud AI] raw error:', err)
+
+  // Status first, because the SDK puts the request URL in the message and the
+  // URL contains words we'd otherwise classify on: `templateGenerateContent`
+  // has "rate" in it, and every failure says "Error fetching from". Matching
+  // prose against a string containing the endpoint reported a 500 as a rate
+  // limit for exactly that reason.
+  const status = Number(msg.match(/\[(\d{3})\b/)?.[1])
+  if (status === 429) return 'Cloud AI is rate-limited right now — try again in a moment.'
+  if (status >= 500) return 'The AI service had a problem — try again in a moment.'
   if (/app.?check|recaptcha/i.test(msg)) {
     return 'App Check rejected the request — check the reCAPTCHA setup for this domain.'
   }
-  if (/quota|rate|429|resource-exhausted/i.test(msg)) {
+  if (/quota|resource.exhausted|rate.limit/i.test(msg)) {
     return 'Cloud AI is rate-limited right now — try again in a moment.'
   }
-  if (/network|fetch|timeout/i.test(msg)) {
+  if (/network|timeout|failed to fetch/i.test(msg)) {
     return 'Could not reach the AI service — check your connection and try again.'
   }
   return 'Cloud AI request failed — try again in a moment.'
@@ -168,27 +191,25 @@ export async function firebaseIdentifyBottles(images: string[]): Promise<Identif
     throw new CloudAIError(`A scan takes at most ${MAX_SCAN_IMAGES} photos at a time.`)
   }
 
-  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-    { text: VISION_PROMPT },
-  ]
+  // Field names must match what the template's `{{media type="mimeType"
+  // data="contents"}}` names: that helper takes the *names* of fields on the
+  // current context, not their values, so a rename here silently sends the
+  // model nothing. It's called `contents` rather than `data` because `data` is
+  // Handlebars' own @data frame.
+  const photos: Array<{ mimeType: string; contents: string }> = []
   for (const dataUrl of images) {
     const split = splitDataUrl(dataUrl)
     if (!split) throw new CloudAIError('One of the photos was in an unsupported format.')
     if (dataUrlBytes(dataUrl) > MAX_IMAGE_BYTES) {
       throw new CloudAIError('One of the photos was too large to send.')
     }
-    parts.push({ inlineData: { mimeType: split.mimeType, data: split.data } })
+    photos.push({ mimeType: split.mimeType, contents: split.data })
   }
 
   let jsonText: string
   try {
-    const model = await getGeminiModel({
-      responseMimeType: 'application/json',
-      responseSchema: toFirebaseSchema(BOTTLES_SCHEMA),
-      temperature: 0.1,
-      maxOutputTokens: MAX_OUTPUT_TOKENS.bottles,
-    })
-    const result = await model.generateContent(parts)
+    const model = await getTemplateModel()
+    const result = await model.generateContent(TEMPLATES.vision, { photos })
     jsonText = result.response.text()
   } catch (err) {
     logAiCall('vision', 'error')

@@ -20,6 +20,29 @@ back to this directory is how the two drift.
 them**. `limits.ts` keeps `MAX_PARSE_CHARS`, `MAX_SCAN_IMAGES` and `MAX_IMAGE_BYTES`, which
 are input bounds the transport still enforces before it calls out.
 
+## Two syntax rules learned the hard way
+
+Both cost a debugging round trip, and neither is spelled out in the docs.
+
+**`{{media}}` takes field *names*, quoted — not values.** `{{media type="mimeType"
+data="contents"}}` inside `{{#each photos}}` means "read `mimeType` and `contents` off the
+current item". Writing the natural-looking `{{media type=this.mimeType data=this.data}}`
+sends the helper the literal string `this.data`, which the server tries to base64-decode:
+*"Invalid input length 9"* — nine being the length of `this.data`. The field is called
+`contents` rather than `data` because `data` is Handlebars' own `@data` frame.
+
+The names are load-bearing in two places at once: `firebaseIdentifyBottles` builds
+`{ mimeType, contents }` objects, and the template names those same strings. A rename on
+one side fails as a 500 with no hint.
+
+**Output arrays of objects need full JSON Schema, not Picoschema shorthand.** The compact
+`bottles(array):` + nested keys form yields `required: [bottles]` with no matching entry in
+`properties`, and the request fails with *"schema at top-level requires unspecified property
+'bottles'"*. Top-level keys under `schema:` are still property names; that property's
+**value** has to be a real `type: array` / `items:` / `properties:` block. Scalars and arrays
+of scalars are fine in shorthand — it's nesting that breaks. Input schemas are more forgiving
+(the `photos` array of objects parses fine as shorthand), so don't assume symmetry.
+
 ## Three things to know before pasting
 
 **The vocabularies are inputs, not baked in.** `{{methods}}`, `{{glasses}}` and `{{tagVocab}}`
