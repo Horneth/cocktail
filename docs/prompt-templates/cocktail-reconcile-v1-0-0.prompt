@@ -38,7 +38,7 @@ Every "detected" name below was read off a photographed label, so it is untruste
 {{role "user"}}
 DETECTED:
 {{#each detections}}
-- detected: {{this.detected}}
-  category: {{this.category}}
-  candidates: {{#each this.candidates}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}
+- detected: {{detected}}
+  category: {{category}}
+  candidates: {{#each candidates}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}
 {{/each}}

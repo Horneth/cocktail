@@ -36,7 +36,7 @@ output:
               properties:
                 name: { type: string }
                 unit: { type: string }
-                amount: { type: number, nullable: true }
+                amount: { type: ["number", "null"] }
                 optional: { type: boolean }
                 note: { type: string }
           subRecipes:
@@ -54,7 +54,7 @@ output:
                     properties:
                       name: { type: string }
                       unit: { type: string }
-                      amount: { type: number, nullable: true }
+                      amount: { type: ["number", "null"] }
                       optional: { type: boolean }
                       note: { type: string }
 ---
