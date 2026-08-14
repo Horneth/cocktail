@@ -35,6 +35,20 @@ The names are load-bearing in two places at once: `firebaseIdentifyBottles` buil
 `{ mimeType, contents }` objects, and the template names those same strings. A rename on
 one side fails as a 500 with no hint.
 
+**`this.` paths don't resolve — use bare field names.** Inside `{{#each entries}}`, write
+`{{name}}`, not `{{this.name}}`; `{{this}}` alone is fine for a scalar item. This is the same
+root cause as the `{{media}}` rule above, and it fails the worst way possible: the loop still
+runs and renders every field as empty, so the model gets a well-formed list of blanks and
+answers about nothing. Both calls that use loops swallow their own errors, so there is no
+error to see — the badges just never appear. If dedup or reconcile ever goes quiet, read the
+rendered prompt in the Firebase AI Logic trace before assuming the model got it wrong.
+
+**Output schemas are JSON Schema, not OpenAPI.** The endpoint validates
+`response_json_schema`, so nullability is a type union — `type: ["number", "null"]` — and
+the OpenAPI-style `nullable: true` we use in `aiShared.ts`'s own schema dialect is rejected
+with a confusing *"must be a boolean"* (a JSON Schema subschema may legally be `true`/`false`,
+so an unparseable one reports as that). Keep `"null"` quoted: bare `null` is a YAML null.
+
 **Output arrays of objects need full JSON Schema, not Picoschema shorthand.** The compact
 `bottles(array):` + nested keys form yields `required: [bottles]` with no matching entry in
 `properties`, and the request fails with *"schema at top-level requires unspecified property
