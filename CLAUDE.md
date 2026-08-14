@@ -101,11 +101,10 @@ src/
   import/         The single write seam for bulk recipe creation
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (recipeId cross-links)
     importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeRecipes()
-    autoImage.ts  maybeGenerateImage()/regenerateImage() — background cocktail-image
-                  generation after a save; writes Recipe.image/imageStatus, never blocks a save
-    aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
+    aiShared.ts   Transport-agnostic AI core: response shapes + model-JSON → StructuredImport
     firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse(), firebaseJudgeDuplicates(),
-                  firebaseIdentifyBottles(), firebaseReconcileBottles(), firebaseGenerateImage()
+                  firebaseIdentifyBottles(), firebaseReconcileBottles()
+    limits.ts     Cost ceilings on an AI request (input chars, photo count/bytes, output tokens)
     limits.ts     Cost ceilings on an AI request (input chars, photo count/bytes, output tokens)
     image.ts      Browser canvas downscale + data-URL split for the photo scan; blobToDataUrl() for scenes
     backup.ts     Whole-library export/import (the only way data crosses an origin)
@@ -291,8 +290,8 @@ what the bottle sheet used to do and why it looked empty.
 "Scan my shelf" downscales photos client-side (`import/image.ts`, max 4) and runs
 **two** model calls with an on-device step between them. Gated on `auth.aiAvailable`.
 
-1. **Vision.** `firebaseIdentifyBottles()` reuses smart-parse's model handle and
-   error handling (just `inlineData` parts + `BOTTLES_SCHEMA`) and returns
+1. **Vision.** `firebaseIdentifyBottles()` runs the `cocktail-vision-v1-0-0`
+   template, passing photos as `{mimeType, contents}` variables, and returns
    `{name, brand?, category?, confidence?}` per bottle. `dedupeBottles()` cleans
    the list, with our `categoryForName()` still winning on category.
 2. **Locally, no network.** `domain/bottleMatch.ts` decides which of the *user's own*
@@ -332,26 +331,26 @@ anything else, so a custom spirit (cachaça, pisco, sake) gets its own mosaic ti
 without code changes. `'none'` is the sentinel for "no base spirit".
 
 ### Cloud AI — Firebase AI Logic, behind a sign-in
-Three AI paths, all augmentations inside an otherwise-manual editor: **fill a
-recipe from pasted text** (in the recipe editor), **shelf scan** (photos →
-bottles, in the bottle add sheet), and **cocktail images** (in the recipe
-editor). All pass **`src/import/firebaseAI.ts`**,
-which goes through **Firebase AI Logic** — Google proxies the request and the
-Gemini key lives in the Firebase project, so **no credential ships in this app
-or sits in a user's browser**. The pure part (schemas, prompts, model-JSON →
-`StructuredImport`) lives in
-**`src/import/aiShared.ts`** and is transport-agnostic; a future backend should
-reuse it and only supply a new transport.
+Two AI paths, both augmentations inside an otherwise-manual editor: **fill a
+recipe from pasted text** (in the recipe editor) and **shelf scan** (photos →
+bottles, in the bottle add sheet). Both
+call **`src/import/firebaseAI.ts`**, which goes through **Firebase AI Logic** —
+Google proxies the request and the Gemini key lives in the Firebase project, so
+**no credential ships in this app or sits in a user's browser**. Each call runs a
+**server prompt template**: the prompt, model, temperature and output ceiling live
+in the Firebase project, so changing a prompt is a console edit rather than a
+redeploy, and the project can refuse any request that isn't one of ours. Authored
+copies of the four templates are in **`docs/prompt-templates/`** — edit there,
+then paste — and the pure part left in **`src/import/aiShared.ts`** (response
+shapes, model-JSON → `StructuredImport`) stays transport-agnostic.
 
-Images are a **pic to a fixed canonical scene**. Consistency across the library
-is the whole point, and it comes from `firebaseGenerateImage` *editing* one of
-`src/assets/scenes/` — three base photos (rocks / coupe / highball, chosen by
-`sceneForGlassware`) with identical surface, lighting and backdrop — onto which
-the drink is rendered from its `name`/`spirit`/`method`/`ingredients`/`garnish`
-(`buildImagePrompt`). `Recipe.image` is a data URL (kept that way so backups
-survive) and `imageStatus` guards against double-spending one save. A recipe
-renders its `image` when present, else the designed `spiritVisual` tile —
-picked photos (the "Choose a photo" row) and generated ones both land there.
+Cocktail **photos** are not AI at all — they are a **curated catalog** shipped to
+Firebase Storage and merged over a bundled copy at boot. The editor suggests the
+closest catalog shot for the drink being built (`domain/recipeImage.ts`), and a
+Storage-hosted `catalog.json`/`manifest.json` extends it so new styles can land
+without an app deploy. The generation + publish scripts (`scripts/`) use your own
+Gemini key directly (not Firebase AI Logic), so the project's template-only mode
+doesn't apply to them. `Recipe.image` stores a data URL or resolved catalog URL.
 
 Three gates, in order — all three must hold before an AI call happens:
 1. `FEATURES.cloudAI` in `src/config.ts` — the **kill switch**, removes every entry point.
@@ -400,8 +399,8 @@ the transport's size check is a backstop that shouldn't fire.
 
 They live in their own module for two reasons, both of which will bite if you
 move them. `image.ts` needs the byte budget and is imported *eagerly* by the Bar
-tab, so pulling the constants from `aiShared.ts` would drag 28 KB of prompts
-into a chunk that loads for everyone who opens My Bar. And when the AI calls
+tab, so pulling the constants from `aiShared.ts` would drag its mappers into a
+chunk that loads for everyone who opens My Bar. And when the AI calls
 move behind a server proxy, that proxy has to enforce the same numbers — a limit
 only the client knows is a limit the client can remove.
 

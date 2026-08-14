@@ -1,6 +1,6 @@
 import type { Auth, User } from 'firebase/auth'
-import type { AI, GenerationConfig, GenerativeModel, TemplateGenerativeModel } from 'firebase/ai'
-import { CLOUD_AI_MODEL, firebaseConfig, isCloudAIConfigured, recaptchaSiteKey } from '../config'
+import type { AI, TemplateGenerativeModel } from 'firebase/ai'
+import { firebaseConfig, isCloudAIConfigured, recaptchaSiteKey } from '../config'
 
 // Firebase bootstrap for the optional cloud-AI features. Everything here is
 // lazy: the (large) Firebase SDK is only imported when this runs, so browsing
@@ -95,13 +95,6 @@ export async function signOutUser(): Promise<void> {
   const { auth } = await ensureFirebase()
   const { signOut } = await import('firebase/auth')
   await signOut(auth)
-}
-
-/** Build a Gemini model handle bound to the given generation config. */
-export async function getGeminiModel(generationConfig: GenerationConfig): Promise<GenerativeModel> {
-  const { ai } = await ensureFirebase()
-  const { getGenerativeModel } = await import('firebase/ai')
-  return getGenerativeModel(ai, { model: CLOUD_AI_MODEL, generationConfig })
 }
 
 /**

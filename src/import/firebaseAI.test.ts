@@ -12,6 +12,7 @@ import {
   firebaseReconcileBottles,
 } from './firebaseAI'
 import type { DupeQuery } from './aiShared'
+import { GLASSES, METHODS, TAG_KEYS } from '../domain/vocab'
 import { MAX_IMAGE_BYTES, MAX_PARSE_CHARS, MAX_SCAN_IMAGES } from './limits'
 
 /**
@@ -53,6 +54,20 @@ describe('firebaseParse', () => {
     expect(out[0].main.name).toBe('Daiquiri')
     expect(out[0].main.spirit).toBe('rum')
     expect(out[0].main.ingredients).toHaveLength(2)
+  })
+
+  // Moved here from vocab.test.ts, which used to assert this against the PROMPT
+  // constant. The prompt now lives in the console, so the request variables are
+  // where the invariant is observable: the model must never be told about a
+  // vocabulary the pickers don't offer — the mismatch vocab.ts exists to fix.
+  it('sends the vocabularies from vocab.ts, so the model and the pickers agree', async () => {
+    const generateContent = mockTemplate(JSON.stringify({ recipes: [] }))
+    await firebaseParse('Daiquiri').catch(() => {})
+
+    const [, vars] = generateContent.mock.calls[0] as [string, Record<string, string>]
+    for (const tag of TAG_KEYS) expect(vars.tagVocab).toContain(tag)
+    for (const method of METHODS) expect(vars.methods).toContain(method)
+    for (const glass of GLASSES) expect(vars.glasses).toContain(glass)
   })
 
   it('throws CloudAIError on malformed JSON', async () => {
