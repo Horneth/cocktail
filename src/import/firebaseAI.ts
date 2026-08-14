@@ -1,32 +1,15 @@
-import { Schema } from 'firebase/ai'
-import { getGeminiModel, getTemplateModel } from '../auth/firebase'
+import { getTemplateModel } from '../auth/firebase'
 import { dataUrlBytes, splitDataUrl } from './image'
-import {
-  DUPE_PROMPT,
-  DUPE_SCHEMA,
-  PROMPT,
-  RECONCILE_SCHEMA,
-  RESPONSE_SCHEMA,
-  buildReconcilePrompt,
-  dedupeBottles,
-  finishDupeJudgement,
-  finishParse,
-  parseReconcile,
-} from './aiShared'
+import { dedupeBottles, finishDupeJudgement, finishParse, parseReconcile } from './aiShared'
+import { GLASSES, METHODS, TAG_KEYS } from '../domain/vocab'
 import type {
   DupeQuery,
   DupeVerdict,
   IdentifiedBottle,
-  OpenApiSchema,
   ReconcileInput,
   ReconcileMatch,
 } from './aiShared'
-import {
-  MAX_IMAGE_BYTES,
-  MAX_OUTPUT_TOKENS,
-  MAX_PARSE_CHARS,
-  MAX_SCAN_IMAGES,
-} from './limits'
+import { MAX_IMAGE_BYTES, MAX_PARSE_CHARS, MAX_SCAN_IMAGES } from './limits'
 import { logAiCall } from '../auth/analytics'
 import type { StructuredImport } from './types'
 
@@ -47,32 +30,11 @@ export class CloudAIError extends Error {}
  * without breaking the copy already on someone's phone.
  */
 export const TEMPLATES = {
+  parse: 'cocktail-parse-v1-0-0',
+  dupes: 'cocktail-dupes-v1-0-0',
   vision: 'cocktail-vision-v1-0-0',
+  reconcile: 'cocktail-reconcile-v1-0-0',
 } as const
-
-// Convert our OpenAPI-subset schema into a Firebase AI `Schema` so the model is
-// constrained to valid JSON (the same guarantee Gemini's responseSchema gave us).
-function toFirebaseSchema(s: OpenApiSchema): Schema {
-  switch (s.type) {
-    case 'object': {
-      const props = s.properties ?? {}
-      const properties: Record<string, Schema> = {}
-      for (const [k, v] of Object.entries(props)) properties[k] = toFirebaseSchema(v)
-      const required = s.required ?? []
-      const optionalProperties = Object.keys(props).filter((k) => !required.includes(k))
-      return Schema.object({ properties, optionalProperties })
-    }
-    case 'array':
-      return Schema.array({ items: toFirebaseSchema(s.items ?? { type: 'string' }) })
-    case 'number':
-      return Schema.number({ nullable: s.nullable })
-    case 'boolean':
-      return Schema.boolean({ nullable: s.nullable })
-    case 'string':
-    default:
-      return Schema.string({ nullable: s.nullable })
-  }
-}
 
 function friendlyError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
@@ -110,13 +72,17 @@ export async function firebaseParse(text: string): Promise<StructuredImport[]> {
 
   let jsonText: string
   try {
-    const model = await getGeminiModel({
-      responseMimeType: 'application/json',
-      responseSchema: toFirebaseSchema(RESPONSE_SCHEMA),
-      temperature: 0.2,
-      maxOutputTokens: MAX_OUTPUT_TOKENS.parse,
+    const model = await getTemplateModel()
+    // The vocabularies travel with the request rather than living in the
+    // template, so `domain/vocab.ts` stays the one list the prompt, the editor
+    // and the import picker all read. Three short strings is a cheap price for
+    // not re-forking it into a console.
+    const result = await model.generateContent(TEMPLATES.parse, {
+      description: text,
+      methods: METHODS.join(', '),
+      glasses: GLASSES.join(', '),
+      tagVocab: TAG_KEYS.join(', '),
     })
-    const result = await model.generateContent(`${PROMPT}\n\nDESCRIPTION:\n${text}`)
     jsonText = result.response.text()
   } catch (err) {
     logAiCall('parse', 'error')
@@ -157,21 +123,14 @@ export async function firebaseJudgeDuplicates(queries: DupeQuery[]): Promise<Dup
   if (!asked.length) return []
 
   try {
-    const model = await getGeminiModel({
-      responseMimeType: 'application/json',
-      responseSchema: toFirebaseSchema(DUPE_SCHEMA),
-      temperature: 0,
-      maxOutputTokens: MAX_OUTPUT_TOKENS.dupes,
-    })
-    const payload = asked.map((q) => ({
+    const model = await getTemplateModel()
+    const entries = asked.map((q) => ({
       index: q.index,
       name: q.name,
       aka: q.aka,
       candidates: q.candidates,
     }))
-    const result = await model.generateContent(
-      `${DUPE_PROMPT}\n\nENTRIES:\n${JSON.stringify(payload)}`,
-    )
+    const result = await model.generateContent(TEMPLATES.dupes, { entries })
     const verdicts = finishDupeJudgement(JSON.parse(result.response.text()), asked)
     logAiCall('dupes', 'ok', { results: verdicts.length })
     return verdicts
@@ -246,13 +205,13 @@ export async function firebaseReconcileBottles(inputs: ReconcileInput[]): Promis
   if (!comparable.length) return []
 
   try {
-    const model = await getGeminiModel({
-      responseMimeType: 'application/json',
-      responseSchema: toFirebaseSchema(RECONCILE_SCHEMA),
-      temperature: 0,
-      maxOutputTokens: MAX_OUTPUT_TOKENS.reconcile,
-    })
-    const result = await model.generateContent(buildReconcilePrompt(comparable))
+    const model = await getTemplateModel()
+    const detections = comparable.map((i) => ({
+      detected: i.detected,
+      ...(i.category ? { category: i.category } : {}),
+      candidates: i.candidates,
+    }))
+    const result = await model.generateContent(TEMPLATES.reconcile, { detections })
     const matches = parseReconcile(JSON.parse(result.response.text()), comparable)
     logAiCall('reconcile', 'ok', { results: matches.length })
     return matches

@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Mock the Firebase bootstrap so no real SDK/network is touched — we only verify
 // the transport wiring (model JSON -> StructuredImport / bottles) and error paths.
-vi.mock('../auth/firebase', () => ({ getGeminiModel: vi.fn(), getTemplateModel: vi.fn() }))
-import { getGeminiModel, getTemplateModel } from '../auth/firebase'
+vi.mock('../auth/firebase', () => ({ getTemplateModel: vi.fn() }))
+import { getTemplateModel } from '../auth/firebase'
 import {
   CloudAIError,
   firebaseIdentifyBottles,
@@ -14,22 +14,10 @@ import {
 import type { DupeQuery } from './aiShared'
 import { MAX_IMAGE_BYTES, MAX_PARSE_CHARS, MAX_SCAN_IMAGES } from './limits'
 
-type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
-
-/** Mock the model and hand back the spy, so tests can assert what was sent. */
-function mockModel(jsonText: string) {
-  const generateContent = vi.fn(async (_request: string | ContentPart[]) => ({
-    response: { text: () => jsonText },
-  }))
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  vi.mocked(getGeminiModel).mockResolvedValue({ generateContent } as any)
-  return generateContent
-}
-
 /**
- * Mock the server-template handle. The vision call runs a prompt published in
- * the Firebase project, so what we assert is the template id and the variables
- * we fill it with — the prompt and its config live in the console now.
+ * Mock the server-template handle. All four calls run prompts published in the
+ * Firebase project, so what we assert is the template id and the variables we
+ * fill it with — the prompts and their configs live in the console now.
  */
 function mockTemplate(jsonText: string) {
   const generateContent = vi.fn(
@@ -46,7 +34,7 @@ afterEach(() => vi.clearAllMocks())
 
 describe('firebaseParse', () => {
   it('maps model JSON into StructuredImport[] via the shared mappers', async () => {
-    mockModel(
+    mockTemplate(
       JSON.stringify({
         recipes: [
           {
@@ -68,12 +56,12 @@ describe('firebaseParse', () => {
   })
 
   it('throws CloudAIError on malformed JSON', async () => {
-    mockModel('definitely not json')
+    mockTemplate('definitely not json')
     await expect(firebaseParse('x')).rejects.toBeInstanceOf(CloudAIError)
   })
 
   it('throws CloudAIError when the model finds no recipes', async () => {
-    mockModel(JSON.stringify({ recipes: [] }))
+    mockTemplate(JSON.stringify({ recipes: [] }))
     await expect(firebaseParse('x')).rejects.toThrow(/No recipes/)
   })
 
@@ -124,18 +112,18 @@ describe('firebaseJudgeDuplicates', () => {
   it('sends only names — never ingredients or ids — and only for shortlisted drinks', async () => {
     // This is the privacy contract: the library never leaves the device beyond
     // the handful of names a local pass already matched.
-    const generateContent = mockModel(JSON.stringify({ verdicts: [] }))
+    const generateContent = mockTemplate(JSON.stringify({ verdicts: [] }))
     await firebaseJudgeDuplicates(QUERIES)
 
-    const sent = generateContent.mock.calls[0][0] as string
-    const payload = JSON.parse(sent.slice(sent.indexOf('[')))
-    expect(payload).toEqual([
-      { index: 0, name: 'Rum Sour', aka: ['Daiquiri'], candidates: ['Daiquiri'] },
-    ])
+    const [templateId, vars] = generateContent.mock.calls[0]
+    expect(templateId).toBe('cocktail-dupes-v1-0-0')
+    expect(vars).toEqual({
+      entries: [{ index: 0, name: 'Rum Sour', aka: ['Daiquiri'], candidates: ['Daiquiri'] }],
+    })
   })
 
   it('returns matched verdicts', async () => {
-    mockModel(
+    mockTemplate(
       JSON.stringify({
         verdicts: [{ index: 0, relation: 'same', match: 'Daiquiri', reason: 'same drink' }],
       }),
@@ -148,14 +136,14 @@ describe('firebaseJudgeDuplicates', () => {
   it('never calls the model when nothing matched locally', async () => {
     await expect(firebaseJudgeDuplicates([QUERIES[1]])).resolves.toEqual([])
     await expect(firebaseJudgeDuplicates([])).resolves.toEqual([])
-    expect(getGeminiModel).not.toHaveBeenCalled()
+    expect(getTemplateModel).not.toHaveBeenCalled()
   })
 
   it('degrades to no verdicts rather than throwing — a failed check must not block an import', async () => {
-    mockModel('not json at all')
+    mockTemplate('not json at all')
     await expect(firebaseJudgeDuplicates(QUERIES)).resolves.toEqual([])
 
-    vi.mocked(getGeminiModel).mockRejectedValueOnce(new Error('offline'))
+    vi.mocked(getTemplateModel).mockRejectedValueOnce(new Error('offline'))
     await expect(firebaseJudgeDuplicates(QUERIES)).resolves.toEqual([])
   })
 })
@@ -164,7 +152,7 @@ describe('firebaseReconcileBottles', () => {
   const inputs = [{ detected: 'Plantation 3 Stars', candidates: ['Plantation Three Stars White Rum'] }]
 
   it('maps the model verdict back onto what we asked about', async () => {
-    mockModel(
+    mockTemplate(
       JSON.stringify({
         matches: [
           {
@@ -188,25 +176,29 @@ describe('firebaseReconcileBottles', () => {
   })
 
   it('sends only the detected names and their candidates', async () => {
-    const generateContent = mockModel(JSON.stringify({ matches: [] }))
+    const generateContent = mockTemplate(JSON.stringify({ matches: [] }))
     await firebaseReconcileBottles(inputs)
-    const prompt = generateContent.mock.calls[0][0] as string
-    expect(prompt).toContain('Plantation 3 Stars')
-    expect(prompt).toContain('Plantation Three Stars White Rum')
+    const [templateId, vars] = generateContent.mock.calls[0]
+    expect(templateId).toBe('cocktail-reconcile-v1-0-0')
+    expect(vars).toEqual({
+      detections: [
+        { detected: 'Plantation 3 Stars', candidates: ['Plantation Three Stars White Rum'] },
+      ],
+    })
   })
 
   it('never calls the model when nothing has a candidate', async () => {
     // A scan into an empty bar must cost exactly one AI call, not two.
     expect(await firebaseReconcileBottles([{ detected: 'Campari', candidates: [] }])).toEqual([])
     expect(await firebaseReconcileBottles([])).toEqual([])
-    expect(getGeminiModel).not.toHaveBeenCalled()
+    expect(getTemplateModel).not.toHaveBeenCalled()
   })
 
   it('degrades to no verdicts rather than throwing — a failed pass 2 must not break the scan', async () => {
-    mockModel('not json')
+    mockTemplate('not json')
     await expect(firebaseReconcileBottles(inputs)).resolves.toEqual([])
 
-    vi.mocked(getGeminiModel).mockRejectedValueOnce(new Error('429 resource-exhausted'))
+    vi.mocked(getTemplateModel).mockRejectedValueOnce(new Error('429 resource-exhausted'))
     await expect(firebaseReconcileBottles(inputs)).resolves.toEqual([])
   })
 })
@@ -217,9 +209,9 @@ describe('request limits', () => {
   const jpeg = (bytes: number) => `data:image/jpeg;base64,${'A'.repeat(Math.ceil(bytes / 3) * 4)}`
 
   it('rejects an over-long paste before reaching the model', async () => {
-    mockModel('{}')
+    mockTemplate('{}')
     await expect(firebaseParse('x'.repeat(MAX_PARSE_CHARS + 1))).rejects.toBeInstanceOf(CloudAIError)
-    expect(getGeminiModel).not.toHaveBeenCalled()
+    expect(getTemplateModel).not.toHaveBeenCalled()
   })
 
   it('rejects more photos than a scan allows, before reaching the model', async () => {
@@ -237,20 +229,14 @@ describe('request limits', () => {
     expect(getTemplateModel).not.toHaveBeenCalled()
   })
 
-  // The vision call is absent here on purpose: its ceiling moved into the
-  // published template's frontmatter, where the client can no longer raise it.
-  it('caps output tokens on every call the client still configures', async () => {
-    mockModel('{"recipes":[]}')
+  // Output ceilings used to be asserted here. They now live in each template's
+  // frontmatter, on the server, where this client cannot raise them at all —
+  // a stronger guarantee than the one this test used to make.
+  it('never lets the client choose the model or its config', async () => {
+    const generateContent = mockTemplate('{"recipes":[]}')
     await firebaseParse('Daiquiri').catch(() => {})
-    mockModel('{"results":[]}')
-    await firebaseJudgeDuplicates([{ index: 0, name: 'Daiquiri', aka: [], candidates: ['Daiquiri'] }])
-    mockModel('{"matches":[]}')
-    await firebaseReconcileBottles([{ detected: 'Campari', candidates: ['Campari'] }])
-
-    expect(vi.mocked(getGeminiModel).mock.calls).toHaveLength(3)
-    for (const [config] of vi.mocked(getGeminiModel).mock.calls) {
-      expect(config.maxOutputTokens).toBeGreaterThan(0)
-    }
+    const [, vars] = generateContent.mock.calls[0]
+    expect(Object.keys(vars as object)).toEqual(['description', 'methods', 'glasses', 'tagVocab'])
   })
 })
 
