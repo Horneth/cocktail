@@ -18,14 +18,11 @@ export const MAX_SCAN_IMAGES = 4
 /** Largest decoded payload accepted per photo. */
 export const MAX_IMAGE_BYTES = 500_000
 
-/**
- * Output ceiling per call. Generous enough that real work never truncates — a
- * long description yields a handful of recipes, a crowded shelf a few dozen
- * bottles — but finite, which is the whole point.
- */
-export const MAX_OUTPUT_TOKENS = {
-  parse: 8192,
-  dupes: 1024,
-  bottles: 4096,
-  reconcile: 2048,
-} as const
+// The output ceilings that used to live here (parse 8192, dupes 1024, bottles
+// 4096, reconcile 2048) moved into each server prompt template's frontmatter —
+// see `docs/prompt-templates/`. That is strictly stronger than enforcing them
+// here: a client can no longer raise its own limit, which is the point the
+// comment above makes about a limit only the client knows.
+//
+// The bounds left in this file are all on *input*, which the transport still
+// has to check before it spends a request.
