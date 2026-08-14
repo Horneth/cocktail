@@ -41,8 +41,9 @@ export const firebaseConfig = {
 /** reCAPTCHA v3 site key for Firebase App Check (required to call AI Logic). */
 export const recaptchaSiteKey = env.VITE_RECAPTCHA_SITE_KEY ?? "";
 
-/** The Gemini model used for cloud calls. */
-export const CLOUD_AI_MODEL = "gemini-3.5-flash-lite";
+// The Gemini model is no longer chosen here: each server prompt template names
+// its own in frontmatter (see docs/prompt-templates/). Moving models is now a
+// console change, not a redeploy — and a client cannot pick a costlier one.
 
 /**
  * True only when the Firebase project is wired up. Until then the AI features

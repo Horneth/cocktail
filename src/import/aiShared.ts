@@ -2,218 +2,23 @@ import { coerceUnit } from '../domain/units'
 import { normalizeComponentName } from '../domain/textNormalize'
 import { normIngredient } from '../domain/availability'
 import { categoryForName } from '../domain/spiritCategory'
-import { GLASSES, METHODS, TAG_KEYS, canonical } from '../domain/vocab'
+import { GLASSES, METHODS, canonical } from '../domain/vocab'
 import type { RecipeKind, SpiritCategory } from '../db/schema'
 import { GUESSABLE_FIELDS } from './types'
 import type { GuessedField, IngredientDraft, RecipeDraft, StructuredImport } from './types'
 
-// Transport-agnostic AI core. Everything here is pure and shared by every AI
-// backend (cloud Gemini today, on-device WebLLM/transformers.js next): the
-// structured-output schemas, the prompts, and the mappers that turn a model's
-// raw JSON into our StructuredImport. A backend only has to produce the raw
-// shapes below (`AiRecipe` / `{ bottles }`); all normalization lives here.
+// Transport-agnostic AI core: the shapes a model is expected to return, and the
+// pure mappers that turn that raw JSON into our StructuredImport. A backend only
+// has to produce the raw shapes below (`AiRecipe` / `{ bottles }`); all
+// normalization — and all validation of what the model claims — lives here.
 
-// ── Structured-output schemas ──────────────────────────────────────────────
-// An OpenAPI subset (what Gemini's responseSchema accepts). `toJsonSchema()`
-// converts it to plain JSON Schema for engines that want that (e.g. WebLLM).
-export interface OpenApiSchema {
-  type?: string
-  nullable?: boolean
-  properties?: Record<string, OpenApiSchema>
-  items?: OpenApiSchema
-  required?: string[]
-}
-
-// Shape we ask a model to return per ingredient. We wire cross-links ourselves
-// afterwards by name.
-export const INGREDIENT_SCHEMA: OpenApiSchema = {
-  type: 'object',
-  properties: {
-    amount: { type: 'number', nullable: true },
-    unit: { type: 'string' },
-    name: { type: 'string' },
-    optional: { type: 'boolean' },
-    note: { type: 'string' },
-  },
-  required: ['name', 'unit'],
-}
-
-// One drink (cocktail or standalone syrup) plus its own sub-recipes.
-export const RECIPE_SCHEMA: OpenApiSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    kind: { type: 'string' },
-    method: { type: 'string' },
-    glassware: { type: 'string' },
-    garnish: { type: 'string' },
-    instructions: { type: 'string' },
-    tags: { type: 'array', items: { type: 'string' } },
-    spirit: { type: 'string' },
-    // Fields the model INFERRED rather than read. Drives the "✨ guessed" marks
-    // in the import preview so a user can see what to double-check.
-    guessed: { type: 'array', items: { type: 'string' } },
-    // Alternate names for the drink, including the classic it riffs on. Lets us
-    // shortlist library duplicates locally ("Rum Sour" → your Daiquiri) without
-    // shipping the library to the cloud.
-    aka: { type: 'array', items: { type: 'string' } },
-    ingredients: { type: 'array', items: INGREDIENT_SCHEMA },
-    subRecipes: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          ingredients: { type: 'array', items: INGREDIENT_SCHEMA },
-        },
-        required: ['name', 'ingredients'],
-      },
-    },
-  },
-  required: ['name', 'ingredients'],
-}
-
-// A single video description often contains SEVERAL cocktails, so we ask for a
-// list. Each entry is a full recipe with its own sub-recipes.
-export const RESPONSE_SCHEMA: OpenApiSchema = {
-  type: 'object',
-  properties: {
-    recipes: { type: 'array', items: RECIPE_SCHEMA },
-  },
-  required: ['recipes'],
-}
-
-export const DUPE_SCHEMA: OpenApiSchema = {
-  type: 'object',
-  properties: {
-    verdicts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          index: { type: 'number' },
-          match: { type: 'string' },
-          relation: { type: 'string' },
-          reason: { type: 'string' },
-        },
-        required: ['index', 'relation'],
-      },
-    },
-  },
-  required: ['verdicts'],
-}
-
-export const BOTTLES_SCHEMA: OpenApiSchema = {
-  type: 'object',
-  properties: {
-    bottles: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          brand: { type: 'string' },
-          category: { type: 'string' },
-          confidence: { type: 'string' },
-        },
-        required: ['name'],
-      },
-    },
-  },
-  required: ['bottles'],
-}
-
-// Pass 2 of the shelf scan. The model gets each detected bottle plus the few
-// bottles the user already has that *look* closest (picked on-device by
-// `domain/bottleMatch`), and decides which are genuinely the same. Deciding
-// that "Tanqueray No. Ten" is not "Tanqueray" is a judgement call about bottles,
-// which is exactly the part worth spending a call on.
-export const RECONCILE_SCHEMA: OpenApiSchema = {
-  type: 'object',
-  properties: {
-    matches: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          detected: { type: 'string' },
-          verdict: { type: 'string' },
-          match: { type: 'string' },
-          canonicalName: { type: 'string' },
-        },
-        required: ['detected', 'verdict'],
-      },
-    },
-  },
-  required: ['matches'],
-}
-
-/**
- * Convert our OpenAPI-subset schema into plain JSON Schema. Nearly identity —
- * the only real transform is `{ type, nullable: true }` → `{ type: [t, 'null'] }`
- * — for engines (e.g. WebLLM's grammar mode) that want JSON Schema, not Gemini's
- * responseSchema dialect. Pure and recursive.
- */
-export function toJsonSchema(schema: OpenApiSchema): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  if (schema.type !== undefined) {
-    out.type = schema.nullable ? [schema.type, 'null'] : schema.type
-  }
-  if (schema.properties) {
-    out.properties = Object.fromEntries(
-      Object.entries(schema.properties).map(([k, v]) => [k, toJsonSchema(v)]),
-    )
-  }
-  if (schema.items) out.items = toJsonSchema(schema.items)
-  if (schema.required) out.required = [...schema.required]
-  return out
-}
-
-// ── Prompts ────────────────────────────────────────────────────────────────
-// Built from `domain/vocab.ts` so the model, the recipe editor and the import
-// preview can never drift onto three different tag/method/glass vocabularies.
-export const PROMPT = `You extract EVERY drink recipe from a pasted recipe or video description. A single description frequently contains SEVERAL cocktails — return all of them.
-Return JSON matching the schema: a "recipes" array with one entry per drink, in the order they appear. Rules per recipe:
-- "name": the drink's name only (no channel or video title fluff).
-- "kind": "cocktail" for a drink someone sits down and drinks, OR "component" for a syrup/cordial/orgeat/infusion/tincture/mix — something that is an INGREDIENT in a drink rather than a drink itself. A component has no glass, no garnish and no serve. Prefer attaching a syrup as a "subRecipes" entry of the cocktail that uses it; only emit a top-level "component" recipe when the syrup stands entirely on its own with no cocktail alongside it.
-- "ingredients": each line of that drink's build. Keep the amount as a number in the unit as written (oz, ml, cl, dash, barspoon, tsp, tbsp, part). Use amount null for "to taste", garnishes, or "top with" items. Strip any parenthetical unit conversion like "(30 ml)" from the name.
-- "subRecipes": any syrups/cordials/orgeat/etc. that drink relies on, described as their OWN ingredient block. Use unit "part" for ratio recipes ("1 part sugar"). Give each the EXACT name used in that drink's ingredient list so they can be linked. If two cocktails share the same syrup, include it under each. Always split these out rather than leaving them as one ingredient.
-- "spirit": the primary base spirit as a short lowercase word. Use the SPECIFIC spirit the recipe names — e.g. gin, vodka, rum, cachaça, whiskey, tequila, mezcal, brandy, cognac, pisco, sake, wine, liqueur. Do NOT collapse a specific spirit into a broader one (a Caipirinha is "cachaça", not "rum"). Only normalize spelling/family: bourbon/rye/scotch/whisky -> whiskey. Use "mocktail" for any non-alcoholic / zero-proof / "virgin" drink. Omit spirit for a component/syrup.
-- "method": how it is built. Use exactly one of: ${METHODS.join(', ')}.
-- "glassware": what it is served in. Use exactly one of: ${GLASSES.join(', ')} — unless the text names a different vessel, in which case use the text's.
-- "garnish": the garnish, as short as possible ("Lime wheel", "Orange peel").
-- "tags": 2 to 4 tags describing style and flavour, taken from this list: ${TAG_KEYS.join(', ')}. Use "syrup" for a component. No "#".
-- "aka": 0 to 3 other names this exact drink is commonly known by, PLUS the name of the classic it is a variation of when it clearly is one (a "Oaxacan Old Fashioned" gets ["Old Fashioned"]; a "Rum Sour" made with rum, lime and sugar gets ["Daiquiri"]). Leave empty for an original drink with no ancestor.
-- "guessed": ALWAYS fill in "method", "glassware", "garnish" and "tags" — when the text does not state one, infer the standard serve for that drink from your own bartending knowledge, and list that field's name here. Also list "spirit" or "kind" if you inferred those. A field is "guessed" only when the text did not state it; do not list fields you read straight from the text. NEVER guess ingredients or amounts — those come from the text only, and a drink with no ingredients in the text is not a recipe.
-- Ignore non-recipe text: links, chapters/timestamps, gear lists, socials, sponsorships.
-- Do not invent ingredients. If the description has exactly one drink, return a one-element "recipes" array.`
-
-// Second pass: only the names that already survived a LOCAL fuzzy match are sent
-// here, so the payload is a handful of strings rather than the user's library.
-export const DUPE_PROMPT = `You decide whether drinks someone is importing are already in their collection.
-For each entry you get the incoming drink's "name", its "aka" (other names/ancestors), and "candidates" — names already in the collection that looked similar.
-Judge on the DRINK'S IDENTITY, not on the exact proportions: the same classic written by two bartenders with slightly different specs is still the same drink, and a named riff is still its own drink.
-Return one verdict per entry, echoing its "index":
-- "relation": "same" when a candidate IS this drink (including the same classic under another name — a "Rum Sour" of rum/lime/sugar is a Daiquiri).
-- "relation": "variation" when this drink is a recognised riff ON a candidate but is its own named drink (Oaxacan Old Fashioned vs Old Fashioned, Hemingway Daiquiri vs Daiquiri).
-- "relation": "different" when no candidate is related — a shared word in the name is not a relationship.
-- "match": the candidate name EXACTLY as given, or omit it when the relation is "different".
-- "reason": at most 8 words, addressed to the user ("same drink, different name", "adds mezcal and agave"). No preamble.`
-
-export const VISION_PROMPT = `You are looking at photo(s) of a home bar or liquor shelf. List every distinct liquor, spirit, wine, or liqueur BOTTLE you can identify.
-- "name": the bottle's full name as printed, brand plus expression (e.g. "Woodford Reserve", "Tanqueray No. Ten", "Campari"). If the brand is unreadable but the type is clear, use the type (e.g. "London dry gin"). No bottle size, no ABV, no age unless it is part of the name.
-- "brand": the producer alone (e.g. "Woodford Reserve", "Tanqueray", "Plantation"). Omit if unreadable.
-- "category": a short lowercase base category — one of gin, vodka, rum, whiskey, tequila, mezcal, brandy, cognac, cachaça, pisco, wine, liqueur. Omit if unsure.
-- "confidence": "high" when you can read the label clearly, "low" when you are inferring from bottle shape, colour, or a partial label.
-- One entry per distinct bottle. Ignore glassware, mixers, garnishes and non-bottle items. Do not invent bottles you cannot clearly see.`
-
-export const RECONCILE_PROMPT = `You are matching bottles just detected in a photo against bottles the user already has in their bar.
-For each DETECTED bottle you are given the few existing bottles whose names look closest. Return one entry per DETECTED bottle, repeating its name verbatim in "detected", with a "verdict":
-- "same": it IS one of the listed bottles, written differently ("Plantation 3 Stars" vs "Plantation Three Stars White Rum"). Set "match" to the existing name EXACTLY as listed.
-- "variant": the same producer or family, but a genuinely different bottle the user would want to keep separately ("Tanqueray No. Ten" vs "Tanqueray", "Plantation O.F.T.D." vs "Plantation 3 Stars"). Set "match" to the closest existing name.
-- "new": none of the listed bottles is the same bottle or a near variant.
-Judge on the bottle's identity, not on string similarity. Different expressions, age statements or proofs of one brand are "variant", never "same".
-Also return "canonicalName": the cleanest display name for the detected bottle — brand plus expression, no bottle size, no ABV.`
+// The structured-output schemas and the four prompts used to live here. Both
+// now live in the published server prompt templates — authored copies in
+// `docs/prompt-templates/`, deployed copies in the Firebase project — because
+// a prompt in two places is a prompt that drifts. What is left is the part a
+// transport cannot supply: the shapes a model is expected to return, and the
+// mappers that turn that raw JSON into our own types, which is still where
+// every cross-reference the model claims gets checked against what we asked.
 
 // ── Raw model output types ─────────────────────────────────────────────────
 export interface AiIngredient {
@@ -288,7 +93,7 @@ const tempId = (p: string) => `${p}-${(counter += 1)}`
 /**
  * How long a model-authored string may be, per field. These are containment
  * limits, not validation: they exist so one absurd value can't dominate a
- * recipe card, a bar label, or — via `buildReconcilePrompt` — a second prompt.
+ * recipe card, a bar label, or — via the shelf scan's second pass — a prompt.
  * Generous enough that no honest answer is ever clipped.
  */
 export const TEXT_CAPS = {
@@ -609,30 +414,6 @@ export function dedupeBottles(
     })
   }
   return out
-}
-
-/**
- * Pure: the text sent for pass 2. Only the detected names and their few local
- * candidates travel — never the rest of the bar. Entries with no candidates are
- * dropped, since there is nothing for the model to compare them against; when
- * that empties the list the caller skips the call entirely.
- *
- * The payload is JSON, matching its twin `firebaseJudgeDuplicates`. That is not
- * cosmetic: `detected` is pass-1 output, so it is ultimately whatever was
- * printed on a photographed label, and hand-quoting it into prose let a label
- * close the quote and write instructions for the *other* entries in the batch.
- * `JSON.stringify` escapes it properly; `dedupeBottles` already stripped the
- * control characters.
- */
-export function buildReconcilePrompt(inputs: ReconcileInput[]): string {
-  const payload = inputs
-    .filter((i) => i.candidates.length > 0)
-    .map((i) => ({
-      detected: i.detected,
-      ...(i.category ? { category: i.category } : {}),
-      candidates: i.candidates,
-    }))
-  return `${RECONCILE_PROMPT}\n\nDETECTED:\n${JSON.stringify(payload)}`
 }
 
 const VERDICTS = new Set(['same', 'variant', 'new'])

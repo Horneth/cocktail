@@ -74,8 +74,9 @@ managing the secret. Kept as an escape hatch, not the first move.
   → `generateContent(parts)`. `firebaseParse` / `firebaseIdentifyBottles` /
   `firebaseReconcileBottles` take no key. `toFirebaseSchema()` converts our OpenAPI-subset
   schema to the SDK's `Schema` builder. Everything downstream (mappers, prompts,
-  `StructuredImport`) is unchanged and lives in `src/import/aiShared.ts`. Vision still
-  sends `inlineData` parts via `splitDataUrl`.
+  `StructuredImport`) is unchanged and lives in `src/import/aiShared.ts`. (Since superseded:
+  the prompts and schemas named here moved into server prompt templates — see
+  `docs/ai-hybrid-and-templates.md` and the list of four calls below.)
 - **Shelf scan is two calls, not one** (see CLAUDE.md, "Photo → bar"): vision, then a
   tiny text-only `firebaseReconcileBottles` that rules same/variant/new on bottles the
   user might already own. Its payload is picked on-device by `domain/bottleMatch.ts` and
@@ -84,7 +85,7 @@ managing the secret. Kept as an escape hatch, not the first move.
   a first scan into an empty bar costs exactly one request. It is also non-blocking:
   a failure degrades to the local verdicts rather than breaking the scan.
 - **`src/auth/firebase.ts`** initializes the app + App Check + Auth once, all behind dynamic
-  `import()`s, and exposes `signInWithGoogle()` / `signOutUser()` / `getGeminiModel()`. The
+  `import()`s, and exposes `signInWithGoogle()` / `signOutUser()` / `getTemplateModel()`. The
   Firebase config values (`apiKey`, `projectId`, `appId`, …) are **public client config, not
   secrets**. The real Gemini key lives in the Firebase project and never ships.
 - **`src/hooks/useAuth.ts`** is the gate: `aiAvailable = configured && signed in`. It does
@@ -103,24 +104,30 @@ managing the secret. Kept as an escape hatch, not the first move.
 
 ### The four calls a backend has to implement
 
-A replacement transport needs **all four** entry points in `src/import/firebaseAI.ts` — the pure
-schemas, prompts and mappers for each live in `aiShared.ts` and should be reused verbatim.
-Note the symmetry: import and shelf scan are each a *heavy* first call followed by an
-*optional, must-not-throw* second call whose payload a local pass already shortlisted.
+A replacement transport needs **all four** entry points in `src/import/firebaseAI.ts`. Each
+runs a **server prompt template** — the prompt, model, temperature and output ceiling live in
+the Firebase project, authored copies in `docs/prompt-templates/`; the client sends a template
+id from `TEMPLATES` plus variables. The mappers that turn the response into our types still
+live in `aiShared.ts` and should be reused verbatim. Note the symmetry: import and shelf scan
+are each a *heavy* first call followed by an *optional, must-not-throw* second call whose
+payload a local pass already shortlisted.
 
-1. `firebaseParse(text) → StructuredImport[]` — `PROMPT` + `RESPONSE_SCHEMA`, through
+1. `firebaseParse(text) → StructuredImport[]` — `cocktail-parse-v1-0-0`, through
    `finishParse(json, text)`. Beyond the recipes it yields preview-only `guessed` and `aka`.
-2. `firebaseJudgeDuplicates(queries) → DupeVerdict[]` — `DUPE_PROMPT` + `DUPE_SCHEMA`, through
+   Sends the vocabularies from `domain/vocab.ts` as variables, so the console never holds a
+   second copy of the one list the pickers also read.
+2. `firebaseJudgeDuplicates(queries) → DupeVerdict[]` — `cocktail-dupes-v1-0-0`, through
    `finishDupeJudgement(json, queries)`. **Must not throw**: the import screen fires it after
    the preview is already on screen, and an error means "no badges", not a failed import.
    The payload is only `{index, name, aka, candidates}` — a shortlist `domain/dupeMatch.ts`
    already computed locally. Do not "improve" this by sending the whole library; keeping the
    user's collection on the device is the design, not an accident.
-3. `firebaseIdentifyBottles(images) → IdentifiedBottle[]` — `VISION_PROMPT` + `BOTTLES_SCHEMA`
-   with `inlineData` image parts, through `dedupeBottles(json.bottles)`. Photos are already
-   downscaled by `import/image.ts`; a transport should not re-encode them.
-4. `firebaseReconcileBottles(inputs) → ReconcileMatch[]` — `RECONCILE_PROMPT` +
-   `RECONCILE_SCHEMA`, through `parseReconcile(json, inputs)`. The shelf-scan twin of (2), and
+3. `firebaseIdentifyBottles(images) → IdentifiedBottle[]` — `cocktail-vision-v1-0-0`, sending
+   photos as `{mimeType, contents}` variables the template renders with `{{media}}`, through
+   `dedupeBottles(json.bottles)`. Photos are already downscaled by `import/image.ts`; a
+   transport should not re-encode them.
+4. `firebaseReconcileBottles(inputs) → ReconcileMatch[]` — `cocktail-reconcile-v1-0-0`,
+   through `parseReconcile(json, inputs)`. The shelf-scan twin of (2), and
    **must not throw** for the same reason: `domain/bottleMatch.ts` already has a local verdict
    for every detection, so a failure costs accuracy, not the scan. Its payload is only the
    detected names plus the few candidate labels that same local pass shortlisted — same rule,
