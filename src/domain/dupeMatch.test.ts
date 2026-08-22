@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { normalizeRecipeName, shortlistCandidates } from './dupeMatch'
 import type { NameIndexEntry } from './dupeMatch'
 
-const entry = (name: string, kind: 'cocktail' | 'component' = 'cocktail'): NameIndexEntry => ({
+const entry = (name: string, kind: 'cocktail' | 'syrup' = 'cocktail'): NameIndexEntry => ({
   id: name.toLowerCase().replace(/\s+/g, '-'),
   name,
   kind,
@@ -13,7 +13,7 @@ const LIBRARY = [
   entry('Hemingway Daiquiri'),
   entry('Old Fashioned'),
   entry('Margarita'),
-  entry('Simple Syrup', 'component'),
+  entry('Simple Syrup', 'syrup'),
 ]
 
 const names = (list: NameIndexEntry[]) => list.map((e) => e.name)
@@ -33,7 +33,7 @@ describe('normalizeRecipeName', () => {
   })
 
   it('keeps modifier words that a component key would strip', () => {
-    // normalizeComponentName collapses these; for a DRINK name "Fresh Start" and
+    // normalizeMixerName collapses these; for a DRINK name "Fresh Start" and
     // "Start" are two different drinks, so this key must keep them apart.
     expect(normalizeRecipeName('Fresh Start')).not.toBe(normalizeRecipeName('Start'))
   })
@@ -63,7 +63,7 @@ describe('shortlistCandidates', () => {
 
   it('never crosses kinds — a syrup is not a duplicate of a cocktail', () => {
     expect(shortlistCandidates('Simple Syrup', [], LIBRARY, 'cocktail')).toEqual([])
-    expect(names(shortlistCandidates('Simple Syrup', [], LIBRARY, 'component'))).toEqual([
+    expect(names(shortlistCandidates('Simple Syrup', [], LIBRARY, 'syrup'))).toEqual([
       'Simple Syrup',
     ])
   })

@@ -1,4 +1,5 @@
 import { db } from '../db/db'
+import { migrateLegacyRecipe } from '../domain/recipeKind'
 import type { Bar, PantryItem, Recipe, RecipeLink } from '../db/schema'
 
 // Whole-library export/import.
@@ -141,7 +142,7 @@ export async function importBackup(backup: BackupFile): Promise<void> {
       db.bottles.clear(),
     ])
     await Promise.all([
-      db.recipes.bulkPut(recipes),
+      db.recipes.bulkPut(recipes.map((r) => migrateLegacyRecipe(r))),
       db.recipeLinks.bulkPut(recipeLinks),
       db.bars.bulkPut(bars),
       db.bottles.bulkPut(bottles),

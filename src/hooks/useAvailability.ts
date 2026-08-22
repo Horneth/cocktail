@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 import type { Recipe } from '../db/schema'
 import { canMake, makeableIds } from '../domain/availability'
 import type { Availability } from '../components/RecipeRow'
-import { useActiveBar, useCocktails, useComponents, usePantry } from './useRecipes'
+import { useActiveBar, useCocktails, useMixers, usePantry } from './useRecipes'
 import { useAssumeStaples } from './useSettings'
 
 /**
@@ -11,14 +11,14 @@ import { useAssumeStaples } from './useSettings'
  */
 export function useAvailability() {
   const cocktails = useCocktails()
-  const components = useComponents()
+  const mixers = useMixers()
   const { barId, bars, setBarId } = useActiveBar()
   const { items, have } = usePantry(barId)
   const [assumeStaples] = useAssumeStaples()
 
   const byId = useMemo(
-    () => new Map([...(cocktails ?? []), ...(components ?? [])].map((r) => [r.id, r])),
-    [cocktails, components],
+    () => new Map([...(cocktails ?? []), ...(mixers ?? [])].map((r) => [r.id, r])),
+    [cocktails, mixers],
   )
 
   const makeable = useMemo(

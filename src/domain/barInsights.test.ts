@@ -21,7 +21,7 @@ function recipe(partial: Partial<Recipe> & { name: string; ingredients: Recipe['
 const syrup = recipe({
   id: 'syrup',
   name: 'Simple Syrup',
-  kind: 'component',
+  kind: 'syrup',
   measureBasis: 'parts',
   ingredients: [
     { id: 's1', name: 'White sugar', amount: 1, unit: 'part' },
@@ -35,7 +35,7 @@ const daiquiri = recipe({
   ingredients: [
     { id: 'd1', name: 'White rum', amount: 2, unit: 'oz' },
     { id: 'd2', name: 'Lime juice', amount: 0.75, unit: 'oz' },
-    { id: 'd3', name: 'Simple Syrup', amount: 0.75, unit: 'oz', subRecipeId: 'syrup' },
+    { id: 'd3', name: 'Simple Syrup', amount: 0.75, unit: 'oz', recipeId: 'syrup' },
   ],
 })
 
@@ -78,7 +78,7 @@ describe('unlocksFor', () => {
     expect(unlocksFor(['Campari', 'Sweet vermouth'], cocktails, byId, have, true).unlocks).toBe(1)
   })
 
-  it('counts a drink whose sub-recipe becomes makeable', () => {
+  it('counts a drink whose linked syrup becomes makeable', () => {
     // With staples off, the Daiquiri needs rum, lime AND a makeable simple syrup.
     const have = bar('White rum', 'Lime juice', 'Water')
     expect(unlocksFor(['White sugar'], cocktails, byId, have, false).recipeIds).toEqual(['daiquiri'])
@@ -151,7 +151,7 @@ describe('recipesUsingBottle', () => {
     ])
   })
 
-  it('follows sub-recipes', () => {
+  it('follows linked recipes', () => {
     expect(recipesUsingBottle('White sugar', cocktails, byId).map((r) => r.id)).toEqual(['daiquiri'])
   })
 

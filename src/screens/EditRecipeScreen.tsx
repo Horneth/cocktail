@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeftIcon, FlaskIcon, PlusIcon, TrashIcon } from '../components/icons'
-import { db } from '../db/db'
 import type { Ingredient, MeasureBasis, Recipe, RecipeKind, Unit } from '../db/schema'
 import { newId } from '../domain/ids'
+import { KIND_EMOJI, KIND_LABELS, RECIPE_KINDS } from '../domain/recipeKind'
 import { KNOWN_SPIRITS } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { GLASSES, METHODS } from '../domain/vocab'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
 import {
-  useComponents,
   useKnownIngredients,
+  useMixers,
   useRecipe,
   useSpiritSuggestions,
 } from '../hooks/useRecipes'
@@ -28,7 +28,7 @@ function emptyRecipe(kind: RecipeKind): Recipe {
     kind,
     name: '',
     ingredients: [blankIngredient()],
-    measureBasis: kind === 'component' ? 'parts' : 'absolute',
+    measureBasis: kind === 'cocktail' ? 'absolute' : 'parts',
     baseServings: 1,
     tags: [],
     notes: [],
@@ -42,7 +42,7 @@ export function EditRecipeScreen() {
   const navigate = useNavigate()
   const isNew = !id
   const existing = useRecipe(id)
-  const components = useComponents()
+  const mixers = useMixers()
   const knownIngredients = useKnownIngredients()
   const spiritSuggestions = useSpiritSuggestions()
 
@@ -98,7 +98,7 @@ export function EditRecipeScreen() {
     navigate('/', { replace: true })
   }
 
-  const isComponent = form.kind === 'component'
+  const isCocktailKind = form.kind === 'cocktail'
   const currentSpirit = form.spirit?.trim().toLowerCase()
 
   return (
@@ -117,26 +117,26 @@ export function EditRecipeScreen() {
             className={styles.nameInput}
             value={form.name}
             onChange={(e) => update({ name: e.target.value })}
-            placeholder={isComponent ? 'e.g. Rich Simple Syrup' : 'e.g. Midnight Sour'}
+            placeholder={isCocktailKind ? 'e.g. Midnight Sour' : 'e.g. Rich Simple Syrup'}
             autoFocus={isNew}
           />
         </div>
 
         <div className={styles.segment}>
-          {(['cocktail', 'component'] as RecipeKind[]).map((k) => (
+          {RECIPE_KINDS.map((k) => (
             <button
               key={k}
               className={`${styles.segBtn} ${form.kind === k ? styles.segActive : ''}`}
               onClick={() =>
-                update({ kind: k, measureBasis: k === 'component' ? 'parts' : form.measureBasis })
+                update({ kind: k, measureBasis: k === 'cocktail' ? form.measureBasis : 'parts' })
               }
             >
-              {k === 'cocktail' ? 'Cocktail' : 'Sub-recipe'}
+              {KIND_EMOJI[k]} {KIND_LABELS[k]}
             </button>
           ))}
         </div>
 
-        {!isComponent && (
+        {isCocktailKind && (
           <>
             <label className={styles.label}>Base spirit</label>
             <div className={`${styles.chipRow} hg-scroll`}>
@@ -178,8 +178,7 @@ export function EditRecipeScreen() {
             <IngredientEditor
               key={ing.id}
               ingredient={ing}
-              partsMode={form.measureBasis === 'parts'}
-              components={components ?? []}
+              linkable={mixers ?? []}
               knownNames={knownIngredients}
               currentRecipeId={form.id}
               onChange={(patch) => updateIngredient(ing.id, patch)}
@@ -191,7 +190,7 @@ export function EditRecipeScreen() {
           <PlusIcon size={17} /> Add ingredient
         </button>
 
-        {!isComponent && (
+        {isCocktailKind && (
           <>
             <label className={styles.label}>Build</label>
             <div className={styles.grid2}>
@@ -296,8 +295,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 interface IngEditorProps {
   ingredient: Ingredient
-  partsMode: boolean
-  components: Recipe[]
+  /** existing recipes this ingredient can link to (syrups & cordials) */
+  linkable: Recipe[]
   knownNames: string[]
   currentRecipeId: string
   onChange: (patch: Partial<Ingredient>) => void
@@ -306,8 +305,7 @@ interface IngEditorProps {
 
 function IngredientEditor({
   ingredient,
-  partsMode,
-  components,
+  linkable,
   knownNames,
   currentRecipeId,
   onChange,
@@ -315,64 +313,48 @@ function IngredientEditor({
 }: IngEditorProps) {
   const [focused, setFocused] = useState(false)
 
+  // Autocomplete: as you type an ingredient name, offer the recipes it could BE.
+  // Linking is a deliberate tap, never an auto-create — import/creation never
+  // invents a recipe, this is the only place a cross-link gets made.
   const suggestions = useMemo(() => {
     const q = ingredient.name.trim().toLowerCase()
     if (!q) return []
-    return components
+    return linkable
       .filter((c) => c.id !== currentRecipeId && c.name.toLowerCase().includes(q))
       .slice(0, 4)
-  }, [components, ingredient.name, currentRecipeId])
+  }, [linkable, ingredient.name, currentRecipeId])
 
   const nameMatches = useMemo(() => {
     const q = ingredient.name.trim().toLowerCase()
     if (!q) return []
-    const compNames = new Set(components.map((c) => c.name.toLowerCase()))
+    const recipeNames = new Set(linkable.map((c) => c.name.toLowerCase()))
     return knownNames
       .filter((n) => {
         const l = n.toLowerCase()
-        return l.includes(q) && l !== q && !compNames.has(l)
+        return l.includes(q) && l !== q && !recipeNames.has(l)
       })
       .slice(0, 5)
-  }, [knownNames, ingredient.name, components])
+  }, [knownNames, ingredient.name, linkable])
 
-  const exactMatch = components.some(
-    (c) => c.name.toLowerCase() === ingredient.name.trim().toLowerCase(),
+  const linkedRecipe = useMemo(
+    () => linkable.find((c) => c.id === ingredient.recipeId),
+    [linkable, ingredient.recipeId],
   )
-  const showLinkOptions = !partsMode && !ingredient.subRecipeId
+  const showLinkOptions = !ingredient.recipeId
 
   const pickName = (name: string) => {
-    onChange({ name, subRecipeId: undefined })
+    onChange({ name, recipeId: undefined })
     setFocused(false)
   }
-  const linkTo = (comp: Recipe) => {
-    onChange({ name: comp.name, subRecipeId: comp.id })
-    setFocused(false)
-  }
-  const makeSubRecipe = async () => {
-    const name = ingredient.name.trim()
-    if (!name) return
-    const now = Date.now()
-    const stub: Recipe = {
-      id: newId(),
-      kind: 'component',
-      name,
-      ingredients: [],
-      measureBasis: 'parts',
-      baseServings: 1,
-      tags: [],
-      notes: [],
-      createdAt: now,
-      updatedAt: now,
-    }
-    await db.recipes.put(stub)
-    onChange({ name, subRecipeId: stub.id })
+  const linkTo = (recipe: Recipe) => {
+    onChange({ name: recipe.name, recipeId: recipe.id })
     setFocused(false)
   }
 
   const showDropdown =
     focused &&
     ingredient.name.trim() !== '' &&
-    (nameMatches.length > 0 || (showLinkOptions && (suggestions.length > 0 || !exactMatch)))
+    (nameMatches.length > 0 || (showLinkOptions && suggestions.length > 0))
 
   return (
     <div className={styles.ingEditor}>
@@ -404,37 +386,32 @@ function IngredientEditor({
 
       <div className={styles.nameWrap}>
         <input
-          className={ingredient.subRecipeId ? styles.nameLinked : ''}
+          className={ingredient.recipeId ? styles.nameLinked : ''}
           value={ingredient.name}
-          onChange={(e) => onChange({ name: e.target.value, subRecipeId: undefined })}
+          onChange={(e) => onChange({ name: e.target.value, recipeId: undefined })}
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="Ingredient name"
         />
-        {ingredient.subRecipeId && (
+        {linkedRecipe && (
           <span className={styles.linkBadge}>
-            <FlaskIcon size={13} /> linked
+            <FlaskIcon size={13} /> {KIND_LABELS[linkedRecipe.kind]}
           </span>
         )}
 
         {showDropdown && (
           <div className={styles.dropdown}>
+            {showLinkOptions &&
+              suggestions.map((c) => (
+                <button key={c.id} className={styles.suggestion} onMouseDown={() => linkTo(c)}>
+                  <span>{KIND_EMOJI[c.kind]}</span> {c.name}
+                </button>
+              ))}
             {nameMatches.map((n) => (
               <button key={n} className={styles.suggestion} onMouseDown={() => pickName(n)}>
                 {n}
               </button>
             ))}
-            {showLinkOptions &&
-              suggestions.map((c) => (
-                <button key={c.id} className={styles.suggestion} onMouseDown={() => linkTo(c)}>
-                  <FlaskIcon size={14} /> {c.name}
-                </button>
-              ))}
-            {showLinkOptions && !exactMatch && (
-              <button className={styles.suggestionNew} onMouseDown={makeSubRecipe}>
-                <PlusIcon size={14} /> Make “{ingredient.name.trim()}” a sub-recipe
-              </button>
-            )}
           </div>
         )}
       </div>

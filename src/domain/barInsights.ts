@@ -34,8 +34,8 @@ function usesBottle(
   visited.add(recipe.id)
   for (const ing of recipe.ingredients ?? []) {
     if (bottleCovers(bottleName, ing.name, category)) return true
-    if (ing.subRecipeId) {
-      const sub = byId.get(ing.subRecipeId)
+    if (ing.recipeId) {
+      const sub = byId.get(ing.recipeId)
       if (sub && usesBottle(sub, bottleName, category, byId, visited)) return true
     }
   }
@@ -45,8 +45,8 @@ function usesBottle(
 /**
  * Every recipe this bottle has a part in — the other direction of the same
  * question the availability engine answers, so "any whiskey" reads the same from
- * the bottle as it does from the drink. Sub-recipes count: a rum in a syrup is a
- * rum in every cocktail that pours it.
+ * the bottle as it does from the drink. Linked recipes count: a rum in a syrup is
+ * a rum in every cocktail that pours it.
  */
 export function recipesUsingBottle(
   bottleName: string,

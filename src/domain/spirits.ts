@@ -30,6 +30,8 @@ const KNOWN: Record<string, KnownMeta> = {
   wine: { label: 'Wine & bubbles', emoji: '🍷', gradient: 'linear-gradient(145deg,#9a3a55,#4a1a28)' },
   liqueur: { label: 'Liqueur', emoji: '🍶', gradient: 'linear-gradient(145deg,#9c4d90,#48203f)' },
   mocktail: { label: 'Mocktails', emoji: '🍹', gradient: 'linear-gradient(145deg,#3f9f6a,#175236)' },
+  syrup: { label: 'Syrups', emoji: '🍯', gradient: 'linear-gradient(145deg,#c0813e,#5f3312)' },
+  cordial: { label: 'Cordials', emoji: '🍷', gradient: 'linear-gradient(145deg,#9c4d90,#48203f)' },
   other: { label: 'Other', emoji: '🍸', gradient: 'linear-gradient(145deg,#6b5f77,#332a3d)' },
 }
 
@@ -45,7 +47,6 @@ export const KNOWN_SPIRITS = SPIRIT_ORDER.filter((k) => k !== 'other')
 const SPECIAL: Record<string, TileMeta> = {
   all: { key: 'all', label: 'All cocktails', emoji: '🍸', gradient: 'linear-gradient(145deg,#5b4a6b,#2a2233)' },
   favorites: { key: 'favorites', label: 'Favorites', emoji: '❤️', gradient: 'linear-gradient(145deg,#b64a5a,#5a1f2a)' },
-  components: { key: 'components', label: 'Syrups & more', emoji: '🧪', gradient: 'linear-gradient(145deg,#3f7d8a,#1c3a45)' },
 }
 
 function hashHue(s: string): number {
@@ -64,8 +65,11 @@ function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-/** Which mosaic tile a cocktail belongs to. Its spirit *is* the key. */
+/** Which mosaic tile a recipe belongs to. A mixer's kind is its tile; a drink's
+ * spirit is its tile. */
 export function tileKeyForRecipe(r: Recipe): string {
+  if (r.kind === 'syrup') return 'syrup'
+  if (r.kind === 'cordial') return 'cordial'
   const s = r.spirit?.trim().toLowerCase()
   return s && s !== 'none' ? s : 'other'
 }

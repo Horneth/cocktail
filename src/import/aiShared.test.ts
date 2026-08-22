@@ -64,15 +64,6 @@ const SAMPLE: AiRecipe = {
     { amount: 1, unit: 'each', name: 'Egg White', optional: true },
     { amount: null, unit: 'each', name: 'Orange peel' },
   ],
-  subRecipes: [
-    {
-      name: 'Rich Simple Syrup',
-      ingredients: [
-        { amount: 2, unit: 'parts', name: 'sugar' },
-        { amount: 1, unit: 'part', name: 'water' },
-      ],
-    },
-  ],
 }
 
 describe('mapAiRecipe', () => {
@@ -94,9 +85,7 @@ describe('mapAiRecipe', () => {
   })
 
   it('coerces free-text units to our Unit set', () => {
-    const syrup = r.components[0]
-    expect(syrup.ingredients.map((i) => i.unit)).toEqual(['part', 'part'])
-    expect(syrup.measureBasis).toBe('parts')
+    expect(r.main.ingredients.map((i) => i.unit)).toEqual(['oz', 'oz', 'oz', 'each', 'each'])
   })
 
   it('carries optional and null (to-taste) amounts', () => {
@@ -106,9 +95,10 @@ describe('mapAiRecipe', () => {
     expect(peel?.amount).toBeNull()
   })
 
-  it('cross-links the syrup ingredient to the component', () => {
+  it('keeps every ingredient a plain name — no links are invented at import', () => {
     const syrupIng = r.main.ingredients.find((i) => i.name === 'Rich Simple Syrup')
-    expect(syrupIng?.subRecipeRef).toBe(r.components[0].tempId)
+    expect(syrupIng).toBeTruthy()
+    expect(syrupIng!.recipeId).toBeUndefined()
   })
 
   it('records provenance from the source URL', () => {
@@ -116,10 +106,10 @@ describe('mapAiRecipe', () => {
     expect(r.main.source?.videoId).toBe('abcdefghijk')
   })
 
-  it('falls back to a default name and tolerates missing sub-recipes', () => {
+  it('falls back to a default name and tolerates a bare recipe', () => {
     const bare = mapAiRecipe({ ingredients: [{ name: 'Gin', unit: 'oz', amount: 2 }] })
     expect(bare.main.name).toBe('Imported cocktail')
-    expect(bare.components).toEqual([])
+    expect(bare.main.ingredients).toHaveLength(1)
   })
 })
 
@@ -149,7 +139,7 @@ describe('mapAiRecipe — mocktail', () => {
 describe('mapAiRecipe — standalone syrup', () => {
   const syrup: AiRecipe = {
     name: 'Orgeat',
-    kind: 'component',
+    kind: 'syrup',
     ingredients: [
       { amount: 2, unit: 'parts', name: 'almond milk' },
       { amount: 1, unit: 'part', name: 'sugar' },
@@ -157,10 +147,12 @@ describe('mapAiRecipe — standalone syrup', () => {
   }
   const r = mapAiRecipe(syrup)
 
-  it('imports a syrup-only description as a parts component, not a cocktail', () => {
-    expect(r.main.kind).toBe('component')
+  it('imports a syrup-only description as a parts recipe, not a cocktail', () => {
+    expect(r.main.kind).toBe('syrup')
     expect(r.main.measureBasis).toBe('parts')
     expect(r.main.spirit).toBeUndefined()
+    expect(r.main.glassware).toBeUndefined()
+    expect(r.main.method).toBeUndefined()
   })
 })
 
@@ -294,20 +286,13 @@ describe('parseReconcile', () => {
 })
 
 describe('namespaceTempIds', () => {
-  it('prefixes tempIds and rewrites matching subRecipeRefs per batch index', () => {
+  it('prefixes the main tempId per batch index', () => {
     const imp = mapAiRecipe({
       name: 'Mai Tai',
       ingredients: [{ name: 'Orgeat', unit: 'oz', amount: 0.5 }],
-      subRecipes: [{ name: 'Orgeat', ingredients: [{ name: 'almond', unit: 'part', amount: 1 }] }],
     })
-    const ref = imp.main.ingredients[0].subRecipeRef
-    expect(ref).toBe(imp.components[0].tempId) // linked before namespacing
-
     const ns = namespaceTempIds(imp, 2)
     expect(ns.main.tempId).toMatch(/^r2\./)
-    expect(ns.components[0].tempId).toMatch(/^r2\./)
-    // the ingredient's ref is rewritten to still point at the renamed component
-    expect(ns.main.ingredients[0].subRecipeRef).toBe(ns.components[0].tempId)
   })
 })
 
@@ -390,18 +375,20 @@ describe('mapAiRecipe — vocabulary and inferred fields', () => {
     expect(mapAiRecipe(DAIQUIRI, undefined, source).guessed).toBeUndefined()
   })
 
-  it('keeps a serve off a sub-recipe, which is an ingredient and not a drink', () => {
+  it('keeps a serve off a syrup, which is an ingredient and not a drink', () => {
     const { main } = mapAiRecipe({
       name: 'Simple Syrup',
-      kind: 'component',
+      kind: 'syrup',
       glassware: 'Coupe',
       garnish: 'Mint',
       spirit: 'rum',
+      method: 'Shake',
       ingredients: [{ name: 'Sugar', unit: 'part', amount: 1 }],
     })
     expect(main.glassware).toBeUndefined()
     expect(main.garnish).toBeUndefined()
     expect(main.spirit).toBeUndefined()
+    expect(main.method).toBeUndefined()
   })
 
   it('dedupes and caps aka, and drops it when empty', () => {

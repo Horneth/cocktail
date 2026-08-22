@@ -1,66 +1,37 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/db'
-import {
-  countUsage,
-  deleteRecipe,
-  importRecipe,
-  mergeComponents,
-  saveRecipe,
-} from './importRecipe'
+import { countUsage, deleteRecipe, importRecipe, mergeRecipes, saveRecipe } from './importRecipe'
 import type { StructuredImport } from './types'
 
-/** A cocktail that references a syrup by the given (component) name. */
-function drinkWithSyrup(drink: string, syrup: string): StructuredImport {
+/** A syrup, imported as its own recipe. */
+function syrup(name: string, tempId = 'syrup'): StructuredImport {
   return {
     main: {
-      tempId: drink.toLowerCase().replace(/\s+/g, '-'),
-      kind: 'cocktail',
-      name: drink,
-      measureBasis: 'absolute',
+      tempId,
+      kind: 'syrup',
+      name,
+      measureBasis: 'parts',
       ingredients: [
-        { name: 'Base spirit', amount: 2, unit: 'oz' },
-        { name: syrup, amount: 0.75, unit: 'oz', subRecipeRef: 'syrup' },
+        { name: 'Sugar', amount: 1, unit: 'part' },
+        { name: 'Water', amount: 1, unit: 'part' },
       ],
     },
-    components: [
-      {
-        tempId: 'syrup',
-        kind: 'component',
-        name: syrup,
-        measureBasis: 'parts',
-        ingredients: [
-          { name: 'Sugar', amount: 1, unit: 'part' },
-          { name: 'Water', amount: 1, unit: 'part' },
-        ],
-      },
-    ],
   }
 }
 
-function drinkSharingSyrup(name: string): StructuredImport {
+/** A cocktail whose "Simple Syrup" line is linked to `syrupId`. */
+function cocktail(name: string, syrupId: string): StructuredImport {
   return {
     main: {
-      tempId: name.toLowerCase(),
+      tempId: name.toLowerCase().replace(/\s+/g, '-'),
       kind: 'cocktail',
       name,
       measureBasis: 'absolute',
       ingredients: [
         { name: 'Base spirit', amount: 2, unit: 'oz' },
-        { name: 'Simple Syrup', amount: 0.75, unit: 'oz', subRecipeRef: 'syrup' },
+        { name: 'Simple Syrup', amount: 0.75, unit: 'oz', recipeId: syrupId },
       ],
     },
-    components: [
-      {
-        tempId: 'syrup',
-        kind: 'component',
-        name: 'Simple Syrup',
-        measureBasis: 'parts',
-        ingredients: [
-          { name: 'Sugar', amount: 1, unit: 'part' },
-          { name: 'Water', amount: 1, unit: 'part' },
-        ],
-      },
-    ],
   }
 }
 
@@ -70,173 +41,174 @@ describe('importRecipe', () => {
     await db.recipeLinks.clear()
   })
 
-  it('inserts a main recipe and its component', async () => {
-    const { mainId, componentIds } = await importRecipe(drinkSharingSyrup('Daiquiri'))
-    expect(await db.recipes.get(mainId)).toBeTruthy()
-    expect(componentIds).toHaveLength(1)
-
-    const main = await db.recipes.get(mainId)
-    const syrupIng = main!.ingredients.find((i) => i.name === 'Simple Syrup')
-    expect(syrupIng?.subRecipeId).toBe(componentIds[0])
+  it('inserts a single recipe and returns its id', async () => {
+    const id = await importRecipe(syrup('Simple Syrup'))
+    const recipe = await db.recipes.get(id)
+    expect(recipe).toBeTruthy()
+    expect(recipe!.kind).toBe('syrup')
   })
 
-  it('dedupes a shared component across two drinks (one record, two links)', async () => {
-    const a = await importRecipe(drinkSharingSyrup('Daiquiri'))
-    const b = await importRecipe(drinkSharingSyrup('Whiskey Sour'))
+  it('writes a cross-link when an ingredient already carries a recipeId', async () => {
+    const syrupId = await importRecipe(syrup('Simple Syrup'))
+    const drinkId = await importRecipe(cocktail('Daiquiri', syrupId))
 
-    // both drinks point at the SAME syrup record
-    expect(a.componentIds[0]).toBe(b.componentIds[0])
+    const links = await db.recipeLinks.toArray()
+    expect(links).toHaveLength(1)
+    expect(links[0]).toMatchObject({ parentId: drinkId, childId: syrupId })
 
-    const components = await db.recipes.where('kind').equals('component').toArray()
-    expect(components).toHaveLength(1)
+    const drink = await db.recipes.get(drinkId)
+    expect(drink!.ingredients.find((i) => i.name === 'Simple Syrup')!.recipeId).toBe(syrupId)
+  })
 
-    // back-links: the syrup is used in two cocktails
-    const childId = a.componentIds[0]
-    const backlinks = await db.recipeLinks.where('childId').equals(childId).toArray()
-    expect(backlinks).toHaveLength(2)
-    const parentIds = backlinks.map((l) => l.parentId).sort()
-    expect(parentIds).toEqual([a.mainId, b.mainId].sort())
+  it('imports a cocktail without inventing any linked recipes', async () => {
+    const id = await importRecipe({
+      main: {
+        tempId: 'daiquiri',
+        kind: 'cocktail',
+        name: 'Daiquiri',
+        measureBasis: 'absolute',
+        ingredients: [
+          { name: 'White rum', amount: 2, unit: 'oz' },
+          { name: 'Simple Syrup', amount: 0.75, unit: 'oz' },
+        ],
+      },
+    })
+    // one recipe, no links — "Simple Syrup" stays a plain ingredient name.
+    expect(await db.recipes.count()).toBe(1)
+    expect(await db.recipeLinks.count()).toBe(0)
+    const drink = await db.recipes.get(id)
+    expect(drink!.ingredients.every((i) => i.recipeId === undefined)).toBe(true)
   })
 
   it('saveRecipe replaces link rows when ingredients change', async () => {
-    const { mainId, componentIds } = await importRecipe(drinkSharingSyrup('Daiquiri'))
-    const main = await db.recipes.get(mainId)
-    // remove the syrup ingredient
-    main!.ingredients = main!.ingredients.filter((i) => !i.subRecipeId)
-    await saveRecipe(main!)
+    const syrupId = await importRecipe(syrup('Simple Syrup'))
+    const drinkId = await importRecipe(cocktail('Daiquiri', syrupId))
+    const drink = (await db.recipes.get(drinkId))!
+    // unlink the syrup ingredient
+    drink.ingredients = drink.ingredients.map((i) => (i.recipeId ? { ...i, recipeId: undefined } : i))
+    await saveRecipe(drink)
 
-    const backlinks = await db.recipeLinks.where('childId').equals(componentIds[0]).toArray()
-    expect(backlinks).toHaveLength(0)
+    expect(await db.recipeLinks.where('childId').equals(syrupId).count()).toBe(0)
   })
 
-  it('deleting a shared syrup unlinks it from the cocktails that used it', async () => {
-    const a = await importRecipe(drinkSharingSyrup('Daiquiri'))
-    const b = await importRecipe(drinkSharingSyrup('Whiskey Sour'))
-    const syrupId = a.componentIds[0]
+  it('deleting a referenced syrup unlinks it from the cocktails that used it', async () => {
+    const syrupId = await importRecipe(syrup('Simple Syrup'))
+    const a = await importRecipe(cocktail('Daiquiri', syrupId))
+    const b = await importRecipe(cocktail('Whiskey Sour', syrupId))
 
     expect(await countUsage(syrupId)).toBe(2)
     await deleteRecipe(syrupId)
 
-    // the component is gone, its links are gone
+    // the syrup is gone, its links are gone
     expect(await db.recipes.get(syrupId)).toBeUndefined()
     expect(await db.recipeLinks.where('childId').equals(syrupId).count()).toBe(0)
 
-    // the cocktails still have the ingredient, but no dangling subRecipeId
-    for (const id of [a.mainId, b.mainId]) {
+    // the cocktails still have the ingredient, but no dangling recipeId
+    for (const id of [a, b]) {
       const c = await db.recipes.get(id)
       const ing = c!.ingredients.find((i) => i.name === 'Simple Syrup')
       expect(ing).toBeTruthy()
-      expect(ing!.subRecipeId).toBeUndefined()
+      expect(ing!.recipeId).toBeUndefined()
     }
   })
 })
 
-describe('mergeComponents', () => {
+describe('mergeRecipes', () => {
   beforeEach(async () => {
     await db.recipes.clear()
     await db.recipeLinks.clear()
   })
 
-  it('repoints parents, deletes the merged-away component, rebuilds links', async () => {
-    const daiq = await importRecipe(drinkWithSyrup('Daiquiri', 'Simple Syrup'))
-    const oldf = await importRecipe(drinkWithSyrup('Old Fashioned', 'Rich Simple Syrup'))
-    const simpleId = daiq.componentIds[0]
-    const richId = oldf.componentIds[0]
+  it('repoints parents, deletes the merged-away recipe, rebuilds links', async () => {
+    const simpleId = await importRecipe(syrup('Simple Syrup'))
+    const richId = await importRecipe(syrup('Rich Simple Syrup', 'rich'))
     expect(simpleId).not.toBe(richId)
 
-    const res = await mergeComponents(richId, simpleId)
+    const daiq = await importRecipe(cocktail('Daiquiri', simpleId))
+    const oldf = await importRecipe(cocktail('Old Fashioned', richId))
+
+    const res = await mergeRecipes(richId, simpleId)
     expect(res.rewiredParents).toBe(1)
 
     // the rich variant is gone
     expect(await db.recipes.get(richId)).toBeUndefined()
     // the old fashioned now points at the surviving syrup
-    const of = await db.recipes.get(oldf.mainId)
-    const ing = of!.ingredients.find((i) => i.subRecipeId)
-    expect(ing!.subRecipeId).toBe(simpleId)
+    const of = await db.recipes.get(oldf)
+    expect(of!.ingredients.find((i) => i.recipeId)!.recipeId).toBe(simpleId)
     // survivor is now used in both cocktails
     expect(await countUsage(simpleId)).toBe(2)
+    expect(await db.recipes.get(daiq)).toBeTruthy()
   })
 
   it('is a no-op when from === to', async () => {
-    const daiq = await importRecipe(drinkWithSyrup('Daiquiri', 'Simple Syrup'))
-    const id = daiq.componentIds[0]
-    const res = await mergeComponents(id, id)
+    const id = await importRecipe(syrup('Simple Syrup'))
+    const res = await mergeRecipes(id, id)
     expect(res.rewiredParents).toBe(0)
     expect(await db.recipes.get(id)).toBeTruthy()
   })
 
-  it('throws when either id is not a component', async () => {
-    const daiq = await importRecipe(drinkWithSyrup('Daiquiri', 'Simple Syrup'))
-    const cocktailId = daiq.mainId
-    const syrupId = daiq.componentIds[0]
-    await expect(mergeComponents(cocktailId, syrupId)).rejects.toThrow()
+  it('throws when either id is a cocktail', async () => {
+    const syrupId = await importRecipe(syrup('Simple Syrup'))
+    const drinkId = await importRecipe(cocktail('Daiquiri', syrupId))
+    await expect(mergeRecipes(drinkId, syrupId)).rejects.toThrow()
+  })
+
+  it('throws when the kinds differ', async () => {
+    const syrupId = await importRecipe(syrup('Simple Syrup'))
+    const cordialId = await importRecipe({
+      main: {
+        tempId: 'cordial',
+        kind: 'cordial',
+        name: 'Lime Cordial',
+        measureBasis: 'parts',
+        ingredients: [{ name: 'Lime', amount: 1, unit: 'part' }],
+      },
+    })
+    await expect(mergeRecipes(syrupId, cordialId)).rejects.toThrow()
   })
 
   it('collapses a parent that references both into one survivor', async () => {
-    const imp: StructuredImport = {
+    const aId = await importRecipe(syrup('Simple Syrup'))
+    const bId = await importRecipe(syrup('Rich Syrup', 'rich'))
+    const both: StructuredImport = {
       main: {
         tempId: 'm',
         kind: 'cocktail',
         name: 'Two Syrups',
         measureBasis: 'absolute',
         ingredients: [
-          { name: 'Simple Syrup', amount: 1, unit: 'oz', subRecipeRef: 'a' },
-          { name: 'Rich Syrup', amount: 1, unit: 'oz', subRecipeRef: 'b' },
+          { name: 'Simple Syrup', amount: 1, unit: 'oz', recipeId: aId },
+          { name: 'Rich Syrup', amount: 1, unit: 'oz', recipeId: bId },
         ],
       },
-      components: [
-        {
-          tempId: 'a',
-          kind: 'component',
-          name: 'Simple Syrup',
-          measureBasis: 'parts',
-          ingredients: [{ name: 'Sugar', amount: 1, unit: 'part' }],
-        },
-        {
-          tempId: 'b',
-          kind: 'component',
-          name: 'Rich Syrup',
-          measureBasis: 'parts',
-          ingredients: [{ name: 'Sugar', amount: 2, unit: 'part' }],
-        },
-      ],
     }
-    const r = await importRecipe(imp)
-    const [aId, bId] = r.componentIds
+    const drinkId = await importRecipe(both)
 
-    await mergeComponents(bId, aId)
+    await mergeRecipes(bId, aId)
 
-    const m = await db.recipes.get(r.mainId)
+    const m = await db.recipes.get(drinkId)
     expect(m!.ingredients).toHaveLength(2)
-    expect(m!.ingredients.every((i) => i.subRecipeId === aId)).toBe(true)
+    expect(m!.ingredients.every((i) => i.recipeId === aId)).toBe(true)
 
-    const links = await db.recipeLinks.where('parentId').equals(r.mainId).toArray()
+    const links = await db.recipeLinks.where('parentId').equals(drinkId).toArray()
     expect(links).toHaveLength(2)
     expect(links.every((l) => l.childId === aId)).toBe(true)
     expect(await db.recipes.get(bId)).toBeUndefined()
   })
 
-  it('refuses to merge a component into its own sub-recipe (cycle guard)', async () => {
-    const nested = await importRecipe({
+  it('refuses to merge a recipe into one of its own ingredients (cycle guard)', async () => {
+    // A "Compound Syrup" that references a "Sub Syrup" — merging the parent into
+    // the child would make the survivor reference itself.
+    const subId = await importRecipe(syrup('Sub Syrup', 'sub'))
+    const compoundId = await importRecipe({
       main: {
         tempId: 'compound',
-        kind: 'component',
+        kind: 'syrup',
         name: 'Compound Syrup',
         measureBasis: 'parts',
-        ingredients: [{ name: 'Sub Syrup', amount: 1, unit: 'part', subRecipeRef: 'sub' }],
+        ingredients: [{ name: 'Sub Syrup', amount: 1, unit: 'part', recipeId: subId }],
       },
-      components: [
-        {
-          tempId: 'sub',
-          kind: 'component',
-          name: 'Sub Syrup',
-          measureBasis: 'parts',
-          ingredients: [{ name: 'Sugar', amount: 1, unit: 'part' }],
-        },
-      ],
     })
-    await expect(mergeComponents(nested.mainId, nested.componentIds[0])).rejects.toThrow(
-      /sub-recipe/,
-    )
+    await expect(mergeRecipes(compoundId, subId)).rejects.toThrow(/ingredient/)
   })
 })

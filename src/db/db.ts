@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import { newId } from '../domain/ids'
+import { migrateLegacyRecipe } from '../domain/recipeKind'
 import type { Bar, PantryItem, Recipe, RecipeLink } from './schema'
 
 export class CocktailDB extends Dexie {
@@ -41,6 +42,17 @@ export class CocktailDB extends Dexie {
           await tx.table('bottles').bulkAdd(old.map((r) => ({ ...r, barId: bar.id })))
         }
       })
+    // v4 splits the old "component" kind into "syrup"/"cordial" and renames the
+    // cross-link field `subRecipeId` -> `recipeId`. Both live in the stored JSON,
+    // not in any index, so this is a data rewrite rather than a re-key: read the
+    // recipes, normalize each, put them back.
+    this.version(4).upgrade(async (tx) => {
+      const recipes = await tx.table('recipes').toArray()
+      const rewrites = recipes
+        .map((r) => migrateLegacyRecipe(r as Recipe))
+        .filter((r, i) => r !== recipes[i])
+      if (rewrites.length) await tx.table('recipes').bulkPut(rewrites)
+    })
   }
 }
 

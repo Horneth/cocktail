@@ -1,8 +1,9 @@
-// Core domain types. A cocktail and a syrup are the SAME entity (`Recipe`),
-// distinguished by `kind`. This lets sub-recipes nest, reuses the edit screen,
-// and lets the (future) importer write a homogeneous list of recipes + links.
+// Core domain types. A cocktail, a syrup and a cordial are the SAME entity
+// (`Recipe`), distinguished only by `kind`. Each is added/edited/imported the
+// same way; recipes reference other recipes through an ingredient's `recipeId`,
+// wired up by name-autocomplete in the editor rather than invented at import.
 
-export type RecipeKind = 'cocktail' | 'component' // component = syrup/cordial/orgeat/infusion
+export type RecipeKind = 'cocktail' | 'syrup' | 'cordial'
 
 export type Unit =
   // volume (convertible)
@@ -45,8 +46,8 @@ export interface Ingredient {
   unit: Unit
   optional?: boolean
   note?: string
-  /** cross-link: if this ingredient IS a sub-recipe, point at its Recipe.id (kind==='component') */
-  subRecipeId?: string
+  /** cross-link: if this ingredient IS another recipe (a syrup/cordial), its Recipe.id */
+  recipeId?: string
 }
 
 export interface Note {
@@ -127,9 +128,10 @@ export interface PantryItem {
 }
 
 /**
- * Denormalized many-to-many index of which recipe references which sub-recipe.
- * Reconciled inside the save transaction from each recipe's ingredients.
- * Rebuildable from `recipes` alone — an index, not a second source of truth.
+ * Denormalized many-to-many index of which recipe references which other recipe
+ * (a cocktail pouring a syrup, say). Reconciled inside the save transaction from
+ * each recipe's ingredients. Rebuildable from `recipes` alone — an index, not a
+ * second source of truth.
  */
 export interface RecipeLink {
   id: string

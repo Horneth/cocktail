@@ -5,7 +5,7 @@ import { SearchIcon } from '../components/icons'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { matchesQuery } from '../domain/search'
 import { tagEmoji } from '../domain/vocab'
-import { useCocktails, useComponents } from '../hooks/useRecipes'
+import { useCocktails, useMixers } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
 import styles from './SearchScreen.module.css'
 
@@ -21,7 +21,7 @@ const MAX_TAG_CHIPS = 6
 export function SearchScreen() {
   const navigate = useNavigate()
   const cocktails = useCocktails()
-  const components = useComponents()
+  const mixers = useMixers()
   const { badgeFor, have } = useAvailability()
   const [params, setParams] = useSearchParams()
 
@@ -42,9 +42,9 @@ export function SearchScreen() {
 
   const q = query.trim()
   const results = useMemo(() => {
-    if (!q || !cocktails || !components) return []
-    return [...cocktails, ...components].filter((r) => matchesQuery(r, q))
-  }, [q, cocktails, components])
+    if (!q || !cocktails || !mixers) return []
+    return [...cocktails, ...mixers].filter((r) => matchesQuery(r, q))
+  }, [q, cocktails, mixers])
 
   return (
     <div className={styles.screen}>

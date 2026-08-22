@@ -6,10 +6,11 @@ import type {
   Unit,
 } from '../db/schema'
 
-// The import seam. Every recipe source — seed data now, YouTube parsing in
-// phase 2 — produces a `StructuredImport`, and `importRecipe()` writes it to
-// the DB. Links between the main recipe and its components are expressed with
-// local `tempId` references so a parser never needs to know real DB ids.
+// The import seam. Every recipe source — seed data now, YouTube parsing — writes
+// one `StructuredImport` per recipe, and `importRecipe()` writes it to the DB.
+// A recipe is a recipe, whatever its kind: the AI never invents sub-recipes or
+// cross-links here. Linking an ingredient to another recipe happens later, in
+// the editor, by name-autocomplete.
 
 export interface IngredientDraft {
   name: string
@@ -17,12 +18,12 @@ export interface IngredientDraft {
   unit: Unit
   optional?: boolean
   note?: string
-  /** matches a component draft's `tempId` when this ingredient is a sub-recipe */
-  subRecipeRef?: string
+  /** a real Recipe.id, set when the author already knows the link (seed data) */
+  recipeId?: string
 }
 
 export interface RecipeDraft {
-  /** local-only id used to wire links before rows are inserted */
+  /** local-only id, used as a stable key within a preview batch */
   tempId: string
   kind: RecipeKind
   name: string
@@ -52,10 +53,8 @@ export const GUESSABLE_FIELDS: GuessedField[] = [
 ]
 
 export interface StructuredImport {
-  /** the primary recipe (usually a cocktail) */
+  /** the recipe being imported (a cocktail, a syrup, or a cordial) */
   main: RecipeDraft
-  /** sub-recipes referenced by the main recipe (syrups, cordials, …) */
-  components: RecipeDraft[]
   /**
    * Preview-only. Which of `main`'s fields the model inferred rather than read,
    * so the review screen can mark them "✨ guessed". Deliberately a sibling of

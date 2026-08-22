@@ -30,7 +30,7 @@ function recipe(partial: Partial<Recipe> & { name: string; ingredients: Recipe['
 const syrup = recipe({
   id: 'syrup',
   name: 'Simple Syrup',
-  kind: 'component',
+  kind: 'syrup',
   measureBasis: 'parts',
   ingredients: [
     { id: 's1', name: 'White sugar', amount: 1, unit: 'part' },
@@ -45,7 +45,7 @@ const daiquiri = recipe({
   ingredients: [
     { id: 'd1', name: 'White rum', amount: 2, unit: 'oz' },
     { id: 'd2', name: 'Lime juice', amount: 0.75, unit: 'oz' },
-    { id: 'd3', name: 'Simple Syrup', amount: 0.75, unit: 'oz', subRecipeId: 'syrup' },
+    { id: 'd3', name: 'Simple Syrup', amount: 0.75, unit: 'oz', recipeId: 'syrup' },
   ],
 })
 

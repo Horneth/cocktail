@@ -3,7 +3,7 @@ import { formatAmount } from './units'
 
 /** A one-line ingredient summary for list cards. */
 export function summarize(r: Recipe): string {
-  if (r.kind === 'component' && r.measureBasis === 'parts') {
+  if (r.kind !== 'cocktail' && r.measureBasis === 'parts') {
     return r.ingredients
       .map((i) => (i.amount !== null ? formatAmount(i.amount, i.unit) : i.name))
       .join(' : ')

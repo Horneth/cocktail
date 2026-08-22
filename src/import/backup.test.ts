@@ -2,25 +2,20 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/db'
 import { backupFilename, exportBackup, importBackup, parseBackup } from './backup'
 import { importRecipe } from './importRecipe'
-import type { StructuredImport } from './types'
 
-const daiquiri: StructuredImport = {
-  main: {
-    tempId: 'daiquiri',
-    kind: 'cocktail',
-    name: 'Daiquiri',
-    measureBasis: 'absolute',
-    spirit: 'rum',
-    ingredients: [
-      { name: 'White rum', amount: 2, unit: 'oz' },
-      { name: 'Lime juice', amount: 0.75, unit: 'oz' },
-      { name: 'Simple syrup', amount: 0.75, unit: 'oz', subRecipeRef: 'simple' },
-    ],
-  },
-  components: [
-    {
+const daiquiri = {
+  tempId: 'daiquiri',
+  kind: 'cocktail' as const,
+  name: 'Daiquiri',
+  measureBasis: 'absolute' as const,
+  spirit: 'rum',
+}
+
+async function seedLibrary(): Promise<void> {
+  const syrupId = await importRecipe({
+    main: {
       tempId: 'simple',
-      kind: 'component',
+      kind: 'syrup',
       name: 'Simple Syrup',
       measureBasis: 'parts',
       ingredients: [
@@ -28,11 +23,17 @@ const daiquiri: StructuredImport = {
         { name: 'Water', amount: 1, unit: 'part' },
       ],
     },
-  ],
-}
-
-async function seedLibrary(): Promise<void> {
-  await importRecipe(daiquiri)
+  })
+  await importRecipe({
+    main: {
+      ...daiquiri,
+      ingredients: [
+        { name: 'White rum', amount: 2, unit: 'oz' },
+        { name: 'Lime juice', amount: 0.75, unit: 'oz' },
+        { name: 'Simple syrup', amount: 0.75, unit: 'oz', recipeId: syrupId },
+      ],
+    },
+  })
   await db.bars.add({ id: 'bar-1', name: 'My Bar', createdAt: 1 })
   await db.bottles.add({ barId: 'bar-1', name: 'white rum', label: 'White Rum', addedAt: 2 })
   localStorage.setItem('cocktail.volumePref', 'ml')
@@ -91,12 +92,12 @@ describe('round trip', () => {
     const recipes = await db.recipes.toArray()
     expect(recipes.map((r) => r.name).sort()).toEqual(['Daiquiri', 'Simple Syrup'])
 
-    // The sub-recipe link has to survive verbatim, or "Used in" back-links and
+    // The cross-link has to survive verbatim, or "Used in" back-links and
     // the makeable check silently lose the syrup relationship.
     const drink = recipes.find((r) => r.kind === 'cocktail')!
-    const syrup = recipes.find((r) => r.kind === 'component')!
-    const linked = drink.ingredients.find((i) => i.subRecipeId)
-    expect(linked?.subRecipeId).toBe(syrup.id)
+    const syrup = recipes.find((r) => r.kind === 'syrup')!
+    const linked = drink.ingredients.find((i) => i.recipeId)
+    expect(linked?.recipeId).toBe(syrup.id)
     const links = await db.recipeLinks.toArray()
     expect(links).toHaveLength(1)
     expect(links[0]).toMatchObject({ parentId: drink.id, childId: syrup.id })

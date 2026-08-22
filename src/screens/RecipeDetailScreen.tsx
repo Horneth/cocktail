@@ -8,10 +8,11 @@ import { scaleFactor, type ScaleSettings } from '../domain/scaling'
 import { bottleFor, missingBottles } from '../domain/availability'
 import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
+import { KIND_LABELS } from '../domain/recipeKind'
 import { tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
-import { mergeComponents, saveRecipe, setFavorite } from '../import/importRecipe'
-import { useBacklinks, useComponents, useRecipe } from '../hooks/useRecipes'
+import { mergeRecipes, saveRecipe, setFavorite } from '../import/importRecipe'
+import { useBacklinks, useMixers, useRecipe } from '../hooks/useRecipes'
 import { useVolumePreference } from '../hooks/useSettings'
 import { useAvailability } from '../hooks/useAvailability'
 import { useWakeLock } from '../hooks/useWakeLock'
@@ -128,14 +129,14 @@ export function RecipeDetailScreen() {
     await saveRecipe(updated)
   }
 
-  const isComponent = recipe.kind === 'component'
+  const isMixer = recipe.kind !== 'cocktail'
   const v = spiritVisual(tileKeyForRecipe(recipe))
-  const showTicks = !isComponent && have.size > 0
-  const canMakeIt = !isComponent && missing.length === 0
-  const spiritLabel = recipe.spirit && recipe.spirit !== 'none' ? cap(recipe.spirit) : isComponent ? 'Sub-recipe' : v.label
+  const showTicks = !isMixer && have.size > 0
+  const canMakeIt = !isMixer && missing.length === 0
+  const spiritLabel = recipe.spirit && recipe.spirit !== 'none' ? cap(recipe.spirit) : isMixer ? KIND_LABELS[recipe.kind] : v.label
   const subBits = [spiritLabel, recipe.glassware].filter(Boolean)
 
-  const metaCards = !isComponent
+  const metaCards = !isMixer
     ? [
         { label: 'Method', value: recipe.method || '—' },
         { label: 'Glass', value: recipe.glassware || '—' },
@@ -149,7 +150,7 @@ export function RecipeDetailScreen() {
   // Every line that names something pourable leads somewhere: to the bottle on
   // your shelf that covers it — the stand-in included, since "any whiskey" is a
   // real answer the availability engine already gives — or to adding the one you
-  // don't have. Sub-recipes keep their own link (IngredientRow decides).
+  // don't have. Linked recipes keep their own link (IngredientRow decides).
   const linkFor = (ing: Ingredient): IngredientLink | undefined => {
     const match = bottleFor(ing.name, items)
     if (match) {
@@ -172,7 +173,7 @@ export function RecipeDetailScreen() {
             <button className={styles.prefBtn} onClick={togglePref} aria-label="Toggle units">
               {pref}
             </button>
-            {!isComponent && (
+            {!isMixer && (
               <button
                 className={`${styles.roundBtn} ${recipe.favorite ? styles.favOn : ''}`}
                 aria-label={recipe.favorite ? 'Unfavorite' : 'Favorite'}
@@ -196,7 +197,7 @@ export function RecipeDetailScreen() {
       <div className={styles.body}>
         {/* One line, because the ingredient list below now says which ones —
             each missing line taps straight through to adding that bottle. */}
-        {!isComponent && (
+        {!isMixer && (
           <div className={`${styles.avail} ${canMakeIt ? styles.availReady : styles.availMissing}`}>
             <span className={styles.availEmoji}>{canMakeIt ? '✅' : '🛒'}</span>
             <div className={styles.availTitle}>
@@ -301,8 +302,8 @@ export function RecipeDetailScreen() {
           </div>
         )}
 
-        {isComponent && <UsedIn recipeId={recipe.id} />}
-        {isComponent && <MergeInto recipe={recipe} />}
+        {isMixer && <UsedIn recipeId={recipe.id} />}
+        {isMixer && <MergeInto recipe={recipe} />}
 
         <NotesSection notes={recipe.notes} onAdd={addNote} onRemove={removeNote} />
 
@@ -330,17 +331,17 @@ function UsedIn({ recipeId }: { recipeId: string }) {
 }
 
 /**
- * Fold this component into another one (duplicate cleanup). Every cocktail that
- * referenced this syrup gets repointed to the survivor, then this record is
- * deleted. Shown only for components.
+ * Fold this mixer into another one (duplicate cleanup). Every recipe that
+ * referenced this one gets repointed to the survivor, then this record is
+ * deleted. Shown only for syrups and cordials.
  */
 function MergeInto({ recipe }: { recipe: Recipe }) {
-  const components = useComponents()
+  const mixers = useMixers()
   const navigate = useNavigate()
   const [targetId, setTargetId] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const others = (components ?? []).filter((c) => c.id !== recipe.id)
+  const others = (mixers ?? []).filter((c) => c.id !== recipe.id && c.kind === recipe.kind)
   if (others.length === 0) return null
 
   const merge = async () => {
@@ -355,7 +356,7 @@ function MergeInto({ recipe }: { recipe: Recipe }) {
     }
     setBusy(true)
     try {
-      await mergeComponents(recipe.id, target.id)
+      await mergeRecipes(recipe.id, target.id)
       navigate(`/recipe/${target.id}`, { replace: true })
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not merge.')
@@ -367,8 +368,8 @@ function MergeInto({ recipe }: { recipe: Recipe }) {
     <section className={styles.section}>
       <h2 className={styles.h2}>Duplicate?</h2>
       <p className={styles.mergeHint}>
-        If this is the same as another sub-recipe, merge it in — everything that uses it will point
-        at the one you keep.
+        If this is the same as another {KIND_LABELS[recipe.kind].toLowerCase()}, merge it in —
+        everything that uses it will point at the one you keep.
       </p>
       <div className={styles.mergeRow}>
         <select

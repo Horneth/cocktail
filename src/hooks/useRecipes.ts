@@ -7,14 +7,17 @@ import { isStaple, normIngredient, shelfKeys } from '../domain/availability'
 import type { NameIndexEntry } from '../domain/dupeMatch'
 import { useActiveBarId } from './useSettings'
 
-/** All cocktails, alphabetical. Components are excluded from the main list. */
+/** All cocktails, alphabetical. Mixers are excluded from the main list. */
 export function useCocktails(): Recipe[] | undefined {
   return useLiveQuery(() => db.recipes.where('kind').equals('cocktail').sortBy('name'), [])
 }
 
-/** All components (syrups etc.), alphabetical. */
-export function useComponents(): Recipe[] | undefined {
-  return useLiveQuery(() => db.recipes.where('kind').equals('component').sortBy('name'), [])
+/** All syrups and cordials, alphabetical. */
+export function useMixers(): Recipe[] | undefined {
+  return useLiveQuery(
+    () => db.recipes.where('kind').anyOf(['syrup', 'cordial']).sortBy('name'),
+    [],
+  )
 }
 
 /** A single recipe by id (undefined while loading, null if not found). */
@@ -162,7 +165,7 @@ export function useIngredientCatalog(): CatalogItem[] {
   )
 }
 
-/** Cocktails (or other recipes) that reference the given sub-recipe. */
+/** Recipes that reference the given recipe. */
 export function useBacklinks(childId: string | undefined): Recipe[] | undefined {
   return useLiveQuery(async () => {
     if (!childId) return []

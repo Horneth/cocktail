@@ -1,6 +1,6 @@
 import type { Recipe } from '../db/schema'
 
-// Loose name key for matching *component* names across imports and for the
+// Loose name key for matching *mixer* (syrup/cordial) names and for the
 // merge-duplicates tool. It strips ratio parentheticals ("(1.5:1)") and the
 // "richness" adjectives that distinguish otherwise-identical syrups, so
 // "Semi-Rich Simple Syrup" and "Simple Syrup" collapse to the same key.
@@ -8,7 +8,7 @@ import type { Recipe } from '../db/schema'
 // This is DELIBERATELY different from `availability.normIngredient`, which keeps
 // brand/origin words ("jamaican rum") because bottle matching needs them. Keep
 // the two separate: loosening this one must never loosen ingredient matching.
-export function normalizeComponentName(name: string): string {
+export function normalizeMixerName(name: string): string {
   return name
     .toLowerCase()
     .replace(/\([^)]*\)/g, '') // drop "(1.5:1)" / "(2:1)"
@@ -22,19 +22,19 @@ export function normalizeComponentName(name: string): string {
 }
 
 /**
- * Group components whose normalized names collide — i.e. likely duplicates the
- * user may want to merge (e.g. a hand-added "Simple Syrup" and an imported
+ * Group mixers whose normalized names collide — i.e. likely duplicates the user
+ * may want to merge (e.g. a hand-added "Simple Syrup" and an imported
  * "Semi Rich Simple Syrup"). Only groups of 2+ are returned. Within each group
  * the recipes keep their given order (caller decides which is canonical).
  */
-export function duplicateComponentGroups(components: Recipe[]): Recipe[][] {
+export function duplicateMixerGroups(mixers: Recipe[]): Recipe[][] {
   const byKey = new Map<string, Recipe[]>()
-  for (const c of components) {
-    const key = normalizeComponentName(c.name)
+  for (const m of mixers) {
+    const key = normalizeMixerName(m.name)
     if (!key) continue
     const group = byKey.get(key)
-    if (group) group.push(c)
-    else byKey.set(key, [c])
+    if (group) group.push(m)
+    else byKey.set(key, [m])
   }
   return [...byKey.values()].filter((g) => g.length >= 2)
 }

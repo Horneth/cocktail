@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronLeftIcon, ChevronRightIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
 import type { Unit } from '../db/schema'
 import { shortlistCandidates } from '../domain/dupeMatch'
 import type { NameIndexEntry } from '../domain/dupeMatch'
+import { KIND_EMOJI, KIND_LABELS, RECIPE_KINDS } from '../domain/recipeKind'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { GLASSES, METHODS, TAG_KEYS, tagEmoji } from '../domain/vocab'
 import { importRecipe } from '../import/importRecipe'
@@ -42,7 +43,6 @@ export function ImportScreen() {
   const [text, setText] = useState('')
   const [drafts, setDrafts] = useState<StructuredImport[] | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [expanded, setExpanded] = useState<number | null>(null)
   const [dupes, setDupes] = useState<Map<number, DupeInfo>>(new Map())
   const [dupeBusy, setDupeBusy] = useState(false)
@@ -91,9 +91,9 @@ export function ImportScreen() {
         })
       }
       setDupes(found)
-      // A drink we already own starts unchecked, so the obvious action (hit
+      // A recipe we already own starts unchecked, so the obvious action (hit
       // Import) can't quietly create a second copy. A named riff is its own
-      // drink and stays checked — we're only labelling it.
+      // recipe and stays checked — we're only labelling it.
       setSelected((prev) => {
         const next = new Set(prev)
         for (const [i, d] of found) if (d.relation === 'same') next.delete(i)
@@ -116,7 +116,6 @@ export function ImportScreen() {
       const { firebaseParse } = await import('../import/firebaseAI')
       const recipes = await firebaseParse(source)
       setDrafts(recipes)
-      setExcluded(new Set())
       setDupes(new Map())
       setSelected(new Set(recipes.map((_, i) => i)))
       setExpanded(recipes.length === 1 ? 0 : null)
@@ -166,11 +165,11 @@ export function ImportScreen() {
   const setKind = (i: number, kind: RecipeDraft['kind']) =>
     editMain(
       i,
-      // A sub-recipe is an ingredient, not a serve — drop the fields that only
+      // A syrup/cordial is an ingredient, not a serve — drop the fields that only
       // make sense for a drink rather than leaving stale ones on the record.
-      kind === 'component'
-        ? { kind, spirit: undefined, glassware: undefined, garnish: undefined }
-        : { kind },
+      kind === 'cocktail'
+        ? { kind }
+        : { kind, spirit: undefined, glassware: undefined, garnish: undefined, method: undefined },
       'kind',
     )
 
@@ -187,30 +186,14 @@ export function ImportScreen() {
       }
     })
 
-  const patchIngredients = (i: number, tempId: string, ings: IngredientDraft[]) =>
-    patchAt(i, (imp) =>
-      imp.main.tempId === tempId
-        ? { ...imp, main: { ...imp.main, ingredients: ings } }
-        : {
-            ...imp,
-            components: imp.components.map((c) =>
-              c.tempId === tempId ? { ...c, ingredients: ings } : c,
-            ),
-          },
-    )
-
-  const patchComponent = (i: number, tempId: string, patch: Partial<RecipeDraft>) =>
-    patchAt(i, (imp) => ({
-      ...imp,
-      components: imp.components.map((c) => (c.tempId === tempId ? { ...c, ...patch } : c)),
-    }))
+  const patchIngredients = (i: number, ings: IngredientDraft[]) =>
+    patchAt(i, (imp) => ({ ...imp, main: { ...imp.main, ingredients: ings } }))
 
   const toggleIn = <T,>(set: Set<T>, value: T) => {
     const next = new Set(set)
     if (!next.delete(value)) next.add(value)
     return next
   }
-  const toggleComponent = (tempId: string) => setExcluded((prev) => toggleIn(prev, tempId))
   const toggleSelected = (i: number) => setSelected((prev) => toggleIn(prev, i))
 
   const importable = useMemo(
@@ -231,9 +214,6 @@ export function ImportScreen() {
       ingredients: imp.main.ingredients.filter((g) => g.name.trim()),
       source: { ...imp.main.source, type: imp.main.source?.type ?? 'web', importedAt: Date.now() },
     },
-    components: imp.components
-      .filter((c) => !excluded.has(c.tempId) && c.name.trim() && c.ingredients.length)
-      .map((c) => ({ ...c, ingredients: c.ingredients.filter((g) => g.name.trim()) })),
   })
 
   const doImport = async () => {
@@ -242,8 +222,7 @@ export function ImportScreen() {
     try {
       let lastId = ''
       for (const i of chosen) {
-        const { mainId } = await importRecipe(cleanImport(recipes[i]))
-        lastId = mainId
+        lastId = await importRecipe(cleanImport(recipes[i]))
       }
       if (chosen.length === 1) navigate(`/recipe/${lastId}`, { replace: true })
       else navigate('/', { replace: true })
@@ -295,15 +274,12 @@ export function ImportScreen() {
               open={expanded === i}
               selected={selected.has(i)}
               dupe={dupes.get(i)}
-              excluded={excluded}
               onOpen={() => setExpanded(expanded === i ? null : i)}
               onSelect={() => toggleSelected(i)}
               onPatchMain={(patch, clears) => editMain(i, patch, clears)}
               onSetKind={(kind) => setKind(i, kind)}
               onToggleTag={(tag) => toggleTag(i, tag)}
-              onPatchIngredients={(tempId, ings) => patchIngredients(i, tempId, ings)}
-              onPatchComponent={(tempId, patch) => patchComponent(i, tempId, patch)}
-              onToggleComponent={toggleComponent}
+              onPatchIngredients={(ings) => patchIngredients(i, ings)}
             />
           ))}
 
@@ -392,33 +368,27 @@ function RecipeCard({
   open,
   selected,
   dupe,
-  excluded,
   onOpen,
   onSelect,
   onPatchMain,
   onSetKind,
   onToggleTag,
   onPatchIngredients,
-  onPatchComponent,
-  onToggleComponent,
 }: {
   imp: StructuredImport
   collapsible: boolean
   open: boolean
   selected: boolean
   dupe?: DupeInfo
-  excluded: Set<string>
   onOpen: () => void
   onSelect: () => void
   onPatchMain: (patch: Partial<RecipeDraft>, clears?: GuessedField) => void
   onSetKind: (kind: RecipeDraft['kind']) => void
   onToggleTag: (tag: string) => void
-  onPatchIngredients: (tempId: string, ings: IngredientDraft[]) => void
-  onPatchComponent: (tempId: string, patch: Partial<RecipeDraft>) => void
-  onToggleComponent: (tempId: string) => void
+  onPatchIngredients: (ings: IngredientDraft[]) => void
 }) {
-  const { main, components } = imp
-  const isComponent = main.kind === 'component'
+  const { main } = imp
+  const isCocktailKind = main.kind === 'cocktail'
   const guessed = new Set(imp.guessed ?? [])
   const tags = main.tags ?? []
   // Selected tags first so the row opens on what's already chosen; the rest of
@@ -441,7 +411,7 @@ function RecipeCard({
           <button className={styles.cardTitle} onClick={onOpen} aria-expanded={open}>
             <span className={styles.cardName}>{main.name || 'Untitled'}</span>
             <span className={styles.cardMeta}>
-              {isComponent ? 'syrup' : main.spirit ?? 'cocktail'} ·{' '}
+              {isCocktailKind ? main.spirit ?? 'cocktail' : KIND_LABELS[main.kind].toLowerCase()} ·{' '}
               {main.ingredients.length} ingredient{main.ingredients.length === 1 ? '' : 's'}
               {dupe && (
                 <span className={dupe.relation === 'same' ? styles.pillSame : styles.pillVariation}>
@@ -474,13 +444,13 @@ function RecipeCard({
           )}
 
           <div className={styles.segment}>
-            {(['cocktail', 'component'] as const).map((k) => (
+            {RECIPE_KINDS.map((k) => (
               <button
                 key={k}
                 className={`${styles.segBtn} ${main.kind === k ? styles.segActive : ''}`}
                 onClick={() => onSetKind(k)}
               >
-                {k === 'cocktail' ? 'Cocktail' : 'Sub-recipe'}
+                {KIND_EMOJI[k]} {KIND_LABELS[k]}
                 {guessed.has('kind') && main.kind === k && <GuessMark />}
               </button>
             ))}
@@ -497,24 +467,26 @@ function RecipeCard({
 
           <IngredientList
             recipe={main}
-            onChange={(ings) => onPatchIngredients(main.tempId, ings)}
+            onChange={onPatchIngredients}
           />
 
           <div className={styles.grid2}>
-            <Field label="Build" guessed={guessed.has('method')}>
-              <select
-                value={main.method ?? ''}
-                onChange={(e) => onPatchMain({ method: e.target.value || undefined }, 'method')}
-              >
-                <option value="">—</option>
-                {METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {!isComponent && (
+            {isCocktailKind && (
+              <Field label="Build" guessed={guessed.has('method')}>
+                <select
+                  value={main.method ?? ''}
+                  onChange={(e) => onPatchMain({ method: e.target.value || undefined }, 'method')}
+                >
+                  <option value="">—</option>
+                  {METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {isCocktailKind && (
               <Field label="Glass" guessed={guessed.has('glassware')}>
                 <input
                   list={GLASS_LIST_ID}
@@ -526,7 +498,7 @@ function RecipeCard({
                 />
               </Field>
             )}
-            {!isComponent && (
+            {isCocktailKind && (
               <Field label="Spirit" guessed={guessed.has('spirit')}>
                 <input
                   list={SPIRIT_LIST_ID}
@@ -540,7 +512,7 @@ function RecipeCard({
             )}
             {/* last and full-width: garnishes are phrases ("Lime wheel & salt rim"),
                 not one-word values like the three above */}
-            {!isComponent && (
+            {isCocktailKind && (
               <Field label="Garnish" guessed={guessed.has('garnish')} wide>
                 <input
                   value={main.garnish ?? ''}
@@ -568,41 +540,6 @@ function RecipeCard({
           </div>
 
           {guessed.size > 0 && <p className={styles.legend}>✨ guessed — tap to change</p>}
-
-          {components.length > 0 && (
-            <>
-              <span className={`${styles.label} ${styles.subsLabel}`}>Sub-recipes</span>
-              {components.map((c) => {
-                const on = !excluded.has(c.tempId)
-                return (
-                  <div key={c.tempId} className={`${styles.compCard} ${on ? '' : styles.compOff}`}>
-                    <div className={styles.compHead}>
-                      <FlaskIcon size={15} className={styles.compFlask} />
-                      <input
-                        className={styles.compName}
-                        value={c.name}
-                        onChange={(e) => onPatchComponent(c.tempId, { name: e.target.value })}
-                      />
-                      <label className={styles.compToggle}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => onToggleComponent(c.tempId)}
-                        />
-                        save
-                      </label>
-                    </div>
-                    {on && (
-                      <IngredientList
-                        recipe={c}
-                        onChange={(ings) => onPatchIngredients(c.tempId, ings)}
-                      />
-                    )}
-                  </div>
-                )
-              })}
-            </>
-          )}
         </div>
       )}
     </div>

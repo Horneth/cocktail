@@ -27,7 +27,7 @@ interface Props {
   onOverride: (value: Override | undefined) => void
   /** Ownership tick: true = have it, false = missing, undefined = don't show. */
   owned?: boolean
-  /** Where this line leads when it isn't a sub-recipe (sub-recipes always win). */
+  /** Where this line leads when it isn't a linked recipe (links always win). */
   link?: IngredientLink
 }
 
@@ -54,7 +54,7 @@ export function IngredientRow({
   owned,
   link,
 }: Props) {
-  const to = ingredient.subRecipeId ? `/recipe/${ingredient.subRecipeId}` : link?.to
+  const to = ingredient.recipeId ? `/recipe/${ingredient.recipeId}` : link?.to
   const base = displayValue(ingredient, scale, pref)
   const shown: { amount: number | null; unit: Unit } = override ?? base
   const isModified = override !== undefined
@@ -80,7 +80,7 @@ export function IngredientRow({
       )}
 
       <div className={styles.body}>
-        {/* A sub-recipe's own screen always wins the tap — it's the deeper thing
+        {/* A linked recipe's own screen always wins the tap — it's the deeper thing
             behind the same words. Everything else can lead to the bottle. */}
         {to ? (
           <Link className={styles.linkName} to={to}>

@@ -20,7 +20,7 @@ export interface NameIndexEntry {
  * Loose key for a *drink* name: lowercase, drop parentheticals and punctuation,
  * strip a leading article.
  *
- * Deliberately gentler than `normalizeComponentName()`, which also strips
+ * Deliberately gentler than `normalizeMixerName()`, which also strips
  * rich/fresh/homemade. Those adjectives describe how a syrup was made and don't
  * change what it is; in a cocktail name a modifier word usually means a
  * genuinely different drink, so stripping them here would collapse drinks that

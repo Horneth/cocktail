@@ -9,7 +9,7 @@ import { categoryForName } from './spiritCategory'
 // close). Scoring is intentionally lexical — deciding whether "Tanqueray No.
 // Ten" IS "Tanqueray" is a judgement call, and that's what the model is for.
 //
-// Kept separate from `normalizeComponentName` for the reason spelled out in
+// Kept separate from `normalizeMixerName` for the reason spelled out in
 // textNormalize.ts: these keys must never converge.
 
 export interface BottleCandidate {

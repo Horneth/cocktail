@@ -8,8 +8,8 @@ import { MATCHABLE_CATEGORIES, categoryForName } from './spiritCategory'
 //  1. `assumeStaples` (default on): common non-alcoholic basics — water, ice,
 //     citrus, sugar, sodas, garnishes, egg — and any garnish/topper line (no
 //     amount) are assumed on hand, so the bar only needs your *bottles*.
-//  2. Sub-recipes recurse: a cocktail that needs Simple Syrup is makeable if you
-//     have the syrup OR can make it from what's available.
+//  2. Linked recipes recurse: a cocktail that needs Simple Syrup is makeable if
+//     you have the syrup OR can make it from what's available.
 //  3. Category substitution: a generic bottle covers a more specific call — any
 //     rum satisfies "Jamaican rum", any whiskey satisfies "Woodford Reserve".
 //     Only base-spirit families substitute (see MATCHABLE_CATEGORIES); a Campari
@@ -153,9 +153,9 @@ function makeable(recipe: Recipe, ctx: Ctx, visited: Set<string>): boolean {
     if (ctx.have.has(norm)) continue
     // A generic bottle of the same base spirit covers a more specific call.
     if (coveredByCategory(ing.name, ctx.haveCategories)) continue
-    // A sub-recipe you don't have a bottle of is still fine if you can make it.
-    if (ing.subRecipeId) {
-      const sub = ctx.byId.get(ing.subRecipeId)
+    // A linked recipe you don't have a bottle of is still fine if you can make it.
+    if (ing.recipeId) {
+      const sub = ctx.byId.get(ing.recipeId)
       if (sub && makeable(sub, ctx, new Set(visited))) continue
     }
     return false
@@ -173,7 +173,7 @@ export function canMake(
   return makeable(recipe, { have, haveCategories: categoriesOf(have), byId, assumeStaples }, new Set())
 }
 
-/** The subset of `recipes` that are makeable now (byId should include sub-recipes). */
+/** The subset of `recipes` that are makeable now (byId should include linked recipes). */
 export function makeableIds(
   recipes: Recipe[],
   allById: Map<string, Recipe>,
@@ -188,7 +188,7 @@ export function makeableIds(
 
 /**
  * The required ingredients a recipe is missing from inventory (top-level, not
- * counting assumed staples or makeable sub-recipes). Powers "you need: X, Y".
+ * counting assumed staples or makeable linked recipes). Powers "you need: X, Y".
  */
 export function missingBottles(
   recipe: Recipe,
@@ -204,8 +204,8 @@ export function missingBottles(
     if (assumeStaples && (ing.amount === null || isStaple(norm))) continue
     if (have.has(norm)) continue
     if (coveredByCategory(ing.name, ctx.haveCategories)) continue
-    if (ing.subRecipeId) {
-      const sub = byId.get(ing.subRecipeId)
+    if (ing.recipeId) {
+      const sub = byId.get(ing.recipeId)
       if (sub && makeable(sub, ctx, new Set())) continue
     }
     missing.push(ing.name)

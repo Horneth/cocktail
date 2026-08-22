@@ -11,13 +11,13 @@ import { deleteRecipeWithConfirm } from '../domain/recipeActions'
 import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { tagEmoji } from '../domain/vocab'
-import { useCocktails, useComponents } from '../hooks/useRecipes'
+import { useCocktails, useMixers } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
 import styles from './BrowseScreen.module.css'
 
 export function BrowseScreen() {
   const cocktails = useCocktails()
-  const components = useComponents()
+  const mixers = useMixers()
   const { badgeFor, byId, have, assumeStaples } = useAvailability()
   const [params, setParams] = useSearchParams()
   const [tagSheet, setTagSheet] = useState(false)
@@ -32,11 +32,11 @@ export function BrowseScreen() {
   // The bottle's stored family travels with it, so the full list matches what
   // the bottle sheet showed even when the user corrected a wrong guess.
   const ingredientFamily = params.get('family') || undefined
-  const isComponents = scope === 'components'
+  const isMixers = scope === 'mixers'
 
   const base = useMemo<Recipe[]>(() => {
-    const all = isComponents ? (components ?? []) : (cocktails ?? [])
-    const scoped = isComponents
+    const all = isMixers ? (mixers ?? []) : (cocktails ?? [])
+    const scoped = isMixers
       ? all
       : scope === 'all'
         ? all
@@ -44,7 +44,7 @@ export function BrowseScreen() {
           ? all.filter((c) => c.favorite)
           : all.filter((c) => tileKeyForRecipe(c) === scope)
     return ingredient ? recipesUsingBottle(ingredient, scoped, byId, ingredientFamily) : scoped
-  }, [cocktails, components, scope, isComponents, ingredient, ingredientFamily, byId])
+  }, [cocktails, mixers, scope, isMixers, ingredient, ingredientFamily, byId])
 
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>()
@@ -80,9 +80,9 @@ export function BrowseScreen() {
         const v = spiritVisual(k)
         out.push({ key: k, label: v.label, emoji: v.emoji })
       })
-    if ((components ?? []).length) out.push({ key: 'components', label: 'Syrups', emoji: '🍯' })
+    if ((mixers ?? []).length) out.push({ key: 'mixers', label: 'Syrups & cordials', emoji: '🍯' })
     return out
-  }, [cocktails, components])
+  }, [cocktails, mixers])
 
   const patch = (key: string, value: string | null) => {
     const p = new URLSearchParams(params)

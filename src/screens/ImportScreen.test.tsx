@@ -42,7 +42,6 @@ function draft(name: string, over: Partial<StructuredImport> = {}): StructuredIm
       tags: ['sour'],
       spirit: 'rum',
     },
-    components: [],
     ...over,
   }
 }
@@ -137,12 +136,12 @@ describe('the review card', () => {
     expect(screen.queryByText(/guessed — tap to change/i)).not.toBeInTheDocument()
   })
 
-  it('drops the serve fields when a drink is re-marked as a sub-recipe', async () => {
+  it('drops the serve fields when a recipe is re-marked as a syrup', async () => {
     firebaseParse.mockResolvedValue([draft('Simple Syrup')])
     const user = await paste()
 
     await screen.findByDisplayValue('Simple Syrup')
-    await user.click(screen.getByRole('button', { name: /sub-recipe/i }))
+    await user.click(screen.getByRole('button', { name: '🍯 Syrup' }))
     expect(screen.queryByDisplayValue('Coupe')).not.toBeInTheDocument()
     expect(screen.queryByDisplayValue('Lime wheel')).not.toBeInTheDocument()
     expect(screen.queryByDisplayValue('rum')).not.toBeInTheDocument()

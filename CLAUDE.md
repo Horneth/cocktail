@@ -72,6 +72,7 @@ src/
     spiritCategory.ts  categoryForName() — infers a spirit category from a bottle name (brands too)
     vocab.ts      TAGS / METHODS / GLASSES — the one list the prompt, editor and import picker share
     dupeMatch.ts  normalizeRecipeName() + shortlistCandidates() — local phase of duplicate detection
+    recipeKind.ts RECIPE_KINDS / KIND_LABELS / isCocktail() + migrateLegacyRecipe() (the kind vocabulary)
     spirits.ts    Spirit tile metadata, known-spirit order, generated art for custom spirits
     spiritVisual.ts  spiritVisual() — resolves a spirit to the redesign's tile colours/glyph
     search.ts     Recipe text search
@@ -80,14 +81,14 @@ src/
     bottleMatch.ts   Local near-duplicate detection for the shelf scan (candidates, verdicts)
     pantry.ts     Bar-scoped bottle add/remove/patch helpers (take a barId)
     bars.ts       Bar CRUD + ensureDefaultBar()
-    textNormalize.ts  normalizeComponentName() + duplicateComponentGroups() (dedup/merge)
+    textNormalize.ts  normalizeMixerName() + duplicateMixerGroups() (dedup/merge)
     recipeSummary.ts  Short ingredient summaries for cards
     recipeActions.ts  deleteRecipeWithConfirm (thin wrapper over import/importRecipe)
     ids.ts        newId()
 
   import/         The single write seam for bulk recipe creation
-    types.ts      StructuredImport / RecipeDraft / IngredientDraft (tempId-based links)
-    importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeComponents()
+    types.ts      StructuredImport / RecipeDraft / IngredientDraft (recipeId cross-links)
+    importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeRecipes()
     aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
     firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse(), firebaseJudgeDuplicates(),
                   firebaseIdentifyBottles(), firebaseReconcileBottles()
@@ -147,24 +148,26 @@ filter what's already on screen — that's a different job, and it isn't search.
 ## Key concepts — read these before making changes
 
 ### One entity, cross-linked (the data model)
-A **cocktail and a syrup are the same `Recipe`**, distinguished by
-`kind: 'cocktail' | 'component'`. Components (syrups, cordials, orgeats) are
-first-class recipes that other recipes reference via `Ingredient.subRecipeId`.
-A denormalized **`recipeLinks`** table indexes that parent↔child relationship
-both ways, powering fast "Used in" back-links and shared-component dedup.
+A **cocktail, a syrup and a cordial are the same `Recipe`**, distinguished only
+by `kind: 'cocktail' | 'syrup' | 'cordial'`. Every kind is added, edited and
+imported the same way. Any recipe can reference any other through an
+`Ingredient.recipeId` cross-link — in practice a cocktail's ingredient points at
+a syrup or cordial. A denormalized **`recipeLinks`** table indexes that
+relationship both ways, powering fast "Used in" back-links and duplicate-merge.
 `recipeLinks` is an *index, rebuildable from `recipes` alone* — never treat it as
 a second source of truth. See `src/db/schema.ts`.
 
 ### The import seam is the only bulk write path
 Every recipe source — the seed data today, the YouTube importer, the cloud AI
-parser — produces a **`StructuredImport`** and goes through
-**`importRecipe()`** (`src/import/importRecipe.ts`). It runs in a single Dexie
-transaction: inserts/reuses components (deduped by `name`+`kind`), resolves
-`tempId` refs to real ids, inserts the main recipe, and reconciles `recipeLinks`.
-When adding a new import source, target `StructuredImport` — do not write to the
-DB directly. Single-recipe edits from the editor go through **`saveRecipe()`**
-(also link-reconciling); deletes through **`deleteRecipe()`** (strips dangling
-`subRecipeId`s from parents).
+parser — produces one **`StructuredImport`** per recipe and goes through
+**`importRecipe()`** (`src/import/importRecipe.ts`). An import is *just a
+recipe*: it runs in a single Dexie transaction that inserts the recipe and
+reconciles `recipeLinks` from any `recipeId`s the author already supplied (the
+seed data). The AI never invents sub-recipes or cross-links — linking happens in
+the editor, by name-autocomplete. When adding a new import source, target
+`StructuredImport` — do not write to the DB directly. Single-recipe edits from
+the editor go through **`saveRecipe()`** (also link-reconciling); deletes through
+**`deleteRecipe()`** (strips dangling `recipeId`s from parents).
 
 ### Dexie schema evolution is additive
 Only **indexed** fields are declared in `db.ts`; full objects are stored as JSON
@@ -176,7 +179,10 @@ single `pantry` store (keyed on bare `name`) into a new bar-scoped `bottles`
 store (compound key `[barId+name]`). IndexedDB can't re-key a store in place, so
 the `.upgrade()` copies rows into `bottles` under a default "My Bar" and leaves
 the dead `pantry` store untouched; fresh installs (which skip the upgrade) get
-their default bar from `ensureDefaultBar()` at boot.
+their default bar from `ensureDefaultBar()` at boot. **v4** splits the old
+`component` kind into `syrup`/`cordial` and renames the cross-link field
+`subRecipeId` → `recipeId`; both live in the stored JSON, so it is a data rewrite
+(`migrateLegacyRecipe` in `domain/recipeKind.ts`), not a re-key.
 
 ### State = the database
 There is no separate app state store. Read data with the `useLiveQuery` hooks in
@@ -225,7 +231,7 @@ Picked bottles the library never mentioned stay listed until you confirm.
 `domain/availability.ts` matches a recipe's ingredients against that set. Three
 rules keep it usable: an **assume-staples** switch (on by default, global) treats
 water/ice/citrus/sugar/sodas/garnishes/egg and any no-amount garnish line as
-on-hand; **sub-recipes recurse** (you can make a drink if you can make its syrup);
+on-hand; **linked recipes recurse** (you can make a drink if you can make its syrup);
 and **category substitution** — a generic bottle covers a specific call ("Jamaican
 rum" is satisfied by any rum). Only base-spirit families in `MATCHABLE_CATEGORIES`
 (from `spiritCategory.ts`) substitute — a Campari must never stand in for a
@@ -248,7 +254,7 @@ it: **`bottleCovers(bottle, ingredient, category?)`** returns `'exact'`,
 `'category'` or `null` by the same rules `makeable()` applies to a whole shelf.
 
 - **Bottle → recipes.** `recipesUsingBottle()` (barInsights) lists every drink the
-  bottle has a part in, sub-recipes included, ready-now ones first. "See all" goes
+  bottle has a part in, linked syrups included, ready-now ones first. "See all" goes
   to `/browse?ingredient=…&family=…` — the family travels so the full list matches
   what the sheet showed even when the user corrected a wrong guess.
 - **Recipe → bottle.** `bottleFor()` finds the bottle on the shelf that covers an
@@ -289,13 +295,14 @@ Two properties hold and should keep holding:
   local verdicts. An exact string match is also never overruled by the model —
   it was never asked.
 
-### Merging duplicate components
-Imports can create near-duplicate syrups (a hand-added "Simple Syrup" plus an
-imported "Semi Rich Simple Syrup"). `mergeComponents(fromId, toId)` (in the import
-seam) repoints every parent's `subRecipeId`, rebuilds `recipeLinks`, and deletes
-the loser in one transaction (with a cycle guard). Surfaced as a "Duplicate?" merge
-picker on a component's detail screen. `normalizeComponentName()` /
-`duplicateComponentGroups()` (`domain/textNormalize.ts`) detect likely dupes.
+### Merging duplicate mixers
+A library can hold near-duplicate syrups (a hand-added "Simple Syrup" plus an
+imported "Semi Rich Simple Syrup"). `mergeRecipes(fromId, toId)` (in the import
+seam) repoints every parent's `recipeId`, rebuilds `recipeLinks`, and deletes the
+loser in one transaction (with a cycle guard); both must be mixers of the same
+kind. Surfaced as a "Duplicate?" merge picker on a syrup/cordial's detail screen.
+`normalizeMixerName()` / `duplicateMixerGroups()` (`domain/textNormalize.ts`)
+detect likely dupes.
 
 ### Spirits are free-form
 `Recipe.spirit` is an open string. `domain/spirits.ts` ships metadata (label,
@@ -373,8 +380,9 @@ only the client knows is a limit the client can remove.
 ### Import: what the AI decides, and what it admits to guessing
 `ImportScreen` makes **two** calls, and the second one is optional.
 
-1. **`firebaseParse(text)`** → one `StructuredImport` per drink. Beyond the
-   recipe, the model returns two preview-only fields (siblings of `main` on
+1. **`firebaseParse(text)`** → one `StructuredImport` per recipe (a cocktail, a
+   syrup or a cordial — each stands alone; the AI never nests one recipe inside
+   another). Beyond the recipe, the model returns two preview-only fields (siblings of `main` on
    `StructuredImport`, never persisted — `draftToRecipe` is explicit-field):
    - **`guessed`** — which of method/glass/garnish/tags/spirit/kind it *inferred*
      rather than read. The prompt tells it to always fill those in; `guessed` is
