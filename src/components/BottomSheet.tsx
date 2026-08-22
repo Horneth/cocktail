@@ -6,6 +6,7 @@ interface Props {
   onClose: () => void
   /** Enable pointer drag-to-dismiss on the grab handle. */
   draggable?: boolean
+  presentation?: 'sheet' | 'screen'
   children: ReactNode
 }
 
@@ -14,7 +15,7 @@ interface Props {
  * drag-to-dismiss on the handle (release past ~90px closes), ported from the
  * design prototype. The scrim fades as you drag.
  */
-export function BottomSheet({ open, onClose, draggable = false, children }: Props) {
+export function BottomSheet({ open, onClose, draggable = false, presentation = 'sheet', children }: Props) {
   const [dragY, setDragY] = useState(0)
   const [dragging, setDragging] = useState(false)
   const start = useRef<number | null>(null)
@@ -62,7 +63,7 @@ export function BottomSheet({ open, onClose, draggable = false, children }: Prop
         onClick={onClose}
       />
       <div
-        className={styles.sheet}
+        className={`${styles.sheet} ${presentation === 'screen' ? styles.screen : ''}`}
         style={{
           transform: open ? `translateY(${dragY}px)` : 'translateY(110%)',
           transition: dragging ? 'none' : undefined,

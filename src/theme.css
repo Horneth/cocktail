@@ -9,8 +9,22 @@
   --accent: #e7623b; /* primary brand accent */
   --accent-ink: #fff3ed; /* text/eyebrow on accent surfaces */
   --green: #4e9e7e; /* "have it" / available ticks */
+  --ink-display: #14100d;
+  --field: #ede8e0;
+  --track: #e7e1d7;
+  --seg-fg: #7c7568;
+  --seg-shadow: 0 1px 3px rgba(40, 30, 20, 0.14);
+  --focus-line: #c9bfb1;
+  --ready-fg-2: #3e7d64;
+  --ready-bg-2: #e8f0ea;
+  --dot-missing: #c39a63;
+  --dot-neutral: #c9c2b6;
+  --icon-idle: #a79e92;
+  --placeholder: #b4aba0;
+  --float-shadow: 0 4px 14px rgba(30, 22, 16, 0.18);
+  --photo-empty: #eae4da;
 
-  /* accent gradient — hero, primary buttons, add-FAB */
+  /* accent gradient — primary buttons */
   --accent-grad: linear-gradient(150deg, #ee6b44, #d8492a);
 
   /* availability badges */
@@ -118,7 +132,7 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--focus-line);
 }
 
 a {

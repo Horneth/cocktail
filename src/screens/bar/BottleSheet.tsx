@@ -64,7 +64,7 @@ export function BottleSheet({
         setEditingCategory(false)
         onClose()
       }}
-      draggable
+      presentation="screen"
     >
       {bottle && (
         <>

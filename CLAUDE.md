@@ -132,18 +132,17 @@ recipe *filters* live on the one recipes screen (`?makeable`, `?ingredient`,
 `?q`, `?scope`, `?tags`); `BarScreen` consumes its `/bar?add`/`?bottle` params in
 an effect and strips them, so Back doesn't reopen a sheet.
 
-Navigation is the persistent **`TabBar`** (Recipes · add-FAB · My Bar). The FAB
-opens **`AddSheet`** over a **`BottomSheet`** — both are
-buttons with `aria-label`s, not links, which matters when writing selectors.
+Navigation is the persistent **`TabBar`** (Recipes · My Bar · Settings). There
+is no FAB or `AddSheet`: each primary screen owns one labelled contextual add
+button — **Recipe** on Recipes and **Bottle** on My Bar. AI remains an
+augmentation inside each entity's manual form (paste-to-fill on the recipe
+editor, photo scan inside the bottle form), never a parallel add path.
 
-**Every add goes through that FAB** — recipe *and* bottle. `AddSheet` is the only
-menu of add actions in the app, and it is deliberately just a two-choice menu:
-**A recipe** (→ `/new`) or **A bottle** (→ `/bar?add`). It used to list four
-rows — "Import a recipe", "Build a recipe", "Add a bottle", "Scan my shelf" —
-which split each add into a manual and an AI flavour with different names. AI is
-an augmentation *inside* each editor now (paste-to-fill on the recipe editor, a
-photo scan inside the bottle add), so the sheet has nothing AI-specific to say.
-Don't add a second entry point; extend this sheet.
+**Search and filters live on the one Recipes screen.** There is exactly one
+live search field in the app, on `RecipesScreen`; `?q`, the spirit scope bar and
+the ready scope all narrow that same list. There is no separate Search or Browse
+screen to keep in step, because Home, Search and Browse were three names for the
+same list of drinks.
 
 **Search and filters live on the one Recipes screen.** There is exactly one
 live search field in the app, on `RecipesScreen`; `?q`, the spirit chips, the

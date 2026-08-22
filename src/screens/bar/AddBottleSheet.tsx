@@ -33,6 +33,7 @@ interface Props {
   barName: string
   /** prefill, e.g. the ingredient a recipe sent you here to buy */
   initialQuery?: string
+  presentation?: 'sheet' | 'screen'
 }
 
 interface Suggestion extends CatalogItem {
@@ -83,6 +84,7 @@ export function AddBottleSheet({
   assumeStaples,
   barName,
   initialQuery,
+  presentation = 'sheet',
 }: Props) {
   const auth = useAuth()
   const [query, setQuery] = useState('')
@@ -258,7 +260,7 @@ export function AddBottleSheet({
   const found = scanResults?.length ?? 0
 
   return (
-    <BottomSheet open={open} onClose={onClose} draggable>
+    <BottomSheet open={open} onClose={onClose} draggable={presentation === 'sheet'} presentation={presentation}>
       <div className={sheet.head}>
         <h2 className={sheet.title}>Add bottles</h2>
         <p className={sheet.subtitle}>to {barName}</p>
@@ -282,13 +284,14 @@ export function AddBottleSheet({
           autoCorrect="off"
           spellCheck={false}
         />
-        {auth.configured && auth.aiAvailable && (
+        {auth.configured && (
           <button
             className={styles.scanBtn}
-            onClick={() => fileRef.current?.click()}
-            aria-label="Scan a photo of your shelf"
+            onClick={() => auth.aiAvailable ? fileRef.current?.click() : void auth.signIn()}
+            aria-label="Import"
           >
             <SparkleIcon size={17} />
+            <span>Import</span>
           </button>
         )}
         <input

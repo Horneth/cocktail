@@ -54,8 +54,8 @@ export function useVolumePreference(): [VolumePreference, () => void] {
 }
 
 /**
- * "Assume I have common basics" for the makeable filter (water, ice, citrus,
- * sugar, sodas, garnishes…). On by default so the bar only needs your bottles.
+ * Staples remain assumed permanently; the preference is retained for compatibility
+ * with existing installs, but its UI toggle was deliberately removed.
  */
 export function useAssumeStaples(): [boolean, (v: boolean) => void] {
   const on = useSyncExternalStore(subscribe, () => localStorage.getItem(ASSUME_STAPLES) !== '0')

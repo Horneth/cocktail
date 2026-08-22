@@ -195,6 +195,8 @@ export function RecipeDetailScreen() {
       </div>
 
       <div className={styles.body}>
+        <div className={styles.tagLine}>{[...recipe.tags, spiritLabel].filter(Boolean).join(' · ')}</div>
+        <h1 className={styles.title}>{recipe.name}</h1>
         {/* One line, because the ingredient list below now says which ones —
             each missing line taps straight through to adding that bottle. */}
         {!isMixer && (

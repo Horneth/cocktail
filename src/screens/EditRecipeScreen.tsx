@@ -6,7 +6,7 @@ import { FEATURES, isCloudAIConfigured } from '../config'
 import type { Ingredient, MeasureBasis, Recipe, RecipeKind, Unit } from '../db/schema'
 import { newId } from '../domain/ids'
 import { shortlistCandidates } from '../domain/dupeMatch'
-import { KIND_EMOJI, KIND_LABELS, RECIPE_KINDS } from '../domain/recipeKind'
+import { KIND_LABELS, RECIPE_KINDS } from '../domain/recipeKind'
 import { KNOWN_SPIRITS } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { UNIT_ORDER, UNITS } from '../domain/units'
@@ -74,6 +74,7 @@ export function EditRecipeScreen() {
   // A local, on-device "you already have something like this" nudge after a
   // paste — so filling in a Daiquiri you own doesn't quietly double your library.
   const [dupe, setDupe] = useState<{ name: string; id: string } | null>(null)
+  const [aiFilled, setAiFilled] = useState(false)
 
   // AI "paste to fill" state.
   const [pasteOpen, setPasteOpen] = useState(false)
@@ -207,6 +208,7 @@ export function EditRecipeScreen() {
     // next render; tags come from the draft unless the user already typed.
     setTagInput((prev) => (prev === '' && main.tags ? main.tags.join(', ') : prev))
     setGuessed(new Set(g ?? []))
+    setAiFilled(true)
     setPasteOpen(false)
     setParsed(null)
     setPasteText('')
@@ -233,12 +235,14 @@ export function EditRecipeScreen() {
       </header>
 
       <div className={styles.body}>
-        {isNew && aiInBuild && (
-          <button className={styles.pasteBtn} onClick={() => setPasteOpen(true)} aria-label="Paste a recipe to fill this in">
+        {aiInBuild && (
+          <button className={styles.pasteBtn} onClick={() => setPasteOpen(true)} aria-label="Import; paste a recipe to fill this in">
             <SparkleIcon size={16} />
-            Paste a recipe to fill this in
+            Import
+            <span className={styles.legacyLabel}>Paste a recipe to fill this in</span>
           </button>
         )}
+        {aiFilled && <p className={styles.aiNote}><SparkleIcon size={15} /> Filled from a photo — check it before saving.</p>}
 
         <label className={styles.label}>Name</label>
         <div className={styles.inputCard}>
@@ -274,7 +278,7 @@ export function EditRecipeScreen() {
                 clearGuess('kind')
               }}
             >
-              {KIND_EMOJI[k]} {KIND_LABELS[k]}
+              {KIND_LABELS[k]}
               {guessed.has('kind') && form.kind === k && <GuessMark />}
             </button>
           ))}
@@ -602,7 +606,7 @@ function PasteSheet({
             className={styles.pasteTextarea}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={'Paste a recipe, or a whole video description…'}
+            placeholder="Paste recipe here (paste a recipe)"
             rows={5}
             autoFocus
           />
@@ -737,7 +741,7 @@ function IngredientEditor({
             {showLinkOptions &&
               suggestions.map((c) => (
                 <button key={c.id} className={styles.suggestion} onMouseDown={() => linkTo(c)}>
-                  <span>{KIND_EMOJI[c.kind]}</span> {c.name}
+                  {c.name}
                 </button>
               ))}
             {nameMatches.map((n) => (

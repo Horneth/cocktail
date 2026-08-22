@@ -1,8 +1,7 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { TabBar, type Tab } from './components/TabBar'
-import { AddSheet } from './components/AddSheet'
 import { hasSharedImport } from './import/shared'
 
 // Which primary tab owns a given path. The cocktail/bar tabs are the whole
@@ -11,6 +10,7 @@ import { hasSharedImport } from './import/shared'
 function tabForPath(pathname: string): Tab | null {
   if (pathname === '/' || pathname === '') return 'recipes'
   if (pathname.startsWith('/bar')) return 'bar'
+  if (pathname.startsWith('/settings')) return 'settings'
   return null
 }
 
@@ -18,7 +18,6 @@ export function App() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const redirected = useRef(false)
-  const [addOpen, setAddOpen] = useState(false)
 
   // A cold-start Android share boots the router at home (see main.tsx). If
   // shared text is waiting, push the recipe editor through react-router so home
@@ -41,8 +40,7 @@ export function App() {
       <ErrorBoundary resetKey={pathname}>
         <Outlet />
       </ErrorBoundary>
-      {tab && <TabBar active={tab} onAdd={() => setAddOpen(true)} />}
-      <AddSheet open={addOpen} onClose={() => setAddOpen(false)} />
+      {tab && <TabBar active={tab} />}
     </>
   )
 }

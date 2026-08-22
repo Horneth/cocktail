@@ -11,7 +11,7 @@
   width: 50px;
   height: 50px;
   border-radius: 15px;
-  font-size: 25px;
+  font-size: 0;
 }
 .headText {
   flex: 1;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { SwipeableRow } from '../../components/SwipeableRow'
+import { AccentButton } from '../../components/TabBar'
 import { ChevronDownIcon, ChevronRightIcon } from '../../components/icons'
 import type { PantryItem } from '../../db/schema'
 import { bulkAddPantry, removeFromPantry, updateBottle, type BottleInput } from '../../domain/pantry'
@@ -33,7 +34,6 @@ export function BarScreen() {
   const [adding, setAdding] = useState(false)
   const [addQuery, setAddQuery] = useState('')
   const [viewing, setViewing] = useState<PantryItem | null>(null)
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const activeBar = bars.find((b) => b.id === barId)
   const barName = activeBar?.name ?? 'my bar'
@@ -79,62 +79,35 @@ export function BarScreen() {
     setAdding(false)
   }
 
-  const toggleCollapse = (key: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-
   const empty = items.length === 0
 
   return (
     <div className={styles.screen}>
-      <div className={styles.head}>
-        <div className={styles.count}>
-          {items.length} bottle{items.length === 1 ? '' : 's'} ·{' '}
-          <Link className={styles.countLink} to="/?makeable=1">
-            {makeableCount} drink{makeableCount === 1 ? '' : 's'} ready
-          </Link>
+      <header className={styles.head}>
+        <div className={styles.headerText}>
+          <div className={styles.count}>{items.length} bottles · <Link className={styles.countLink} to="/?makeable=1">{makeableCount} drinks ready</Link></div>
+          <button className={styles.title} onClick={() => setManagingBars(true)}>{barName}<ChevronDownIcon size={18} className={styles.titleChevron} /></button>
         </div>
-        <button className={styles.title} onClick={() => setManagingBars(true)}>
-          {barName}
-          <ChevronDownIcon size={20} className={styles.titleChevron} />
-        </button>
-      </div>
+        <AccentButton label="Bottle" onClick={() => setAdding(true)} />
+      </header>
 
       {empty ? (
         <div className={styles.empty}>
-          <div className={styles.emptyGlyph} aria-hidden>
-            🥃
-          </div>
-          <p className={styles.emptyTitle}>{barName} is empty</p>
-          <p className={styles.emptyHint}>
-            Tap ＋ to add the bottles you own — every recipe then knows what you can make.
-          </p>
+          <p className={styles.emptyTitle}>Nothing on this shelf yet</p>
+          <p className={styles.emptyHint}>Add the bottles you keep here.</p>
         </div>
       ) : (
         <section className={styles.section}>
           <h2 className={styles.h2}>On the shelf</h2>
           {groups.map((g) => {
             const v = spiritVisual(g.key)
-            const isCollapsed = collapsed.has(g.key)
             return (
               <div key={g.key} className={styles.group}>
-                <button className={styles.groupHead} onClick={() => toggleCollapse(g.key)}>
-                  <span className={styles.groupGlyph} style={{ background: v.tint }} aria-hidden>
-                    {v.emoji}
-                  </span>
+                <div className={styles.groupHead}>
                   <span className={styles.groupLabel}>{v.label}</span>
                   <span className={styles.groupCount}>{g.items.length}</span>
-                  <ChevronDownIcon
-                    size={17}
-                    className={`${styles.groupChevron} ${isCollapsed ? styles.groupChevronUp : ''}`}
-                  />
-                </button>
-                {!isCollapsed && (
-                  <div className={styles.items}>
+                </div>
+                <div className={styles.items}>
                     {g.items.map((item) => (
                       <SwipeableRow
                         key={item.name}
@@ -151,8 +124,7 @@ export function BarScreen() {
                         </button>
                       </SwipeableRow>
                     ))}
-                  </div>
-                )}
+                </div>
               </div>
             )
           })}
@@ -183,6 +155,7 @@ export function BarScreen() {
         byId={byId}
         assumeStaples={assumeStaples}
         barName={barName}
+        presentation="screen"
       />
 
       <BottleSheet

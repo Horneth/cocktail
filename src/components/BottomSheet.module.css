@@ -31,3 +31,16 @@
   background: var(--line);
   margin: 0 auto;
 }
+
+.screen {
+  top: 0;
+  bottom: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow-y: auto;
+  padding-top: calc(6px + var(--safe-top));
+}
+
+.screen .grab {
+  display: none;
+}

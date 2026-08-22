@@ -1,24 +1,16 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  BottleIcon,
-  ChevronLeftIcon,
   DownloadIcon,
   GoogleIcon,
-  SparkleIcon,
   UploadIcon,
 } from '../components/icons'
-import { FEATURES } from '../config'
 import { backupFilename, exportBackup, importBackup, parseBackup } from '../import/backup'
 import { useAuth } from '../hooks/useAuth'
-import { useAssumeStaples } from '../hooks/useSettings'
 import styles from './SettingsScreen.module.css'
 
 export function SettingsScreen() {
-  const navigate = useNavigate()
   const auth = useAuth()
   const fileInput = useRef<HTMLInputElement>(null)
-  const [assumeStaples, setAssumeStaples] = useAssumeStaples()
   const [dataStatus, setDataStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
 
@@ -77,107 +69,28 @@ export function SettingsScreen() {
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <button className={styles.back} aria-label="Back" onClick={() => navigate(-1)}>
-          <ChevronLeftIcon size={20} />
-        </button>
         <h1 className={styles.headTitle}>Settings</h1>
       </header>
 
       <div className={styles.body}>
-        {FEATURES.cloudAI && (
-          <section>
-            <div className={styles.eyebrowRow}>
-              <h2 className={styles.eyebrow}>AI features</h2>
-              {auth.configured && !auth.user && (
-                <span className={styles.badge}>Sign-in required</span>
+        <section>
+          <h2 className={styles.eyebrow}>Account</h2>
+          <div className={styles.card}>
+            <div className={styles.account}>
+              <span className={styles.accountText}>
+                <small>{auth.user ? 'Signed in' : 'Not signed in'}</small>
+                <strong>{auth.user ? (auth.user.email ?? auth.user.displayName ?? 'Google account') : 'Sign in to use AI features'}</strong>
+              </span>
+              {auth.user ? (
+                <button className={styles.ghostBtn} onClick={() => void auth.signOut()}>Sign out</button>
+              ) : (
+                <button className={styles.googleBtn} onClick={() => void handleSignIn()} disabled={!auth.ready}>
+                  <GoogleIcon size={18} /> Sign in
+                </button>
               )}
             </div>
-
-            {!auth.configured ? (
-              <div className={styles.card}>
-                <p className={styles.off}>Not available in this build.</p>
-              </div>
-            ) : (
-              <>
-                <div className={styles.card}>
-                  <div className={styles.perk}>
-                    <span className={styles.perkIcon}>
-                      <SparkleIcon size={17} />
-                    </span>
-                    <span className={styles.perkText}>
-                      <strong>Import a recipe</strong>
-                      <small>Pasted description → recipe</small>
-                    </span>
-                  </div>
-                  <div className={styles.perk}>
-                    <span className={styles.perkIcon}>
-                      <BottleIcon size={17} />
-                    </span>
-                    <span className={styles.perkText}>
-                      <strong>Scan my shelf</strong>
-                      <small>Photo → bottles</small>
-                    </span>
-                  </div>
-
-                  <div className={styles.account}>
-                    {auth.user ? (
-                      <>
-                        <span className={styles.accountText}>
-                          <small>Signed in</small>
-                          <strong>
-                            {auth.user.email ?? auth.user.displayName ?? 'Google account'}
-                          </strong>
-                        </span>
-                        <button className={styles.ghostBtn} onClick={() => void auth.signOut()}>
-                          Sign out
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        className={styles.googleBtn}
-                        onClick={() => void handleSignIn()}
-                        disabled={!auth.ready}
-                      >
-                        <GoogleIcon size={18} />
-                        {auth.ready ? 'Sign in with Google' : 'Checking…'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {authError && (
-                  <p className={styles.authError} role="status">
-                    {authError}
-                  </p>
-                )}
-                <p className={styles.hint}>
-                  Sign-in unlocks these two only. Everything else works offline, signed out.
-                </p>
-              </>
-            )}
-          </section>
-        )}
-
-        <section>
-          <h2 className={styles.eyebrow}>Bar</h2>
-          <label className={styles.toggle}>
-            <span className={styles.toggleText}>
-              <strong>Assume I have the basics</strong>
-              <span className={styles.toggleHint}>
-                water, ice, citrus, sugar, sodas, garnishes, egg
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              className={styles.switch}
-              checked={assumeStaples}
-              onChange={(e) => setAssumeStaples(e.target.checked)}
-            />
-          </label>
-          <p className={styles.hint}>
-            Counts usual bar staples as on-hand, so “ready to pour” reflects the
-            bottles you actually own.
-          </p>
+          </div>
+          {authError && <p className={styles.authError} role="status">{authError}</p>}
         </section>
 
         <section>
@@ -220,7 +133,6 @@ export function SettingsScreen() {
         </section>
       </div>
 
-      <p className={styles.footer}>Your library lives on this device only.</p>
     </div>
   )
 }

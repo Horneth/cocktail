@@ -100,13 +100,13 @@ button.row:active {
   font-size: 14px;
 }
 .glyph {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  font-size: 17px;
+   flex: 0 0 auto;
+   display: grid;
+   place-items: center;
+   width: 34px;
+   height: 34px;
+   border-radius: 11px;
+   font-size: 0;
 }
 .text {
   flex: 1;
@@ -151,13 +151,16 @@ button.row:active {
 /* ── Photo scan, as an augmentation of the same add sheet ─────────── */
 .scanBtn {
   flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 36px;
+  padding: 0 10px;
   border-radius: 12px;
-  background: var(--ready-bg);
+  background: var(--accent-ink);
   color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
 }
 .signInRow {
   display: inline-flex;
