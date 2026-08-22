@@ -108,41 +108,47 @@ src/
     useWakeLock.ts  Holds the screen awake while a screen is mounted (recipe detail)
 
   screens/        One component per route (+ co-located *.module.css)
-    HomeScreen, SearchScreen, BrowseScreen, RecipeDetailScreen,
-    EditRecipeScreen, ImportScreen, SettingsScreen
-    bar/          My Bar is the one screen with a folder — it owns four sheets:
-                  BarScreen + ManageBarsSheet / AddBottleSheet / BottleSheet /
-                  ScanReviewSheet, plus sheet.module.css for their shared chrome
+    RecipesScreen, RecipeDetailScreen,
+    EditRecipeScreen, SettingsScreen
+    bar/          My Bar is the one screen with a folder — it owns three sheets:
+                  BarScreen + ManageBarsSheet / AddBottleSheet / BottleSheet,
+                  plus sheet.module.css for their shared chrome
 
   components/     Reusable UI (TabBar, RecipeRow, IngredientRow, AddSheet,
-                  SearchLauncher, BottomSheet, ServingStepper, SwipeableRow,
+                  BottomSheet, ServingStepper, SwipeableRow,
                   ErrorBoundary, icons)
 ```
 
-**Routes** (hash-based, see `main.tsx`): `/` (home), `/search`, `/browse`,
-`/recipe/:id`, `/recipe/:id/edit`, `/new`, `/import`, `/bar`, `/settings`.
+**Routes** (hash-based, see `main.tsx`): `/` (recipes), `/recipe/:id`,
+`/recipe/:id/edit`, `/new` (the one recipe editor, add & edit), `/bar`,
+`/settings`.
 
 Query params carry the links *between* screens, so every one of them is a URL
-someone can land on cold: `/bar?add=1` (open the bottle picker), `/bar?add=<name>`
-(prefilled with what a recipe called for), `/bar?bottle=<key>` (open that bottle's
-sheet), `/bar?scan=1`, `/browse?ingredient=<label>&family=<category>` (everything
-this bottle pours into), `/browse?makeable=1`, `/search?q=`. `BarScreen` consumes
-its params in an effect and strips them, so Back doesn't reopen a sheet.
+someone can land on cold: `/bar?add=1` (open the bottle picker), `/?makeable=1`
+(the makeable list), `/?ingredient=<label>&family=<category>` (everything a
+bottle pours into), `/?q=` (search), and `/?scope=`/`/?tags=` (filters). The
+recipe *filters* live on the one recipes screen (`?makeable`, `?ingredient`,
+`?q`, `?scope`, `?tags`); `BarScreen` consumes its `/bar?add`/`?bottle` params in
+an effect and strips them, so Back doesn't reopen a sheet.
 
-Navigation is the persistent **`TabBar`** (Home · Search · add-FAB · Browse ·
-My Bar). The FAB opens **`AddSheet`** over a **`BottomSheet`** — both are
+Navigation is the persistent **`TabBar`** (Recipes · add-FAB · My Bar). The FAB
+opens **`AddSheet`** over a **`BottomSheet`** — both are
 buttons with `aria-label`s, not links, which matters when writing selectors.
 
 **Every add goes through that FAB** — recipe *and* bottle. `AddSheet` is the only
-menu of add actions in the app; the bottle rows just navigate to `/bar?add` /
-`?scan` and let My Bar do the work. The Bar screen used to carry its own "Add a
-bottle" and "Scan my shelf" cards next to the FAB, which made "which add is this
-one?" a question the user had to answer. Don't add a second entry point; extend
-this sheet.
+menu of add actions in the app, and it is deliberately just a two-choice menu:
+**A recipe** (→ `/new`) or **A bottle** (→ `/bar?add`). It used to list four
+rows — "Import a recipe", "Build a recipe", "Add a bottle", "Scan my shelf" —
+which split each add into a manual and an AI flavour with different names. AI is
+an augmentation *inside* each editor now (paste-to-fill on the recipe editor, a
+photo scan inside the bottle add), so the sheet has nothing AI-specific to say.
+Don't add a second entry point; extend this sheet.
 
-**Search is one screen.** `SearchScreen` owns the only live search input in the
-app; Home and Browse carry the same `SearchLauncher` pill into it. Browse's chips
-filter what's already on screen — that's a different job, and it isn't search.
+**Search and filters live on the one Recipes screen.** There is exactly one
+live search field in the app, on `RecipesScreen`; `?q`, the spirit chips, the
+tag sheet and the "ready to pour" toggle all narrow that same list. There is no
+separate Search or Browse screen to keep in step, because Home, Search and
+Browse were three names for the same list of drinks.
 
 ## Key concepts — read these before making changes
 
@@ -209,13 +215,15 @@ from the bottle sheet — the guess is good but not always right, and it decides
 what the bottle substitutes for. `label` derives the primary key, so `updateBottle`
 patches category/brand only; renaming is a remove + add.
 
-**My Bar keeps two deliberately separate paths.** `AddBottleSheet` is the manual
-one: it imports nothing from `import/` or `auth/` and must stay that way — it is
-the path that works offline, signed out, forever. `ScanReviewSheet` is the AI one.
-Both are reached from the FAB's `AddSheet` now rather than from buttons on the Bar
-screen, but they are still two paths and the manual one still has to stand alone.
-"What does this bottle unlock?" is answered by `domain/barInsights.ts` on both and
-never involves AI.
+**Bottles go in through one `AddBottleSheet`**, and it is manual first: the manual
+path (search/type a bottle, set its type, confirm) imports nothing from `import/`
+or `auth/` eagerly and must keep working signed out, offline, forever. A photo
+scan — recognised labels appended to the same review list, verdict pills included —
+is an optional action *inside* that sheet (`ScanReviewSheet` used to be a second
+sheet; it's folded in so "add a bottle" is one flow, not a fork). The sheet calls
+`useAuth` only to gate that scan, and it never makes the manual row depend on it.
+"What does this bottle unlock?" is answered by `domain/barInsights.ts` and never
+involves AI.
 
 A bottle nobody wrote a recipe for is a **first-class row** in `AddBottleSheet`,
 not a quoted fallback: same shape as a suggested one, same type control, same
@@ -249,7 +257,7 @@ it: **`bottleCovers(bottle, ingredient, category?)`** returns `'exact'`,
 
 - **Bottle → recipes.** `recipesUsingBottle()` (barInsights) lists every drink the
   bottle has a part in, sub-recipes included, ready-now ones first. "See all" goes
-  to `/browse?ingredient=…&family=…` — the family travels so the full list matches
+  to `/?ingredient=…&family=…` — the family travels so the full list matches
   what the sheet showed even when the user corrected a wrong guess.
 - **Recipe → bottle.** `bottleFor()` finds the bottle on the shelf that covers an
   ingredient (exact first, then a same-family stand-in). `RecipeDetailScreen` links
@@ -304,12 +312,13 @@ anything else, so a custom spirit (cachaça, pisco, sake) gets its own mosaic ti
 without code changes. `'none'` is the sentinel for "no base spirit".
 
 ### Cloud AI — Firebase AI Logic, behind a sign-in
-Two AI paths: **import** (description → recipes, wired in `ImportScreen`) and
-**shelf scan** (photos → bottles, wired in `BarScreen`). Both
-call **`src/import/firebaseAI.ts`**, which goes through **Firebase AI Logic** —
-Google proxies the request and the Gemini key lives in the Firebase project, so
-**no credential ships in this app or sits in a user's browser**. The pure part
-(schemas, prompts, model-JSON → `StructuredImport`) lives in
+Two AI paths, both augmentations inside an otherwise-manual editor: **fill a
+recipe from pasted text** (in the recipe editor) and **shelf scan** (photos →
+bottles, in the bottle add sheet). Both  call **`src/import/firebaseAI.ts`**,
+which goes through **Firebase AI Logic** — Google proxies the request and the
+Gemini key lives in the Firebase project, so **no credential ships in this app
+or sits in a user's browser**. The pure part (schemas, prompts, model-JSON →
+`StructuredImport`) lives in
 **`src/import/aiShared.ts`** and is transport-agnostic; a future backend should
 reuse it and only supply a new transport.
 
@@ -320,30 +329,25 @@ Three gates, in order — all three must hold before an AI call happens:
 3. `useAuth().aiAvailable` — the user is signed in with Google.
 
 **Don't subscribe to auth eagerly.** `useAuth` deliberately does *not* boot
-Firebase on mount: `BarScreen` calls it on a primary tab, and booting means the
-SDK chunk plus App Check's reCAPTCHA handshake. It arms only for someone who has
-signed in on this browser before (`cocktail.signedIn`) or who just clicked sign
-in. `scripts/smoke.mjs` asserts the chunk is never fetched for a signed-out user
-— if you change this hook, that check is what will catch you.
+Firebase on mount: `BarScreen`'s add sheet and the recipe editor call it, and
+booting means the SDK chunk plus App Check's reCAPTCHA handshake. It arms only
+for someone who has signed in on this browser before (`cocktail.signedIn`) or
+who just clicked sign in. `scripts/smoke.mjs` asserts the chunk is never
+fetched for a signed-out user — if you change this hook, that check is what will
+catch you.
 
 `vite.config.ts` keeps `firebase-*.js` in its own chunk and out of the SW
 precache, for the same reason. Setup, console steps and the preview-channel
 caveat are in **`docs/cloud-ai-backend.md`**.
 
-**Import is the one gated feature.** There used to be an offline heuristic parser
-(`parseRecipeText.ts`) as the signed-out default; it was deleted, because
-maintaining two parsers meant a screen that apologised for whichever one you were
-using. Signed out, `/import` is a sign-in panel and `AddSheet` hides the import
-row when the build has no AI at all — `/new` (the manual editor) is the offline
-path, and everything else in the app still works signed out and offline.
-
-Import and the **shelf scan** are the *only two* gated entry points, and each has
-an ungated twin doing the same job by hand, listed next to it in the same
-`AddSheet`: *Build a recipe* for import, *Add a bottle* for the scan. Never gate a
-third without saying so here, and never gate one without leaving a manual path to
-the same result. `AddSheet` gates both rows on the **build** config only (never on
-`useAuth`, which it must not boot from every screen); a signed-out tap on *Scan my
-shelf* lands on My Bar, which offers the sign-in.
+**The paste-to-fill and the scan are the only gated augmentations**, and each has
+an ungated manual path to the same result, in the same screen: typing the recipe
+by hand for paste-to-fill, typing the bottle for the scan. Never gate a third
+without saying so here, and never gate one without leaving a manual path to the
+same result. The two AI affordances render only on the **build** config
+(`FEATURES.cloudAI` and `isCloudAIConfigured`) and gate the *tap* on `useAuth`,
+which neither the recipe editor nor the bottle sheet boots eagerly; a signed-out
+tap on either offers the sign-in inline.
 
 Rule that still holds: never introduce a repo-side secret.
 
@@ -370,32 +374,30 @@ into a chunk that loads for everyone who opens My Bar. And when the AI calls
 move behind a server proxy, that proxy has to enforce the same numbers — a limit
 only the client knows is a limit the client can remove.
 
-### Import: what the AI decides, and what it admits to guessing
-`ImportScreen` makes **two** calls, and the second one is optional.
+### Fill-from-text: what the AI decides, and what it admits to guessing
+`EditRecipeScreen`'s paste sheet makes **one** model call, `firebaseParse`.
 
-1. **`firebaseParse(text)`** → one `StructuredImport` per drink. Beyond the
-   recipe, the model returns two preview-only fields (siblings of `main` on
-   `StructuredImport`, never persisted — `draftToRecipe` is explicit-field):
-   - **`guessed`** — which of method/glass/garnish/tags/spirit/kind it *inferred*
-     rather than read. The prompt tells it to always fill those in; `guessed` is
-     how the review screen marks them "✨". `mapAiRecipe` doesn't take the model's
-     word for it: a value that appears verbatim in the source text is demoted out
-     of `guessed`, and one that appears nowhere is promoted into it. Models are
-     unreliable narrators about their own reasoning in both directions.
-   - **`aka`** — other names for the drink, including the classic it riffs on.
-2. **`firebaseJudgeDuplicates(queries)`** → relation verdicts. This runs *after*
-   the preview renders and **never throws**; a failed check is a preview without
-   badges, not a failed import.
+**`firebaseParse(text)`** → one `StructuredImport` per drink. Beyond the
+recipe, the model returns two preview-only fields (siblings of `main` on
+`StructuredImport`, never persisted — `draftToRecipe` is explicit-field):
+- **`guessed`** — which of method/glass/garnish/tags/spirit/kind it *inferred*
+  rather than read. The prompt tells it to always fill those in; `guessed` is
+  how the editor marks them "✨". `mapAiRecipe` doesn't take the model's
+  word for it: a value that appears verbatim in the source text is demoted out
+  of `guessed`, and one that appears nowhere is promoted into it. Models are
+  unreliable narrators about their own reasoning in both directions.
+- **`aka`** — other names for the drink, including the classic it riffs on.
 
-The dedup split is deliberate. `domain/dupeMatch.ts` does a **local** lexical
-shortlist over `useRecipeNameIndex()` first, so the only thing that reaches the
-cloud is `{name, aka, candidates}` — a handful of names that already matched, and
-nothing at all in the common case where nothing did. `aka` is what makes that
-work without shipping the library: "Rum Sour" has no lexical overlap with
-"Daiquiri", but its `aka` does. Judging on **identity, not proportions** is the
-point — two bartenders' Daiquiris differ by a quarter ounce and are the same
-drink, while a Hemingway Daiquiri is its own. A `same` verdict unchecks the card
-so the obvious action can't create a duplicate; a `variation` only labels it.
+Duplicate guarding is entirely local in the editor: after a fill, a lexical
+`shortlistCandidates` pass over `useRecipeNameIndex()` shows a "you already have
+«X»" nudge linking to the existing recipe, so the obvious Save can't double your
+library. `aka` is what lets that work without shipping the library: "Rum Sour"
+has no lexical overlap with "Daiquiri", but its `aka` does. Judging on
+**identity, not proportions** is the point — two bartenders' Daiquiris differ by a
+quarter ounce and are the same drink, while a Hemingway Daiquiri is its own.
+(A model verdict call, `firebaseJudgeDuplicates`, still lives in `aiShared` /
+`firebaseAI` for a future bulk-import flow, but the editor's fill path is
+one-call-and-local by design.)
 
 Vocabularies live in **`domain/vocab.ts`** and the prompt is *built* from them.
 They used to be three lists in three files that disagreed — don't re-fork them.

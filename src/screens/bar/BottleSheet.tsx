@@ -116,7 +116,7 @@ export function BottleSheet({
             {uses.length > MAX_DRINKS && (
               <Link
                 className={styles.seeAll}
-                to={`/browse?ingredient=${encodeURIComponent(bottle.label)}${
+                to={`/?ingredient=${encodeURIComponent(bottle.label)}${
                   category ? `&family=${encodeURIComponent(category)}` : ''
                 }`}
                 onClick={onClose}

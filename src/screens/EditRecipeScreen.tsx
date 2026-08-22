@@ -1,18 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeftIcon, FlaskIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { BottomSheet } from '../components/BottomSheet'
+import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
+import { FEATURES, isCloudAIConfigured } from '../config'
 import { db } from '../db/db'
 import type { Ingredient, MeasureBasis, Recipe, RecipeKind, Unit } from '../db/schema'
 import { newId } from '../domain/ids'
+import { shortlistCandidates } from '../domain/dupeMatch'
 import { KNOWN_SPIRITS } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { GLASSES, METHODS } from '../domain/vocab'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
+import type { GuessedField, StructuredImport } from '../import/types'
+import { consumeSharedImport } from '../import/shared'
+import { useAuth } from '../hooks/useAuth'
 import {
   useComponents,
   useKnownIngredients,
   useRecipe,
+  useRecipeNameIndex,
   useSpiritSuggestions,
 } from '../hooks/useRecipes'
 import styles from './EditRecipeScreen.module.css'
@@ -37,6 +44,17 @@ function emptyRecipe(kind: RecipeKind): Recipe {
   }
 }
 
+// Whether this build ships the AI at all. The autofill affordance renders only
+// when it does; sign-in (and the SDK boot) still waits for a tap on it.
+const aiInBuild = FEATURES.cloudAI && isCloudAIConfigured()
+
+/**
+ * The one recipe editor — the same screen for a drink you type by hand, edit,
+ * or let a pasted description fill in. Manual entry is the default and needs
+ * nothing; "paste to fill this in" (when AI is configured) is a head start that
+ * lands in the exact same fields, which are still yours to correct. This screen
+ * is what /new, /recipe/:id/edit and the Android share target all arrive at.
+ */
 export function EditRecipeScreen() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -45,9 +63,24 @@ export function EditRecipeScreen() {
   const components = useComponents()
   const knownIngredients = useKnownIngredients()
   const spiritSuggestions = useSpiritSuggestions()
+  const nameIndex = useRecipeNameIndex()
+  const auth = useAuth()
 
   const [form, setForm] = useState<Recipe | null>(isNew ? emptyRecipe('cocktail') : null)
   const [tagInput, setTagInput] = useState('')
+  // Which fields were inferred rather than typed, so the user can see at a glance
+  // what the AI decided rather than read. Cleared the moment you edit that field.
+  const [guessed, setGuessed] = useState<Set<GuessedField>>(new Set())
+  // A local, on-device "you already have something like this" nudge after a
+  // paste — so filling in a Daiquiri you own doesn't quietly double your library.
+  const [dupe, setDupe] = useState<{ name: string; id: string } | null>(null)
+
+  // AI "paste to fill" state.
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteText, setPasteText] = useState('')
+  const [pasteBusy, setPasteBusy] = useState(false)
+  const [pasteError, setPasteError] = useState<string | null>(null)
+  const [parsed, setParsed] = useState<StructuredImport[] | null>(null)
 
   useEffect(() => {
     if (!isNew && existing && !form) {
@@ -55,6 +88,23 @@ export function EditRecipeScreen() {
       setTagInput(existing.tags.join(', '))
     }
   }, [existing, isNew, form])
+
+  // The Android share target (main.tsx stashes the text before React mounts and
+  // the shell routes here). Prefill the paste box, and for a YouTube link go
+  // ahead and fill the form — no second tap.
+  const sharedApplied = useRef(false)
+  useEffect(() => {
+    if (sharedApplied.current || !isNew || parsed || !auth.ready) return
+    const shared = consumeSharedImport()
+    if (!shared) return
+    sharedApplied.current = true
+    if (auth.aiAvailable) {
+      setPasteOpen(true)
+      setPasteText(shared.text)
+      if (shared.auto) void extract(shared.text)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, parsed, auth.ready, auth.aiAvailable])
 
   if (!form) {
     return <div className={styles.loading}>…</div>
@@ -101,6 +151,120 @@ export function EditRecipeScreen() {
   const isComponent = form.kind === 'component'
   const currentSpirit = form.spirit?.trim().toLowerCase()
 
+  // ── AI: paste to fill ──────────────────────────────────────────────────────
+  const extract = async (source: string) => {
+    if (pasteBusy) return
+    setPasteBusy(true)
+    setPasteError(null)
+    try {
+      const { firebaseParse } = await import('../import/firebaseAI')
+      const drafts = await firebaseParse(source)
+      setParsed(drafts)
+      if (drafts.length === 1) fillFrom(drafts[0])
+    } catch (err) {
+      setPasteError(err instanceof Error ? err.message : 'Could not read that text.')
+    } finally {
+      setPasteBusy(false)
+    }
+  }
+
+  /** Load a parsed draft into the same form the user types by hand. */
+  const fillFrom = async (imp: StructuredImport) => {
+    const { main, components: drafts, guessed: g } = imp
+    setPasteError(null)
+
+    // Persist any sub-recipes the recipe references (the manual editor already
+    // does this the moment you link one), so the ingredient linking that follows
+    // and the editor's sub-recipe suggestions see them. Shared ones are reused.
+    const tempIdToReal = new Map<string, string>()
+    if (drafts?.length) {
+      const now = Date.now()
+      for (const c of drafts) {
+        const existing = await db.recipes
+          .where('name')
+          .equalsIgnoreCase(c.name)
+          .filter((r) => r.kind === c.kind)
+          .first()
+        if (existing) {
+          tempIdToReal.set(c.tempId, existing.id)
+          continue
+        }
+        const realId = newId()
+        tempIdToReal.set(c.tempId, realId)
+        await db.recipes.put({
+          id: realId,
+          kind: c.kind,
+          name: c.name,
+          ingredients: c.ingredients.map((di) => ({
+            id: newId(),
+            name: di.name,
+            amount: di.amount,
+            unit: di.unit,
+            ...(di.optional ? { optional: true } : {}),
+            ...(di.note ? { note: di.note } : {}),
+          })),
+          measureBasis: c.measureBasis,
+          baseServings: c.baseServings ?? 1,
+          tags: c.tags ?? [],
+          notes: (c.notes ?? []).map((n) => ({ id: newId(), text: n, createdAt: now })),
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+    }
+
+    const ingredients: Ingredient[] = (main.ingredients ?? [])
+      .filter((i) => i.name.trim())
+      .map((di) => ({
+        id: newId(),
+        name: di.name.trim(),
+        amount: di.amount,
+        unit: di.unit,
+        ...(di.optional ? { optional: true } : {}),
+        ...(di.note ? { note: di.note } : {}),
+        ...(di.subRecipeRef && tempIdToReal.has(di.subRecipeRef)
+          ? { subRecipeId: tempIdToReal.get(di.subRecipeRef)! }
+          : {}),
+      }))
+
+    setForm((f) =>
+      f
+        ? {
+            ...f,
+            kind: main.kind,
+            name: main.name,
+            ingredients: ingredients.length ? ingredients : [blankIngredient()],
+            measureBasis: main.measureBasis,
+            baseServings: main.baseServings ?? 1,
+            glassware: main.glassware,
+            method: main.method,
+            garnish: main.garnish,
+            instructions: main.instructions,
+            tags: main.tags ?? [],
+            spirit: main.spirit,
+          }
+        : f,
+    )
+    // An empty name the draft left behind shouldn't clear the user's edit the
+    // next render; tags come from the draft unless the user already typed.
+    setTagInput((prev) => (prev === '' && main.tags ? main.tags.join(', ') : prev))
+    setGuessed(new Set(g ?? []))
+    setPasteOpen(false)
+    setParsed(null)
+    setPasteText('')
+    // A same-or-near name gets a local heads-up (no cloud round-trip): the
+    // obvious save shouldn't silently create a duplicate.
+    setDupe(shortlistCandidates(imp.main.name, imp.aka ?? [], nameIndex, main.kind)[0] ?? null)
+  }
+
+  const clearGuess = (field: GuessedField) =>
+    setGuessed((prev) => {
+      if (!prev.has(field)) return prev
+      const next = new Set(prev)
+      next.delete(field)
+      return next
+    })
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -111,6 +275,13 @@ export function EditRecipeScreen() {
       </header>
 
       <div className={styles.body}>
+        {isNew && aiInBuild && (
+          <button className={styles.pasteBtn} onClick={() => setPasteOpen(true)} aria-label="Paste a recipe to fill this in">
+            <SparkleIcon size={16} />
+            Paste a recipe to fill this in
+          </button>
+        )}
+
         <label className={styles.label}>Name</label>
         <div className={styles.inputCard}>
           <input
@@ -118,7 +289,7 @@ export function EditRecipeScreen() {
             value={form.name}
             onChange={(e) => update({ name: e.target.value })}
             placeholder={isComponent ? 'e.g. Rich Simple Syrup' : 'e.g. Midnight Sour'}
-            autoFocus={isNew}
+            autoFocus={isNew && !pasteOpen}
           />
         </div>
 
@@ -127,18 +298,23 @@ export function EditRecipeScreen() {
             <button
               key={k}
               className={`${styles.segBtn} ${form.kind === k ? styles.segActive : ''}`}
-              onClick={() =>
+              onClick={() => {
                 update({ kind: k, measureBasis: k === 'component' ? 'parts' : form.measureBasis })
-              }
+                clearGuess('kind')
+              }}
             >
               {k === 'cocktail' ? 'Cocktail' : 'Sub-recipe'}
+              {guessed.has('kind') && form.kind === k && <GuessMark />}
             </button>
           ))}
         </div>
 
         {!isComponent && (
           <>
-            <label className={styles.label}>Base spirit</label>
+            <div className={styles.labelRow}>
+              <label className={styles.label}>Base spirit</label>
+              {guessed.has('spirit') && <GuessMark />}
+            </div>
             <div className={`${styles.chipRow} hg-scroll`}>
               {KNOWN_SPIRITS.map((k) => {
                 const v = spiritVisual(k)
@@ -146,7 +322,10 @@ export function EditRecipeScreen() {
                   <button
                     key={k}
                     className={`${styles.spiritChip} ${currentSpirit === k ? styles.spiritChipOn : ''}`}
-                    onClick={() => update({ spirit: currentSpirit === k ? undefined : k })}
+                    onClick={() => {
+                      update({ spirit: currentSpirit === k ? undefined : k })
+                      clearGuess('spirit')
+                    }}
                   >
                     <span className={styles.spiritEmoji}>{v.emoji}</span>
                     {v.label}
@@ -195,11 +374,18 @@ export function EditRecipeScreen() {
           <>
             <label className={styles.label}>Build</label>
             <div className={styles.grid2}>
-              <Field label="Spirit (custom)">
+              <Field
+                label="Spirit (custom)"
+                guessed={guessed.has('spirit')}
+                onTouched={() => clearGuess('spirit')}
+              >
                 <input
                   list="spirit-suggestions"
                   value={form.spirit ?? ''}
-                  onChange={(e) => update({ spirit: e.target.value || undefined })}
+                  onChange={(e) => {
+                    update({ spirit: e.target.value || undefined })
+                    clearGuess('spirit')
+                  }}
                   placeholder="gin, cachaça…"
                   autoCapitalize="none"
                   autoCorrect="off"
@@ -210,10 +396,13 @@ export function EditRecipeScreen() {
                   ))}
                 </datalist>
               </Field>
-              <Field label="Method">
+              <Field label="Method" guessed={guessed.has('method')} onTouched={() => clearGuess('method')}>
                 <select
                   value={form.method ?? ''}
-                  onChange={(e) => update({ method: e.target.value || undefined })}
+                  onChange={(e) => {
+                    update({ method: e.target.value || undefined })
+                    clearGuess('method')
+                  }}
                 >
                   <option value="">—</option>
                   {METHODS.map((m) => (
@@ -223,11 +412,14 @@ export function EditRecipeScreen() {
                   ))}
                 </select>
               </Field>
-              <Field label="Glass">
+              <Field label="Glass" guessed={guessed.has('glassware')} onTouched={() => clearGuess('glassware')}>
                 <input
                   list="glass-suggestions"
                   value={form.glassware ?? ''}
-                  onChange={(e) => update({ glassware: e.target.value || undefined })}
+                  onChange={(e) => {
+                    update({ glassware: e.target.value || undefined })
+                    clearGuess('glassware')
+                  }}
                   placeholder="Coupe, Rocks…"
                 />
                 <datalist id="glass-suggestions">
@@ -236,10 +428,13 @@ export function EditRecipeScreen() {
                   ))}
                 </datalist>
               </Field>
-              <Field label="Garnish">
+              <Field label="Garnish" guessed={guessed.has('garnish')} onTouched={() => clearGuess('garnish')}>
                 <input
                   value={form.garnish ?? ''}
-                  onChange={(e) => update({ garnish: e.target.value || undefined })}
+                  onChange={(e) => {
+                    update({ garnish: e.target.value || undefined })
+                    clearGuess('garnish')
+                  }}
                   placeholder="Lime wheel…"
                 />
               </Field>
@@ -258,15 +453,33 @@ export function EditRecipeScreen() {
           />
         </div>
 
-        <label className={styles.label}>Tags</label>
+        <div className={styles.labelRow}>
+          <label className={styles.label}>Tags</label>
+          {guessed.has('tags') && <GuessMark />}
+        </div>
         <div className={styles.inputCard}>
           <input
             className={styles.nameInput}
             value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
+            onChange={(e) => {
+              setTagInput(e.target.value)
+              clearGuess('tags')
+            }}
             placeholder="sour, tiki, citrusy (comma-separated)"
           />
         </div>
+
+        {guessed.size > 0 && <p className={styles.legend}>✨ guessed — edit to keep what’s yours</p>}
+
+        {dupe && (
+          <div className={styles.dupe}>
+            You already have{' '}
+            <Link className={styles.dupeLink} to={`/recipe/${dupe.id}`}>
+              {dupe.name || 'something similar'}
+            </Link>{' '}
+            — check it before you save a copy.
+          </div>
+        )}
 
         {!isNew && (
           <button className={styles.deleteBtn} onClick={onDelete}>
@@ -281,16 +494,165 @@ export function EditRecipeScreen() {
           Save recipe
         </button>
       </div>
+
+      <PasteSheet
+        open={pasteOpen}
+        onClose={() => {
+          setPasteOpen(false)
+          setParsed(null)
+          setPasteError(null)
+        }}
+        parsed={parsed}
+        text={pasteText}
+        setText={setPasteText}
+        busy={pasteBusy}
+        error={pasteError}
+        onExtract={(t) => void extract(t)}
+        onChoose={(imp) => void fillFrom(imp)}
+        onReset={() => {
+          setParsed(null)
+          setPasteError(null)
+          setPasteText('')
+        }}
+        auth={auth}
+      />
     </div>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+// The "the AI made this up" mark. Labelled, so it isn't just a sparkle to a
+// screen reader.
+function GuessMark() {
+  return (
+    <span className={styles.guessMark} title="Guessed from pasted text — edit to change" aria-label="guessed">
+      ✨
+    </span>
+  )
+}
+
+function Field({
+  label,
+  guessed,
+  onTouched,
+  children,
+}: {
+  label: string
+  guessed?: boolean
+  onTouched?: () => void
+  children: React.ReactNode
+}) {
   return (
     <label className={styles.field}>
-      <span className={styles.fieldLabel}>{label}</span>
-      {children}
+      <span className={styles.fieldLabelRow}>
+        <span className={styles.fieldLabel}>{label}</span>
+        {guessed && <GuessMark />}
+      </span>
+      <div onFocus={onTouched}>{children}</div>
     </label>
+  )
+}
+
+interface PasteSheetProps {
+  open: boolean
+  onClose: () => void
+  parsed: StructuredImport[] | null
+  text: string
+  setText: (t: string) => void
+  busy: boolean
+  error: string | null
+  onExtract: (text: string) => void
+  onChoose: (imp: StructuredImport) => void
+  onReset: () => void
+  auth: ReturnType<typeof useAuth>
+}
+
+function PasteSheet({
+  open,
+  onClose,
+  parsed,
+  text,
+  setText,
+  busy,
+  error,
+  onExtract,
+  onChoose,
+  onReset,
+  auth,
+}: PasteSheetProps) {
+  const gust = (imp: StructuredImport) => {
+    const parts: string[] = []
+    if (imp.main.kind === 'component' || (imp.guessed && imp.guessed.length)) parts.push('✨')
+    if (imp.main.spirit) parts.push(String(imp.main.spirit))
+    if (imp.main.ingredients.length) parts.push(`${imp.main.ingredients.length} ingredients`)
+    return parts.join(' · ')
+  }
+
+  return (
+    <BottomSheet open={open} onClose={onClose} draggable>
+      <div className={styles.sheetHead}>
+        <h2 className={styles.sheetHeadTitle}>Fill this form from text</h2>
+      </div>
+
+      {!auth.ready ? (
+        <p className={styles.pasteMuted}>…</p>
+      ) : !auth.aiAvailable ? (
+        <>
+          <p className={styles.pasteMuted}>
+            Filling a recipe from a pasted description runs through Google’s AI.
+            Everything else works signed out.
+          </p>
+          <button className={styles.pasteSignIn} onClick={() => void auth.signIn()}>
+            <SparkleIcon size={16} /> Sign in with Google
+          </button>
+        </>
+      ) : parsed ? (
+        <div className={styles.pasteResults}>
+          {parsed.length === 0 ? (
+            <p className={styles.pasteMuted}>Nothing to fill from that text.</p>
+          ) : (
+            <>
+              <p className={styles.pasteMuted}>
+                {parsed.length === 1 ? 'One recipe found.' : `Which one should fill this form?`}
+              </p>
+              {parsed.map((imp) => (
+                <button key={imp.main.tempId} className={styles.pasteRow} onClick={() => onChoose(imp)}>
+                  <span className={styles.pasteRowName}>{imp.main.name || 'Untitled'}</span>
+                  <span className={styles.pasteRowSub}>{gust(imp)}</span>
+                </button>
+              ))}
+              <button className={styles.pasteReset} onClick={onReset}>
+                Start over
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        <>
+          <textarea
+            className={styles.pasteTextarea}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={'Paste a recipe, or a whole video description…'}
+            rows={5}
+            autoFocus
+          />
+          {error && <p className={styles.pasteError}>{error}</p>}
+          <div className={styles.pasteActions}>
+            <button className={styles.pasteCancel} onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              className={`${styles.pasteGo} ${text.trim() ? '' : styles.pasteGoOff}`}
+              disabled={!text.trim() || busy}
+              onClick={() => onExtract(text)}
+            >
+              <SparkleIcon size={16} />
+              {busy ? 'Reading…' : 'Fill this form'}
+            </button>
+          </div>
+        </>
+      )}
+    </BottomSheet>
   )
 }
 

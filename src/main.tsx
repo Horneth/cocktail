@@ -5,14 +5,11 @@ import './theme.css'
 import { seedIfEmpty } from './db/seed'
 import { ensureDefaultBar } from './domain/bars'
 import { App } from './App'
-import { HomeScreen } from './screens/HomeScreen'
+import { RecipesScreen } from './screens/RecipesScreen'
 import { RecipeDetailScreen } from './screens/RecipeDetailScreen'
 import { EditRecipeScreen } from './screens/EditRecipeScreen'
-import { ImportScreen } from './screens/ImportScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
-import { BrowseScreen } from './screens/BrowseScreen'
 import { BarScreen } from './screens/bar/BarScreen'
-import { SearchScreen } from './screens/SearchScreen'
 import { stashSharedImport } from './import/shared'
 
 // Hash routing: deep links and refreshes never 404 without a server-side SPA
@@ -24,13 +21,10 @@ const router = createHashRouter([
     path: '/',
     element: <App />,
     children: [
-      { index: true, element: <HomeScreen /> },
-      { path: 'search', element: <SearchScreen /> },
-      { path: 'browse', element: <BrowseScreen /> },
+      { index: true, element: <RecipesScreen /> },
       { path: 'recipe/:id', element: <RecipeDetailScreen /> },
       { path: 'recipe/:id/edit', element: <EditRecipeScreen /> },
       { path: 'new', element: <EditRecipeScreen /> },
-      { path: 'import', element: <ImportScreen /> },
       { path: 'bar', element: <BarScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
     ],
@@ -39,8 +33,8 @@ const router = createHashRouter([
 
 // Android share target navigates to the start URL with ?title&text&url. Capture
 // that before React mounts and stash it. We deliberately leave the router at the
-// HOME route (just strip the query) — App then pushes /import via react-router so
-// there's a real home entry behind it and Back works after a cold-start share.
+// RECIPES route (just strip the query) — App then pushes /new via react-router so
+// there's a real recipes entry behind it and Back works after a cold-start share.
 function handleShareTarget() {
   if (!location.search) return
   stashSharedImport(location.search)
