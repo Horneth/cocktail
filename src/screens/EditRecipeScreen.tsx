@@ -18,6 +18,7 @@ import {
   catalogImageUrl,
   getMergedCatalog,
   getMergedManifest,
+  storageImageUrl,
 } from '../import/catalogImages'
 import bundledManifest from '../domain/recipeImagesManifest.json'
 const bundledManifestMap = bundledManifest as Record<string, string>
@@ -97,6 +98,39 @@ export function EditRecipeScreen() {
   // ── Image state (pick / generate) ──
   const [imageBusy, setImageBusy] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
+  const [photoOpen, setPhotoOpen] = useState(false)
+
+  // Suggestions: the closest curated catalog shots for the drink as it's being
+  // edited. Recomputes as the form changes (name/spirit/glass/garnish/tags).
+  const [suggestions, setSuggestions] = useState<CocktailImage[]>([])
+  // Thumbnail URL per suggestion slug, resolved from the merged manifest so a
+  // Storage-only shot gets a working thumbnail too.
+  const [suggestionThumbs, setSuggestionThumbs] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!form || form.kind !== 'cocktail') {
+      setSuggestions([])
+      setSuggestionThumbs({})
+      return
+    }
+    let alive = true
+    void (async () => {
+      const [catalog, manifest] = await Promise.all([getMergedCatalog(), getMergedManifest()])
+      if (!alive) return
+      const hits = suggestImages(form, 4, catalog)
+      // Keep only slots that have a resolvable image (bundled or Storage).
+      const resolvable = hits.filter((h) => manifest[h.slot.slug])
+      setSuggestions(resolvable.map((h) => h.slot))
+      const thumbs: Record<string, string> = {}
+      for (const h of resolvable) {
+        const file = manifest[h.slot.slug]
+        if (file) thumbs[h.slot.slug] = bundledManifestMap[h.slot.slug] ? bundleImageUrl(file) : (storageImageUrl(file) ?? '')
+      }
+      setSuggestionThumbs(thumbs)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [form?.name, form?.spirit, form?.glassware, form?.garnish, form?.tags, form?.ingredients])
 
   useEffect(() => {
     if (!isNew && existing && !form) {
@@ -172,6 +206,7 @@ const onSave = async () => {
     try {
       const url = await downscaleDataUrl(file)
       update({ image: url, imageStatus: 'done' })
+      setPhotoOpen(false)
     } catch {
       setImageError('Could not read that photo.')
     } finally {
@@ -179,36 +214,10 @@ const onSave = async () => {
     }
   }
 
-  // Suggestions: the closest curated catalog shots for the drink as it's being
-  // edited. Recomputes as the form changes (name/spirit/glass/garnish/tags).
-  const [suggestions, setSuggestions] = useState<CocktailImage[]>([])
-  useEffect(() => {
-    if (!form || form.kind !== 'cocktail') {
-      setSuggestions([])
-      return
-    }
-    let alive = true
-    void (async () => {
-      const [catalog, manifest] = await Promise.all([getMergedCatalog(), getMergedManifest()])
-      if (!alive) return
-      const hits = suggestImages(form, 4, catalog)
-      // Keep only slots that have a resolvable image (bundled or Storage).
-      const resolvable = hits.filter((h) => manifest[h.slot.slug])
-      setSuggestions(resolvable.map((h) => h.slot))
-    })()
-    return () => {
-      alive = false
-    }
-  }, [form?.name, form?.spirit, form?.glassware, form?.garnish, form?.tags, form?.ingredients])
-
   const pickSuggestion = async (slug: string) => {
     const url = await catalogImageUrl(slug)
     if (url) update({ image: url, imageStatus: 'done' })
-  }
-
-  const suggestionThumb = (slug: string): string => {
-    const file = bundledManifestMap[slug]
-    return file ? bundleImageUrl(file) : ''
+    setPhotoOpen(false)
   }
 
   const isCocktailKind = form.kind === 'cocktail'
@@ -294,68 +303,23 @@ const onSave = async () => {
           <ChevronLeftIcon size={20} />
         </button>
         <h1 className={styles.title}>{isNew ? 'New recipe' : 'Edit recipe'}</h1>
+        {aiInBuild && (
+          <button
+            className={styles.importBtn}
+            onClick={() => setPasteOpen(true)}
+            aria-label="Import; paste a recipe to fill this in"
+          >
+            <SparkleIcon size={15} />
+            Import
+          </button>
+        )}
       </header>
 
       <div className={styles.body}>
-        {aiInBuild && (
-          <button className={styles.pasteBtn} onClick={() => setPasteOpen(true)} aria-label="Import; paste a recipe to fill this in">
-            <SparkleIcon size={16} />
-            Import
-            <span className={styles.legacyLabel}>Paste a recipe to fill this in</span>
-          </button>
-        )}
-        {aiFilled && <p className={styles.aiNote}><SparkleIcon size={15} /> Filled from a photo — check it before saving.</p>}
-
-        {(form.image || isNew) && (
-          <div className={styles.imageBlock}>
-            {form.image ? (
-              <>
-                <img className={styles.imagePreview} src={form.image} alt={form.name || 'Recipe photo'} />
-                <div className={styles.imageActions}>
-                  <button className={styles.imageBtn} onClick={() => update({ image: undefined, imageStatus: undefined })}>
-                    Remove
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                {isCocktailKind && suggestions.length > 0 && (
-                  <div className={styles.suggestBlock}>
-                    <div className={styles.suggestLabel}>Suggested photos</div>
-                    <div className={styles.suggestRow}>
-                      {suggestions.map((s) => (
-                        <button
-                          key={s.slug}
-                          className={styles.suggestThumb}
-                          onClick={() => void pickSuggestion(s.slug)}
-                          aria-label={`Use the ${s.label} photo`}
-                        >
-                          <img src={suggestionThumb(s.slug)} alt="" />
-                          <span>{s.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className={styles.imageAddRow}>
-                  <label className={styles.imagePick}>
-                    <UploadIcon size={15} />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={(e) => {
-                        void onPickImage(e.target.files?.[0])
-                        e.target.value = ''
-                      }}
-                    />
-                    Choose a photo
-                  </label>
-                </div>
-              </>
-            )}
-            {imageError && <p className={styles.imageError}>{imageError}</p>}
-          </div>
+        {aiFilled && (
+          <p className={styles.aiNote}>
+            <SparkleIcon size={15} /> Filled from pasted text — check it before saving.
+          </p>
         )}
 
         <label className={styles.label}>Name</label>
@@ -396,6 +360,31 @@ const onSave = async () => {
               {guessed.has('kind') && form.kind === k && <GuessMark />}
             </button>
           ))}
+        </div>
+
+        <div className={styles.photoRow}>
+          <button
+            className={form.image ? styles.photoThumb : styles.photoAdd}
+            onClick={() => setPhotoOpen(true)}
+            aria-label={form.image ? 'Change photo' : 'Add a photo'}
+          >
+            {form.image ? <img src={form.image} alt="" /> : <UploadIcon size={18} />}
+          </button>
+          <div className={styles.photoText}>
+            <span className={styles.photoLabel}>{form.image ? 'Photo' : 'Add a photo'}</span>
+            <span className={styles.photoHint}>
+              {isCocktailKind && suggestions.length > 0 ? `${suggestions.length} suggested` : 'Optional'}
+            </span>
+          </div>
+          {form.image && (
+            <button
+              className={styles.photoRemove}
+              onClick={() => update({ image: undefined, imageStatus: undefined })}
+              aria-label="Remove photo"
+            >
+              <TrashIcon size={16} />
+            </button>
+          )}
         </div>
 
         {isCocktailKind && (
@@ -604,6 +593,19 @@ const onSave = async () => {
         }}
         auth={auth}
       />
+
+      <PhotoPicker
+        open={photoOpen}
+        onClose={() => setPhotoOpen(false)}
+        form={form}
+        suggestions={suggestions}
+        suggestionThumbs={suggestionThumbs}
+        imageBusy={imageBusy}
+        imageError={imageError}
+        onPickSuggestion={(slug) => void pickSuggestion(slug)}
+        onPickFile={(file) => void onPickImage(file)}
+        onRemove={() => update({ image: undefined, imageStatus: undefined })}
+      />
     </div>
   )
 }
@@ -678,7 +680,7 @@ function PasteSheet({
   return (
     <BottomSheet open={open} onClose={onClose} draggable>
       <div className={styles.sheetHead}>
-        <h2 className={styles.sheetHeadTitle}>Fill this form from text</h2>
+        <h2 className={styles.sheetHeadTitle}>Paste a recipe</h2>
       </div>
 
       {!auth.ready ? (
@@ -700,7 +702,7 @@ function PasteSheet({
           ) : (
             <>
               <p className={styles.pasteMuted}>
-                {parsed.length === 1 ? 'One recipe found.' : `Which one should fill this form?`}
+                {parsed.length === 1 ? 'One recipe found.' : 'Which one?'}
               </p>
               {parsed.map((imp) => (
                 <button key={imp.main.tempId} className={styles.pasteRow} onClick={() => onChoose(imp)}>
@@ -720,7 +722,7 @@ function PasteSheet({
             className={styles.pasteTextarea}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Paste recipe here (paste a recipe)"
+            placeholder="Paste a recipe or description"
             rows={5}
             autoFocus
           />
@@ -735,11 +737,100 @@ function PasteSheet({
               onClick={() => onExtract(text)}
             >
               <SparkleIcon size={16} />
-              {busy ? 'Reading…' : 'Fill this form'}
+              {busy ? 'Reading…' : 'Fill form'}
             </button>
           </div>
         </>
       )}
+    </BottomSheet>
+  )
+}
+
+interface PhotoPickerProps {
+  open: boolean
+  onClose: () => void
+  form: Recipe
+  suggestions: CocktailImage[]
+  suggestionThumbs: Record<string, string>
+  imageBusy: boolean
+  imageError: string | null
+  onPickSuggestion: (slug: string) => void
+  onPickFile: (file: File | undefined) => void
+  onRemove: () => void
+}
+
+/**
+ * The one place a recipe photo is chosen: the closest curated catalog shots for
+ * the drink as it's being edited, plus the option to upload your own. Kept out
+ * of the form so the editor stays a form — image choice is a separate step.
+ */
+function PhotoPicker({
+  open,
+  onClose,
+  form,
+  suggestions,
+  suggestionThumbs,
+  imageBusy,
+  imageError,
+  onPickSuggestion,
+  onPickFile,
+  onRemove,
+}: PhotoPickerProps) {
+  const isCocktail = form.kind === 'cocktail'
+
+  return (
+    <BottomSheet open={open} onClose={onClose} draggable>
+      <div className={styles.sheetHead}>
+        <h2 className={styles.sheetHeadTitle}>Photo</h2>
+      </div>
+
+      {form.image && (
+        <>
+          <img className={styles.photoPreview} src={form.image} alt={form.name || 'Recipe photo'} />
+          <button className={styles.photoRemoveBtn} onClick={onRemove}>
+            <TrashIcon size={16} /> Remove photo
+          </button>
+        </>
+      )}
+
+      {isCocktail && suggestions.length > 0 && (
+        <>
+          <p className={styles.sheetSection}>Suggested</p>
+          <div className={styles.photoSuggestRow}>
+            {suggestions.map((s) => {
+              const thumb = suggestionThumbs[s.slug]
+              if (!thumb) return null
+              return (
+                <button
+                  key={s.slug}
+                  className={styles.photoSuggest}
+                  onClick={() => onPickSuggestion(s.slug)}
+                  aria-label={`Use the ${s.label} photo`}
+                >
+                  <img src={thumb} alt="" />
+                  <span>{s.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      <label className={styles.photoUpload}>
+        <UploadIcon size={16} /> Upload a photo
+        <input
+          type="file"
+          accept="image/*"
+          hidden
+          disabled={imageBusy}
+          onChange={(e) => {
+            onPickFile(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
+      </label>
+      {imageBusy && <p className={styles.imageError}>Reading photo…</p>}
+      {imageError && <p className={styles.imageError}>{imageError}</p>}
     </BottomSheet>
   )
 }

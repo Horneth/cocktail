@@ -12,6 +12,13 @@ this repo. If a path you are about to use does not resolve to a real file under
 this root, stop and fix the path — do not run it. The correct root is always the
 workspace root; never invent parent directories above it.
 
+**Verify before you issue, every time.** Before any `read`/`edit`/`write`/`glob`/
+`bash` call, re-read the exact path string you are about to send and confirm it
+begins with `/Users/thibaultjeandet/cocktail/` and contains no `..`, no
+`cockpit`, and no other directory name. If it does not match, fix it first — do
+not send it. A path that was rejected once is never retried; move on to the
+correct repo-rooted path instead.
+
 ## What this is
 
 **Cocktail** is an offline-first PWA cocktail recipe book: browse drinks by base

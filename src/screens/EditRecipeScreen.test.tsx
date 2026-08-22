@@ -65,7 +65,7 @@ const openAndFill = async (text = 'some recipe text') => {
   const user = renderEditor()
   await user.click(screen.getByRole('button', { name: /paste a recipe to fill this in/i }))
   await user.type(screen.getByPlaceholderText(/paste a recipe/i), text)
-  await user.click(screen.getByRole('button', { name: /fill this form/i }))
+  await user.click(screen.getByRole('button', { name: /fill form/i }))
   return user
 }
 
@@ -81,10 +81,10 @@ describe('the sign-in gate', () => {
     Object.assign(auth, { aiAvailable: false })
     const user = renderEditor()
 
-    expect(screen.getByText(/paste a recipe to fill this in/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /import/i })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /paste a recipe to fill this in/i }))
     expect(screen.getByRole('button', { name: /sign in with google/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /fill this form/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /fill form/i })).not.toBeInTheDocument()
   })
 })
 
@@ -151,7 +151,7 @@ describe('paste to fill', () => {
     await user.click(screen.getByRole('button', { name: /paste a recipe to fill this in/i }))
     const box = screen.getByPlaceholderText(/paste a recipe/i)
     await user.type(box, 'junk')
-    await user.click(screen.getByRole('button', { name: /fill this form/i }))
+    await user.click(screen.getByRole('button', { name: /fill form/i }))
 
     expect(await screen.findByText(/no recipes found/i)).toBeInTheDocument()
     expect(box).toHaveValue('junk')

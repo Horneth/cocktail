@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { SwipeableRow } from '../../components/SwipeableRow'
 import { AccentButton } from '../../components/TabBar'
 import { ChevronDownIcon, ChevronRightIcon } from '../../components/icons'
 import type { PantryItem } from '../../db/schema'
@@ -108,12 +107,13 @@ export function BarScreen() {
                   <span className={styles.groupCount}>{g.items.length}</span>
                 </div>
                 <div className={styles.items}>
-                    {g.items.map((item) => (
-                      <SwipeableRow
-                        key={item.name}
-                        onDelete={() => barId && void removeFromPantry(barId, item.name)}
-                      >
+                    {g.items.map((item) => {
+                      const v = spiritVisual(item.category ?? categoryForName(item.label) ?? 'other')
+                      return (
                         <button className={styles.item} onClick={() => setViewing(item)}>
+                          <span className={styles.itemGlyph} style={{ background: v.tint }} aria-hidden>
+                            {v.emoji}
+                          </span>
                           <span className={styles.itemText}>
                             <span className={styles.itemName}>{item.label}</span>
                             {item.brand && item.brand !== item.label && (
@@ -122,8 +122,8 @@ export function BarScreen() {
                           </span>
                           <ChevronRightIcon size={18} className={styles.itemChevron} />
                         </button>
-                      </SwipeableRow>
-                    ))}
+                      )
+                    })}
                 </div>
               </div>
             )

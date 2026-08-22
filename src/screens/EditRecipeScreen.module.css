@@ -1,3 +1,86 @@
-.screen { min-height:100%; padding:calc(6px + var(--safe-top)) 20px 48px; }.header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:20px; }.back { display:grid; place-items:center; width:38px; height:38px; color:var(--ink-display); }.title { flex:1; font:400 23px var(--serif); letter-spacing:-.01em; }.body { display:flex; flex-direction:column; gap:22px; }.legacyLabel { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }.pasteBtn { display:flex; align-items:center; gap:12px; margin-bottom:0; padding:13px 14px; border:1px solid var(--line); border-radius:14px; background:var(--card); font-size:14px; font-weight:700; text-align:left; }.pasteBtn svg { padding:7px; box-sizing:content-box; width:18px; height:18px; border-radius:10px; background:var(--accent-ink); color:var(--accent); }.aiNote { display:flex; align-items:center; gap:8px; margin:-10px 0 0; padding:11px 14px; border-radius:14px; background:var(--missing-bg); color:var(--missing-fg); font-size:12.5px; font-weight:600; }.label,.fieldLabel { color:var(--faint); font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }.inputCard,.field input,.field select,.field textarea { width:100%; background:#fff; border:1px solid var(--line); border-radius:14px; }.inputCard { padding:0; }.nameInput { border:0; border-radius:14px; padding:13px 14px; font-size:15px; font-weight:600; }.segment,.chipRow { display:flex; gap:3px; padding:4px; overflow-x:auto; background:var(--track); border-radius:999px; }.segBtn,.spiritChip { flex:0 0 auto; padding:8px 15px; border-radius:999px; font-size:12.5px; font-weight:700; white-space:nowrap; color:var(--seg-fg); }.segActive,.spiritChipOn { background:#fff; color:var(--ink-display); box-shadow:var(--seg-shadow); }.spiritEmoji { display:none; }.fieldRow,.grid2 { display:grid; gap:9px; }.grid2 { grid-template-columns:1fr 1fr; }.field { display:flex; flex-direction:column; gap:7px; }.field input,.field select,.field textarea { padding:11px 12px; font-size:14px; font-weight:600; }.ingredients { display:flex; flex-direction:column; gap:8px; }.ingEditor { display:flex; flex-direction:column; gap:8px; }.ingTop { display:grid; grid-template-columns:82px 70px 36px; gap:8px; }.amountInput,.unitSelect,.nameWrap input { padding:11px 12px; border:1px solid var(--line); border-radius:14px; background:#fff; }.nameWrap { position:relative; flex:1; }.rowDel { color:var(--faint); }.addRow { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:14px; font-weight:700; }.textarea { resize:none; }.deleteBtn { display:flex; align-items:center; gap:8px; color:var(--accent); font-size:12.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }.ctaWrap { position:fixed; right:0; bottom:0; left:0; z-index:2; width:min(440px,100%); margin:auto; padding:10px 20px calc(14px + var(--safe-bottom)); background:linear-gradient(transparent,var(--paper) 34%); }.cta { width:100%; padding:14px; border-radius:14px; background:var(--accent); color:#fff; font-weight:800; }.ctaOff { background:var(--line); color:var(--faint); }.bottomSpace { height:48px; }
+.screen { min-height:100%; padding:calc(6px + var(--safe-top)) 20px 48px; }
+.header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:20px; }
+.back { display:grid; place-items:center; width:38px; height:38px; color:var(--ink-display); }
+.title { flex:1; font:400 23px var(--serif); letter-spacing:-.01em; }
+.importBtn { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 12px; border-radius:var(--radius-pill); background:var(--accent-ink); color:var(--accent); font-size:12.5px; font-weight:800; }
+.body { display:flex; flex-direction:column; gap:22px; }
+.aiNote { display:flex; align-items:center; gap:8px; margin:-10px 0 0; padding:11px 14px; border-radius:14px; background:var(--missing-bg); color:var(--missing-fg); font-size:12.5px; font-weight:600; }
+.label,.fieldLabel { color:var(--faint); font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+.labelRow,.fieldLabelRow { display:flex; align-items:center; gap:6px; }
+.inputCard,.field input,.field select,.field textarea { width:100%; background:#fff; border:1px solid var(--line); border-radius:14px; }
+.inputCard { padding:0; }
+.nameInput { border:0; border-radius:14px; padding:13px 14px; font-size:15px; font-weight:600; }
+.segment,.chipRow { display:flex; gap:3px; padding:4px; overflow-x:auto; background:var(--track); border-radius:999px; }
+.segBtn,.spiritChip { flex:0 0 auto; padding:8px 15px; border-radius:999px; font-size:12.5px; font-weight:700; white-space:nowrap; color:var(--seg-fg); }
+.segActive,.spiritChipOn { background:#fff; color:var(--ink-display); box-shadow:var(--seg-shadow); }
+.spiritEmoji { display:none; }
+.fieldRow,.grid2 { display:grid; gap:9px; }
+.grid2 { grid-template-columns:1fr 1fr; }
+.field { display:flex; flex-direction:column; gap:7px; }
+.field input,.field select,.field textarea { padding:11px 12px; font-size:14px; font-weight:600; }
+.ingredients { display:flex; flex-direction:column; gap:8px; }
+.ingEditor { display:flex; flex-direction:column; gap:8px; }
+.ingTop { display:grid; grid-template-columns:82px 70px 36px; gap:8px; }
+.amountInput,.unitSelect,.nameWrap input { padding:11px 12px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+.nameWrap { position:relative; flex:1; }
+.nameWrap .nameLinked { border-color:var(--accent); }
+.linkBadge { position:absolute; right:8px; bottom:8px; display:inline-flex; align-items:center; gap:4px; padding:3px 7px; border-radius:var(--radius-pill); background:var(--accent-ink); color:var(--accent); font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:5; display:flex; flex-direction:column; padding:6px; background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-pop); }
+.suggestion { padding:10px 12px; border-radius:10px; text-align:left; font-size:14px; font-weight:600; color:var(--ink); }
+.suggestion:active { background:var(--paper); }
+.rowDel { color:var(--faint); }
+.addRow { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:14px; font-weight:700; }
+.ingBottom { display:flex; align-items:center; gap:12px; }
+.optToggle { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12.5px; font-weight:600; }
+.noteInput { flex:1; min-width:0; padding:9px 12px; border:1px solid var(--line); border-radius:12px; background:var(--card); font-size:13px; }
+.textarea { resize:none; }
+.guessMark { font-size:12px; }
+.legend { margin:0; color:var(--muted); font-size:12.5px; font-weight:600; }
+.dupe { padding:11px 14px; border-radius:14px; background:var(--missing-bg); color:var(--missing-fg); font-size:13px; font-weight:600; line-height:1.45; }
+.dupeLink { color:var(--missing-fg); text-decoration:underline; }
+.deleteBtn { display:flex; align-items:center; gap:8px; color:var(--accent); font-size:12.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.ctaWrap { position:fixed; right:0; bottom:0; left:0; z-index:2; width:min(440px,100%); margin:auto; padding:10px 20px calc(14px + var(--safe-bottom)); background:linear-gradient(transparent,var(--paper) 34%); }
+.cta { width:100%; padding:14px; border-radius:14px; background:var(--accent); color:#fff; font-weight:800; }
+.ctaOff { background:var(--line); color:var(--faint); }
+.bottomSpace { height:48px; }
+.loading { padding:40px 0; text-align:center; color:var(--faint); }
 
-.imageBlock { display:flex; flex-direction:column; gap:10px; }.imagePreview { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:16px; border:1px solid var(--line); background:var(--photo-empty); }.imageActions,.imageAddRow { display:flex; gap:8px; }.imageActions { justify-content:flex-end; }.imagePick,.imageBtn { display:flex; align-items:center; justify-content:center; gap:7px; padding:10px 13px; border:1px solid var(--line); border-radius:12px; background:#fff; color:var(--accent); font-size:13px; font-weight:700; }.imagePick { flex:1; cursor:pointer; }.imageBtn { flex:0 0 auto; }.imageBtn:disabled { opacity:.5; }.imageError { margin:0; color:var(--missing-fg); font-size:12.5px; font-weight:600; }.suggestBlock { display:flex; flex-direction:column; gap:8px; }.suggestLabel { color:var(--faint); font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }.suggestRow { display:flex; gap:8px; overflow-x:auto; }.suggestThumb { flex:0 0 auto; display:flex; flex-direction:column; gap:5px; width:88px; border:0; background:none; text-align:center; }.suggestThumb img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px; border:1px solid var(--line); background:var(--photo-empty); }.suggestThumb span { color:var(--muted); font-size:10.5px; font-weight:600; line-height:1.2; }
+/* ── Photo: a compact row that opens the picker sheet ────────────── */
+.photoRow { display:flex; align-items:center; gap:12px; }
+.photoThumb,.photoAdd { flex:0 0 auto; display:grid; place-items:center; width:54px; height:54px; border-radius:14px; border:1px solid var(--line); background:var(--photo-empty); overflow:hidden; }
+.photoThumb img { width:100%; height:100%; object-fit:cover; }
+.photoAdd { color:var(--faint); }
+.photoText { flex:1; display:flex; flex-direction:column; gap:2px; text-align:left; }
+.photoLabel { font-size:14.5px; font-weight:700; color:var(--ink-display); }
+.photoHint { font-size:12px; font-weight:600; color:var(--muted); }
+.photoRemove { flex:0 0 auto; display:grid; place-items:center; width:34px; height:34px; border-radius:50%; color:var(--faint); }
+
+/* ── Sheet chrome shared by the paste + photo sheets ─────────────── */
+.sheetHead { margin-bottom:14px; }
+.sheetHeadTitle { font-family:var(--serif); font-weight:400; font-size:24px; letter-spacing:-.01em; }
+.sheetSection { margin:18px 0 10px; font-size:12px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:var(--faint); }
+
+/* ── Photo picker sheet ──────────────────────────────────────────── */
+.photoPreview { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:16px; border:1px solid var(--line); background:var(--photo-empty); }
+.photoRemoveBtn { display:flex; align-items:center; gap:8px; align-self:flex-start; margin-top:10px; padding:9px 13px; border-radius:var(--radius-pill); background:var(--paper); border:1px solid var(--line); color:var(--danger); font-size:13px; font-weight:700; }
+.photoSuggestRow { display:flex; gap:8px; overflow-x:auto; }
+.photoSuggest { flex:0 0 auto; display:flex; flex-direction:column; gap:5px; width:88px; border:0; background:none; text-align:center; }
+.photoSuggest img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px; border:1px solid var(--line); background:var(--photo-empty); }
+.photoSuggest span { color:var(--muted); font-size:10.5px; font-weight:600; line-height:1.2; }
+.photoUpload { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; padding:14px; border:1px dashed var(--line); border-radius:var(--radius-sm); background:var(--card); color:var(--accent); font-size:14px; font-weight:800; cursor:pointer; }
+.imageError { margin:8px 0 0; color:var(--missing-fg); font-size:12.5px; font-weight:600; }
+
+/* ── Paste sheet ─────────────────────────────────────────────────── */
+.pasteMuted { margin:0; color:var(--muted); font-size:14px; line-height:1.5; }
+.pasteSignIn { display:flex; align-items:center; gap:8px; margin-top:14px; padding:13px 16px; border-radius:var(--radius-sm); background:var(--accent-grad); box-shadow:var(--shadow-accent); color:#fff; font-size:14px; font-weight:800; }
+.pasteTextarea { width:100%; min-height:120px; padding:13px 14px; border:1px solid var(--line); border-radius:14px; background:var(--card); font-size:15px; resize:none; }
+.pasteError { margin:8px 0 0; color:var(--missing-fg); font-size:12.5px; font-weight:600; }
+.pasteActions { display:flex; gap:10px; margin-top:14px; }
+.pasteCancel { flex:1; padding:14px; border-radius:var(--radius-sm); background:var(--paper); border:1px solid var(--line); font-weight:700; }
+.pasteGo { flex:2; display:flex; align-items:center; justify-content:center; gap:7px; padding:14px; border-radius:var(--radius-sm); background:var(--accent-grad); box-shadow:var(--shadow-accent); color:#fff; font-weight:800; }
+.pasteGoOff { background:var(--line); box-shadow:none; color:var(--faint); }
+.pasteResults { display:flex; flex-direction:column; gap:8px; }
+.pasteRow { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; padding:13px 14px; background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm); text-align:left; }
+.pasteRowName { font-size:15px; font-weight:700; color:var(--ink); }
+.pasteRowSub { font-size:12px; font-weight:600; color:var(--muted); }
+.pasteReset { align-self:flex-start; margin-top:4px; padding:8px 12px; border-radius:var(--radius-pill); background:var(--paper); border:1px solid var(--line); color:var(--muted); font-size:13px; font-weight:700; }
