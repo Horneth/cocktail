@@ -63,7 +63,7 @@ export function readShareParams(search: string): SharedImport | null {
 }
 
 /** Called once at startup: if the URL carries shared content, stash it for the
- *  Import screen and return true (so the caller can redirect to #/import). */
+ *  recipe editor and return true (so the caller can redirect to #/new). */
 export function stashSharedImport(search: string): boolean {
   const shared = readShareParams(search)
   if (!shared) return false

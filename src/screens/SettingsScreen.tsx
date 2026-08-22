@@ -11,12 +11,14 @@ import {
 import { FEATURES } from '../config'
 import { backupFilename, exportBackup, importBackup, parseBackup } from '../import/backup'
 import { useAuth } from '../hooks/useAuth'
+import { useAssumeStaples } from '../hooks/useSettings'
 import styles from './SettingsScreen.module.css'
 
 export function SettingsScreen() {
   const navigate = useNavigate()
   const auth = useAuth()
   const fileInput = useRef<HTMLInputElement>(null)
+  const [assumeStaples, setAssumeStaples] = useAssumeStaples()
   const [dataStatus, setDataStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
 
@@ -155,6 +157,28 @@ export function SettingsScreen() {
             )}
           </section>
         )}
+
+        <section>
+          <h2 className={styles.eyebrow}>Bar</h2>
+          <label className={styles.toggle}>
+            <span className={styles.toggleText}>
+              <strong>Assume I have the basics</strong>
+              <span className={styles.toggleHint}>
+                water, ice, citrus, sugar, sodas, garnishes, egg
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className={styles.switch}
+              checked={assumeStaples}
+              onChange={(e) => setAssumeStaples(e.target.checked)}
+            />
+          </label>
+          <p className={styles.hint}>
+            Counts usual bar staples as on-hand, so “ready to pour” reflects the
+            bottles you actually own.
+          </p>
+        </section>
 
         <section>
           <h2 className={styles.eyebrow}>Backup</h2>

@@ -1,28 +1,36 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { RecipeRow } from '../components/RecipeRow'
 import { BottomSheet } from '../components/BottomSheet'
-import { SearchLauncher } from '../components/SearchLauncher'
-import { CheckIcon, SearchIcon } from '../components/icons'
+import { CheckIcon, ChevronRightIcon, GearIcon, SearchIcon } from '../components/icons'
 import type { Recipe } from '../db/schema'
 import { makeableIds } from '../domain/availability'
 import { recipesUsingBottle } from '../domain/barInsights'
 import { deleteRecipeWithConfirm } from '../domain/recipeActions'
+import { matchesQuery } from '../domain/search'
 import { spiritSortIndex, tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { tagEmoji } from '../domain/vocab'
 import { useCocktails, useMixers } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
-import styles from './BrowseScreen.module.css'
+import styles from './RecipesScreen.module.css'
 
-export function BrowseScreen() {
+/**
+ * The app's one recipes surface and its one search box. Home, Search and the
+ * old Browse tab were three ways into the same list of drinks; this screen is
+ * that list, with an always-on search field and chips that filter what's
+ * already on screen. Finding a drink is the whole job of the primary tab.
+ */
+export function RecipesScreen() {
   const cocktails = useCocktails()
   const mixers = useMixers()
-  const { badgeFor, byId, have, assumeStaples } = useAvailability()
+  const { makeableCount, badgeFor, byId, have, assumeStaples, barId, bars } =
+    useAvailability()
   const [params, setParams] = useSearchParams()
   const [tagSheet, setTagSheet] = useState(false)
   const [tagQuery, setTagQuery] = useState('')
 
+  const q = (params.get('q') ?? '').trim()
   const scope = params.get('scope') || 'all'
   const selectedTags = (params.get('tags') || '').split(',').filter(Boolean)
   const makeableOnly = params.get('makeable') === '1'
@@ -34,37 +42,50 @@ export function BrowseScreen() {
   const ingredientFamily = params.get('family') || undefined
   const isMixers = scope === 'mixers'
 
-  const base = useMemo<Recipe[]>(() => {
+  const barName = bars.find((b) => b.id === barId)?.name ?? 'Your bar'
+
+  const scoped = useMemo<Recipe[]>(() => {
     const all = isMixers ? (mixers ?? []) : (cocktails ?? [])
-    const scoped = isMixers
+    return isMixers
       ? all
       : scope === 'all'
         ? all
         : scope === 'favorites'
           ? all.filter((c) => c.favorite)
           : all.filter((c) => tileKeyForRecipe(c) === scope)
-    return ingredient ? recipesUsingBottle(ingredient, scoped, byId, ingredientFamily) : scoped
-  }, [cocktails, mixers, scope, isMixers, ingredient, ingredientFamily, byId])
+  }, [cocktails, mixers, scope, isMixers])
+
+  const base = useMemo(
+    () => (ingredient ? recipesUsingBottle(ingredient, scoped, byId, ingredientFamily) : scoped),
+    [scoped, ingredient, ingredientFamily, byId],
+  )
+
+  // Search and filter are two different jobs, but both shrink the same list, so
+  // they compose here rather than as separate screens.
+  const searched = useMemo(
+    () => (q ? base.filter((r) => matchesQuery(r, q)) : base),
+    [base, q],
+  )
+
+  const makeable = useMemo(
+    () => (makeableOnly ? makeableIds(searched, byId, have, assumeStaples) : null),
+    [makeableOnly, searched, byId, have, assumeStaples],
+  )
+
+  const list = useMemo(
+    () =>
+      searched.filter(
+        (r) =>
+          selectedTags.every((t) => r.tags.includes(t)) && (!makeable || makeable.has(r.id)),
+      ),
+    [searched, selectedTags, makeable],
+  )
 
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>()
     base.forEach((r) => r.tags.forEach((t) => m.set(t, (m.get(t) ?? 0) + 1)))
     return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   }, [base])
-
-  const makeable = useMemo(
-    () => (makeableOnly ? makeableIds(base, byId, have, assumeStaples) : null),
-    [makeableOnly, base, byId, have, assumeStaples],
-  )
-
-  const list = useMemo(
-    () =>
-      base.filter(
-        (r) =>
-          selectedTags.every((t) => r.tags.includes(t)) && (!makeable || makeable.has(r.id)),
-      ),
-    [base, selectedTags, makeable],
-  )
 
   // Spirit filter chips: All + Favorites/Syrups when present + each spirit used.
   const chips = useMemo(() => {
@@ -88,14 +109,14 @@ export function BrowseScreen() {
     const p = new URLSearchParams(params)
     if (value) p.set(key, value)
     else p.delete(key)
-    setParams(p, { replace: true })
+    setParams(p, {
+      replace: true,
+      // Keep the search field's focus after a chip tap.
+      state: { retainFocus: true },
+    })
   }
-  const clearIngredient = () => {
-    const p = new URLSearchParams(params)
-    p.delete('ingredient')
-    p.delete('family')
-    setParams(p, { replace: true })
-  }
+  const clearIngredient = () => patch('ingredient', null)
+  const setQ = (value: string) => patch('q', value || null)
   const setTags = (next: string[]) => patch('tags', next.length ? next.join(',') : null)
   const toggleTag = (t: string) =>
     setTags(selectedTags.includes(t) ? selectedTags.filter((x) => x !== t) : [...selectedTags, t])
@@ -116,14 +137,48 @@ export function BrowseScreen() {
     </button>
   )
 
+  const searching = q !== ''
+  const filtering = searching || scope !== 'all' || selectedTags.length > 0 || makeableOnly
+
   return (
     <div className={styles.screen}>
-      <div className={styles.head}>
-        <div className={styles.count}>{list.length} recipes</div>
-        <h1 className={styles.title}>Browse</h1>
-      </div>
+      <header className={styles.header}>
+        <div className={styles.headerText}>
+          <h1 className={styles.title}>Cocktails</h1>
+          <Link className={styles.ready} to={makeableCount > 0 ? '/?makeable=1' : '/bar'}>
+            <span className={styles.readyText}>
+              {makeableCount > 0 ? (
+                <b>{makeableCount}</b>
+              ) : (
+                'Nothing ready yet'
+              )}{' '}
+              {makeableCount > 0 && `of ${cocktails?.length ?? 0}`} · at {barName}
+            </span>
+            <ChevronRightIcon size={15} className={styles.readyChevron} />
+          </Link>
+        </div>
+        <Link className={styles.gear} to="/settings" aria-label="Settings">
+          <GearIcon size={19} />
+        </Link>
+      </header>
 
-      <SearchLauncher />
+      <div className={styles.searchBar}>
+        <SearchIcon size={19} className={styles.searchIcon} />
+        <input
+          className={styles.input}
+          value={params.get('q') ?? ''}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search drinks, spirits, ingredients"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+        {q && (
+          <button className={styles.clear} onClick={() => setQ('')} aria-label="Clear search">
+            ✕
+          </button>
+        )}
+      </div>
 
       {ingredient && (
         <button className={styles.ingredientPill} onClick={clearIngredient}>
@@ -147,37 +202,40 @@ export function BrowseScreen() {
         ))}
       </div>
 
-      <div className={styles.tagHead}>
-        <span className={styles.tagHeadLabel}>Filter by tag</span>
-        {selectedTags.length > 0 && (
-          <button className={styles.clearTags} onClick={() => setTags([])}>
-            Clear {selectedTags.length}
-          </button>
-        )}
-      </div>
-
-      <div className={`${styles.tagRow} hg-scroll`}>
+      <div className={styles.tagRow}>
         {have.size > 0 && (
-          <button
-            className={`${styles.ready} ${makeableOnly ? styles.readyOn : ''}`}
-            onClick={() => patch('makeable', makeableOnly ? null : '1')}
-          >
-            <CheckIcon size={14} /> Ready to pour
-          </button>
+          <>
+            <button
+              className={`${styles.readyChip} ${makeableOnly ? styles.readyChipOn : ''}`}
+              onClick={() => patch('makeable', makeableOnly ? null : '1')}
+            >
+              {makeableOnly && <CheckIcon size={14} />} Ready to pour
+            </button>
+            <button className={styles.allTags} onClick={() => setTagSheet(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 5h18M6 12h12M10 19h4" />
+              </svg>
+              Tags
+            </button>
+          </>
         )}
-        <button className={styles.allTags} onClick={() => setTagSheet(true)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5h18M6 12h12M10 19h4" />
-          </svg>
-          All tags
-        </button>
-        {tagCounts.slice(0, 10).map(([t]) => tagChip(t, selectedTags.includes(t)))}
+        {!filtering && tagCounts.slice(0, 6).map(([t]) => tagChip(t, false))}
       </div>
 
       {list.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyEmoji}>🍸</div>
-          <p className={styles.emptyText}>No drinks match those filters</p>
+          <p className={styles.emptyText}>
+            {searching ? `Nothing for “${q}”` : 'No drinks match those filters'}
+          </p>
+          {!searching && !filtering && cocktails?.length === 0 && (
+            <>
+              <p className={styles.emptyHint}>Tap ＋ below to add your first cocktail.</p>
+              <Link className={styles.emptyLink} to="/new">
+                Build one
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className={styles.list}>
@@ -195,9 +253,11 @@ export function BrowseScreen() {
       <BottomSheet open={tagSheet} onClose={() => setTagSheet(false)}>
         <div className={styles.sheetHead}>
           <h2 className={styles.sheetTitle}>All tags</h2>
-          <button className={styles.sheetClear} onClick={() => setTags([])}>
-            Clear all
-          </button>
+          {selectedTags.length > 0 && (
+            <button className={styles.sheetClear} onClick={() => setTags([])}>
+              Clear all
+            </button>
+          )}
         </div>
         <div className={styles.sheetSearch}>
           <SearchIcon size={18} className={styles.searchIcon} />

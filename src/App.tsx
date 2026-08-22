@@ -5,13 +5,11 @@ import { TabBar, type Tab } from './components/TabBar'
 import { AddSheet } from './components/AddSheet'
 import { hasSharedImport } from './import/shared'
 
-// Which primary tab (if any) owns a given path. Pushed screens — recipe detail,
-// import, build/edit, settings — return null and hide the tab bar; they carry
-// their own back arrow and bottom CTA instead.
+// Which primary tab owns a given path. The cocktail/bar tabs are the whole
+// app; a pushed screen (recipe detail, build/edit, settings) returns null and
+// hides the tab bar, carrying its own back arrow and bottom CTA instead.
 function tabForPath(pathname: string): Tab | null {
-  if (pathname === '/') return 'home'
-  if (pathname.startsWith('/search')) return 'search'
-  if (pathname.startsWith('/browse')) return 'browse'
+  if (pathname === '/' || pathname === '') return 'recipes'
   if (pathname.startsWith('/bar')) return 'bar'
   return null
 }
@@ -22,14 +20,15 @@ export function App() {
   const redirected = useRef(false)
   const [addOpen, setAddOpen] = useState(false)
 
-  // A cold-start Android share boots the router at home (see main.tsx). If shared
-  // text is waiting, push /import through react-router so home stays in history
-  // and the Back button returns there. useLayoutEffect avoids a home flash.
+  // A cold-start Android share boots the router at home (see main.tsx). If
+  // shared text is waiting, push the recipe editor through react-router so home
+  // stays in history and the Back button returns there, and the editor offers to
+  // fill itself from the pasted text. useLayoutEffect avoids a home flash.
   useLayoutEffect(() => {
     if (redirected.current) return
     if (hasSharedImport() && pathname === '/') {
       redirected.current = true
-      navigate('/import')
+      navigate('/new')
     }
   }, [pathname, navigate])
 

@@ -320,3 +320,161 @@
   background: #d9d2c7;
   box-shadow: none;
 }
+
+/* ── AI paste-to-fill ─────────────────────────────────────────────── */
+.pasteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--ready-bg);
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 20px;
+}
+.labelRow .label {
+  margin-top: 0;
+}
+.guessMark {
+  font-size: 13px;
+}
+.fieldLabelRow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.legend {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.dupe {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--missing-bg);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.dupeLink {
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.sheetHead {
+  margin-bottom: 14px;
+}
+.sheetHeadTitle {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+.pasteMuted {
+  margin: 2px 0 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.pasteSignIn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 13px 18px;
+  border-radius: 14px;
+  background: var(--accent-grad);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+.pasteTextarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 14px;
+  padding: 13px 14px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  resize: none;
+}
+.pasteError {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  color: var(--accent);
+}
+.pasteActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.pasteCancel {
+  flex: 0 0 auto;
+  padding: 13px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+.pasteGo {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border-radius: 14px;
+  background: var(--accent-grad);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+.pasteGoOff {
+  background: #d9d2c7;
+}
+.pasteResults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pasteRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+.pasteRowName {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.pasteRowSub {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.pasteReset {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}

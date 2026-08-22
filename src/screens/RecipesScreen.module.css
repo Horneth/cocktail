@@ -2,24 +2,104 @@
   padding: calc(24px + var(--safe-top)) 0 118px;
 }
 
-.head {
-  padding: 6px 22px 12px;
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 22px 14px;
 }
-.count {
-  font-size: 13px;
-  font-weight: 600;
+.headerText {
+  min-width: 0;
+  flex: 1;
+}
+.gear {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
   color: var(--muted);
+  transition: transform 0.1s ease;
+}
+.gear:active {
+  transform: scale(0.94);
 }
 .title {
-  margin-top: 2px;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  margin: 0;
 }
 
-/* The bottle you arrived from. It reads as a statement of where you are rather
-   than another filter chip, so it sits above the rows and clears in one tap. */
+/* "N ready at My Bar" — one fact, one line, not a billboard. */
+.ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.readyText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.readyText b {
+  color: var(--ink);
+  font-weight: 800;
+}
+.readyChevron {
+  color: var(--faint);
+}
+
+/* The one live search field in the app. */
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 22px 12px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-pop);
+}
+.searchIcon {
+  color: var(--faint);
+  flex: 0 0 auto;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+.input:focus {
+  border: none;
+  outline: none;
+}
+.clear {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 14px;
+  padding: 2px;
+}
+
+/* The bottle you arrived from. Reads as a statement of where you are rather
+   than another filter chip. */
 .ingredientPill {
   display: inline-flex;
   align-items: center;
@@ -69,28 +149,29 @@
   margin-right: 5px;
 }
 
-.tagHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 8px 22px 10px;
-}
-.tagHeadLabel {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--muted);
-}
-.clearTags {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--accent);
-}
-
 .tagRow {
   display: flex;
   gap: 8px;
   overflow-x: auto;
   padding: 0 22px 4px;
+}
+.readyChip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.readyChipOn {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
 }
 .allTags {
   flex: 0 0 auto;
@@ -104,30 +185,7 @@
   background: var(--ink);
   color: #fff;
   border: 1px solid var(--ink);
-  transition: transform 0.1s ease;
 }
-.allTags:active {
-  transform: scale(0.95);
-}
-.ready {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 9px 14px;
-  border-radius: 999px;
-  font-size: 13.5px;
-  font-weight: 700;
-  background: var(--card);
-  border: 1px solid var(--line);
-  color: var(--ink);
-}
-.readyOn {
-  background: var(--green);
-  border-color: var(--green);
-  color: #fff;
-}
-
 .tag {
   flex: 0 0 auto;
   display: inline-flex;
@@ -158,24 +216,36 @@
   display: flex;
   flex-direction: column;
   gap: 11px;
-  padding: 18px 22px 8px;
+  padding: 16px 22px 8px;
 }
 
 .empty {
   text-align: center;
-  padding: 40px 20px;
-  color: var(--muted);
+  padding: 48px 24px;
 }
 .emptyEmoji {
-  font-size: 34px;
+  font-size: 36px;
 }
 .emptyText {
-  margin: 10px 0 0;
-  font-size: 15px;
-  font-weight: 600;
+  margin: 12px 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.emptyHint {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.emptyLink {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
-/* ── Tag sheet ─────────────────────────────────────────────────────────── */
+/* ── Tag sheet ─────────────────────────────────────────────────────── */
 .sheetHead {
   display: flex;
   align-items: baseline;
@@ -202,9 +272,6 @@
   border: 1px solid var(--line);
   border-radius: 14px;
   margin-bottom: 16px;
-}
-.searchIcon {
-  color: var(--faint);
 }
 .sheetInput {
   flex: 1;
