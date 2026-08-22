@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BottomSheet } from '../components/BottomSheet'
-import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon } from '../components/icons'
+import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon, UploadIcon } from '../components/icons'
 import { FEATURES, isCloudAIConfigured } from '../config'
 import type { Ingredient, MeasureBasis, Recipe, RecipeKind, Unit } from '../db/schema'
 import { newId } from '../domain/ids'
@@ -12,6 +12,17 @@ import { spiritVisual } from '../domain/spiritVisual'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { GLASSES, METHODS } from '../domain/vocab'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
+import { downscaleDataUrl } from '../import/image'
+import {
+  bundleImageUrl,
+  catalogImageUrl,
+  getMergedCatalog,
+  getMergedManifest,
+} from '../import/catalogImages'
+import bundledManifest from '../domain/recipeImagesManifest.json'
+const bundledManifestMap = bundledManifest as Record<string, string>
+import { suggestImages } from '../domain/recipeImage'
+import type { CocktailImage } from '../domain/recipeImages'
 import type { GuessedField, StructuredImport } from '../import/types'
 import { consumeSharedImport } from '../import/shared'
 import { useAuth } from '../hooks/useAuth'
@@ -83,6 +94,10 @@ export function EditRecipeScreen() {
   const [pasteError, setPasteError] = useState<string | null>(null)
   const [parsed, setParsed] = useState<StructuredImport[] | null>(null)
 
+  // ── Image state (pick / generate) ──
+  const [imageBusy, setImageBusy] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!isNew && existing && !form) {
       setForm(structuredClone(existing))
@@ -126,7 +141,7 @@ export function EditRecipeScreen() {
 
   const canSave = form.name.trim() !== '' && form.ingredients.some((i) => i.name.trim() !== '')
 
-  const onSave = async () => {
+const onSave = async () => {
     const cleaned: Recipe = {
       ...form,
       name: form.name.trim(),
@@ -147,6 +162,53 @@ export function EditRecipeScreen() {
     if (!confirm(`Delete “${form.name}”? This can't be undone.`)) return
     await deleteRecipe(form.id)
     navigate('/', { replace: true })
+  }
+
+  // ── Image: pick a photo, or pick the closest curated catalog shot ──
+  const onPickImage = async (file: File | undefined) => {
+    if (!file || imageBusy) return
+    setImageBusy(true)
+    setImageError(null)
+    try {
+      const url = await downscaleDataUrl(file)
+      update({ image: url, imageStatus: 'done' })
+    } catch {
+      setImageError('Could not read that photo.')
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
+  // Suggestions: the closest curated catalog shots for the drink as it's being
+  // edited. Recomputes as the form changes (name/spirit/glass/garnish/tags).
+  const [suggestions, setSuggestions] = useState<CocktailImage[]>([])
+  useEffect(() => {
+    if (!form || form.kind !== 'cocktail') {
+      setSuggestions([])
+      return
+    }
+    let alive = true
+    void (async () => {
+      const [catalog, manifest] = await Promise.all([getMergedCatalog(), getMergedManifest()])
+      if (!alive) return
+      const hits = suggestImages(form, 4, catalog)
+      // Keep only slots that have a resolvable image (bundled or Storage).
+      const resolvable = hits.filter((h) => manifest[h.slot.slug])
+      setSuggestions(resolvable.map((h) => h.slot))
+    })()
+    return () => {
+      alive = false
+    }
+  }, [form?.name, form?.spirit, form?.glassware, form?.garnish, form?.tags, form?.ingredients])
+
+  const pickSuggestion = async (slug: string) => {
+    const url = await catalogImageUrl(slug)
+    if (url) update({ image: url, imageStatus: 'done' })
+  }
+
+  const suggestionThumb = (slug: string): string => {
+    const file = bundledManifestMap[slug]
+    return file ? bundleImageUrl(file) : ''
   }
 
   const isCocktailKind = form.kind === 'cocktail'
@@ -243,6 +305,58 @@ export function EditRecipeScreen() {
           </button>
         )}
         {aiFilled && <p className={styles.aiNote}><SparkleIcon size={15} /> Filled from a photo — check it before saving.</p>}
+
+        {(form.image || isNew) && (
+          <div className={styles.imageBlock}>
+            {form.image ? (
+              <>
+                <img className={styles.imagePreview} src={form.image} alt={form.name || 'Recipe photo'} />
+                <div className={styles.imageActions}>
+                  <button className={styles.imageBtn} onClick={() => update({ image: undefined, imageStatus: undefined })}>
+                    Remove
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {isCocktailKind && suggestions.length > 0 && (
+                  <div className={styles.suggestBlock}>
+                    <div className={styles.suggestLabel}>Suggested photos</div>
+                    <div className={styles.suggestRow}>
+                      {suggestions.map((s) => (
+                        <button
+                          key={s.slug}
+                          className={styles.suggestThumb}
+                          onClick={() => void pickSuggestion(s.slug)}
+                          aria-label={`Use the ${s.label} photo`}
+                        >
+                          <img src={suggestionThumb(s.slug)} alt="" />
+                          <span>{s.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className={styles.imageAddRow}>
+                  <label className={styles.imagePick}>
+                    <UploadIcon size={15} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        void onPickImage(e.target.files?.[0])
+                        e.target.value = ''
+                      }}
+                    />
+                    Choose a photo
+                  </label>
+                </div>
+              </>
+            )}
+            {imageError && <p className={styles.imageError}>{imageError}</p>}
+          </div>
+        )}
 
         <label className={styles.label}>Name</label>
         <div className={styles.inputCard}>

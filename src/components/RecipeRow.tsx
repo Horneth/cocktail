@@ -24,9 +24,13 @@ export function RecipeRow({ recipe, badge = null, onDelete }: Props) {
   const v = spiritVisual(tileKeyForRecipe(recipe))
   const body = (
     <Link className={styles.row} to={`/recipe/${recipe.id}`} draggable={false}>
-      <span className={styles.thumb} style={{ background: v.tint }}>
-        {v.emoji}
-      </span>
+      {recipe.image ? (
+        <img className={styles.thumb} src={recipe.image} alt="" />
+      ) : (
+        <span className={styles.thumb} style={{ background: v.tint }}>
+          {v.emoji}
+        </span>
+      )}
       <span className={styles.main}>
         <span className={styles.name}>{recipe.name}</span>
         <span className={styles.sub}>{summarize(recipe)}</span>

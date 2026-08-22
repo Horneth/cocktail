@@ -22,7 +22,7 @@ import { firebaseConfig } from '../config'
 //    no photos. Counts and outcomes only. The app's whole premise is that the
 //    library stays on the device, and a metrics pipeline is not an exception.
 
-/** Which of the four calls. Mirrors the metering units a paid tier would use. */
+/** Which of the calls. Mirrors the metering units a paid tier would use. */
 export type AiCallKind = 'parse' | 'dupes' | 'vision' | 'reconcile'
 
 export interface AiCallFacts {

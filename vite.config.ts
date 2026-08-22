@@ -82,6 +82,26 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // Curated cocktail photos: bundled copies are precached; Storage-hosted
+          // ones are cached on first view so they render offline afterwards.
+          {
+            urlPattern: /\/images\/cocktails\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'cocktail-images',
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*\/cocktails\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'cocktail-images-storage',
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       devOptions: {

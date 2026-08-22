@@ -1,0 +1,650 @@
+[
+  {
+    "slug": "sour-straw",
+    "label": "Sour / pale",
+    "description": "A pale straw coupe drink with a lime wheel on the rim.",
+    "glass": "coupe",
+    "keywords": [
+      "sour",
+      "citrusy",
+      "daiquiri",
+      "rum",
+      "pale",
+      "crisp"
+    ],
+    "sample": "Daiquiri",
+    "cue": "pale straw liquid, half-full coupe, lime wheel on rim, no garnish rings"
+  },
+  {
+    "slug": "sour-foam",
+    "label": "Sour / foam cap",
+    "description": "A pale cocktail with a dense white egg-white foam cap dotted with a few drops of aromatic bitters.",
+    "glass": "coupe",
+    "keywords": [
+      "sour",
+      "foam",
+      "egg white",
+      "pisco",
+      "gin",
+      "fluffy"
+    ],
+    "sample": "Pisco Sour",
+    "cue": "white foam dome, bitters dot, resting coupe, single main glass"
+  },
+  {
+    "slug": "amber-citrus",
+    "label": "Amber / sugar rim",
+    "description": "A brandy-sidecar coupe, amber liquid, half a sugar rim and an orange peel.",
+    "glass": "coupe",
+    "keywords": [
+      "brandy",
+      "cognac",
+      "aged",
+      "sugar rim",
+      "sidecar",
+      "citrus"
+    ],
+    "sample": "Sidecar",
+    "cue": "amber liquid, coupe, orange peel, one glass"
+  },
+  {
+    "slug": "green-herbal",
+    "label": "Herbal / equal parts",
+    "description": "A pale green Last Word coupe with a maraschino cherry, an herbal-forward drink.",
+    "glass": "coupe",
+    "keywords": [
+      "herbal",
+      "chartreuse",
+      "equal parts",
+      "green",
+      "last word"
+    ],
+    "sample": "Last Word",
+    "cue": "pale green liquid, coupe, cherry"
+  },
+  {
+    "slug": "pink-berry",
+    "label": "Pink / berry",
+    "description": "A pink cosmopolitan, pale-pink Coupe with a wide orange peel.",
+    "glass": "coupe",
+    "keywords": [
+      "cosmopolitan",
+      "vodka",
+      "cranberry",
+      "pink",
+      "citrus"
+    ],
+    "sample": "Cosmopolitan",
+    "cue": "pink liquid, classic coupe, orange peel"
+  },
+  {
+    "slug": "coffee",
+    "label": "Coffee / espresso",
+    "description": "A near-black espresso martini with a thin crema and three coffee beans on top, in a coupe.",
+    "glass": "coupe",
+    "keywords": [
+      "coffee",
+      "espresso",
+      "creamy",
+      "martini",
+      "sweet"
+    ],
+    "sample": "Espresso Martini",
+    "cue": "almost black, crema, three beans, coupe"
+  },
+  {
+    "slug": "sparkle-citrus",
+    "label": "Sparkling / citrus",
+    "description": "A pale sparkling French 75 coupe with a lemon twist, fine champagne bubbles.",
+    "glass": "coupe",
+    "keywords": [
+      "sparkle",
+      "champagne",
+      "french 75",
+      "lemon",
+      "tall"
+    ],
+    "sample": "French 75",
+    "cue": "pale, effervescent, lemon twist, coupe"
+  },
+  {
+    "slug": "sparkle-berry",
+    "label": "Sparkling / berry",
+    "description": "A deep burgundy sparkling cocktail in a coupe (Kir-royale) with a fresh raspberry or blackcurrant.",
+    "glass": "coupe",
+    "keywords": [
+      "berry",
+      "sparkle",
+      "kir royale",
+      "red",
+      "wine"
+    ],
+    "sample": "Kir Royale",
+    "cue": "deep red, bubbles, berry, coupe"
+  },
+  {
+    "slug": "dry-martini",
+    "label": "Dry martini",
+    "description": "A clear gin martini with a single green olive, no garnish beyond it, a chilled martini glass.",
+    "glass": "martini",
+    "keywords": [
+      "gin",
+      "dry",
+      "martini",
+      "spirit-forward",
+      "olive",
+      "clear"
+    ],
+    "sample": "Dry Martini",
+    "cue": "clear, olive, chilled martini glass"
+  },
+  {
+    "slug": "vodka-martini",
+    "label": "Vodka martini",
+    "description": "A clear vodka martini, spiked clean, with a lemon twist that hangs over the rim.",
+    "glass": "martini",
+    "keywords": [
+      "vodka",
+      "clear",
+      "twist",
+      "spirit-forward",
+      "chilled"
+    ],
+    "sample": "Vodka Martini",
+    "cue": "clear, lemon twist, martini glass"
+  },
+  {
+    "slug": "dirty-martini",
+    "label": "Dirty / olive-forward",
+    "description": "A cloudy, brine-touched dimit martini with an olive, an almost-savoury look.",
+    "glass": "martini",
+    "keywords": [
+      "dirty",
+      "olive",
+      "savoury",
+      "brine",
+      "vermouth"
+    ],
+    "sample": "Dirty Martini",
+    "cue": "slightly cloudy, olive, martini glass"
+  },
+  {
+    "slug": "old-fashioned",
+    "label": "Old fashioned",
+    "description": "An amber whiskey old fashioned on a big clear cube, with an orange peel and a cocktail cherry.",
+    "glass": "rocks",
+    "keywords": [
+      "old fashioned",
+      "whiskey",
+      "spirit-forward",
+      "bitter",
+      "orange"
+    ],
+    "sample": "Old Fashioned",
+    "cue": "dark amber, single big cube, orange peel + cherry, rocks glass"
+  },
+  {
+    "slug": "sazerac",
+    "label": "Sazerac",
+    "description": "An amber rye sazerac in an old fashioned glass, a Light lemon twist, no ice.",
+    "glass": "rocks",
+    "keywords": [
+      "sazerac",
+      "rye",
+      "anise",
+      "absinthe",
+      "peychauds",
+      "rocks"
+    ],
+    "sample": "Sazerac",
+    "cue": "amber, no ice, lemon twist, rocks glass"
+  },
+  {
+    "slug": "whiskey-sour",
+    "label": "Whiskey sour",
+    "description": "An amber whiskey sour with a white foam head, in a rocks glass, lemon and cherry.",
+    "glass": "rocks",
+    "keywords": [
+      "whiskey",
+      "sour",
+      "foam",
+      "lemon",
+      "eggy"
+    ],
+    "sample": "Whiskey Sour",
+    "cue": "amber, foam head, lemon + cherry, rocks glass"
+  },
+  {
+    "slug": "amaretto-sour",
+    "label": "Amaretto / nutty",
+    "description": "An amber-nut amaretto sour with a cherry, on the sweeter end of a sour.",
+    "glass": "rocks",
+    "keywords": [
+      "amaretto",
+      "sweet",
+      "nutty",
+      "almond",
+      "sour",
+      "cherry"
+    ],
+    "sample": "Amaretto Sour",
+    "cue": "amber-nut, cherry, rocks glass, foamy top"
+  },
+  {
+    "slug": "negroni",
+    "label": "Negroni / bitter",
+    "description": "A brilliant red negroni over one big ice cube, with an orange peel, on a rocks glass.",
+    "glass": "rocks",
+    "keywords": [
+      "negroni",
+      "bitter",
+      "equals",
+      "gin",
+      "sweet-vermouth",
+      "aperitivo"
+    ],
+    "sample": "Negroni",
+    "cue": "ruby red, big cube, orange peel, rocks glass"
+  },
+  {
+    "slug": "boulevardier",
+    "label": "Boulevardier",
+    "description": "A darker red-brown boulevardier on a rocks glass with plenty of citrus oil.",
+    "glass": "rocks",
+    "keywords": [
+      "whiskey",
+      "bitter",
+      "sweet-vermouth",
+      "negroni",
+      "brown"
+    ],
+    "sample": "Boulevardier",
+    "cue": "red-brown, big cube, rocks glass"
+  },
+  {
+    "slug": "margarita-rocks",
+    "label": "Margarita rocks",
+    "description": "A pale-green margarita in a rocks glass over ice, a salt rim and a lime wheel.",
+    "glass": "rocks",
+    "keywords": [
+      "margarita",
+      "tequila",
+      "salt rim",
+      "lime",
+      "green",
+      "citrus"
+    ],
+    "sample": "Margarita",
+    "cue": "pale green, salt rim, lime wheel, rocks glass"
+  },
+  {
+    "slug": "white-russian",
+    "label": "White Russian / layered",
+    "description": "A layered white russet: a dark bottom and a cream top, over ice, no garnish, rocks glass.",
+    "glass": "rocks",
+    "keywords": [
+      "white russian",
+      "creamy",
+      "coffee",
+      "layered",
+      "vodka",
+      "sweet"
+    ],
+    "sample": "White Russian",
+    "cue": "cream on dark layered, rocks glass, no garnish"
+  },
+  {
+    "slug": "gin-tonic",
+    "label": "Gin & tonic",
+    "description": "A tall gin and tonic with a lime wedge, effervescent and slightly hazy, highball.",
+    "glass": "highball",
+    "keywords": [
+      "gin",
+      "tonic",
+      "bitter",
+      "refreshing",
+      "lime",
+      "tall"
+    ],
+    "sample": "Gin & Tonic",
+    "cue": "pale, tall, lime wedge, highball"
+  },
+  {
+    "slug": "paloma",
+    "label": "Paloma",
+    "description": "A pale-pink grapefruit paloma with a salted-rim glaze peeking, on the taller side.",
+    "glass": "highball",
+    "keywords": [
+      "grapefruit",
+      "tequila",
+      "fruit",
+      "pink",
+      "salty"
+    ],
+    "sample": "Paloma",
+    "cue": "pale pink, grapefruit wedge, salt, tall"
+  },
+  {
+    "slug": "moscow-mule",
+    "label": "Copper mule",
+    "description": "A Moscow Mule in a copper mug, ginger-hued with a lime wheel pressed in.",
+    "glass": "copper",
+    "keywords": [
+      "moscow mule",
+      "ginger",
+      "spicy",
+      "lime",
+      "copper"
+    ],
+    "sample": "Moscow Mule",
+    "cue": "copper mug, ginger + lime wheel"
+  },
+  {
+    "slug": "tequila-sunrise",
+    "label": "Tequila sunrise",
+    "description": "A tall tequila sunrise graded orange to red, an orange slice and a cherry.",
+    "glass": "highball",
+    "keywords": [
+      "tequila sunrise",
+      "gradient",
+      "orange",
+      "sweet",
+      "tall"
+    ],
+    "sample": "Tequila Sunrise",
+    "cue": "orange-red gradient, orange slice, tall"
+  },
+  {
+    "slug": "tom-collins",
+    "label": "Tom Collins",
+    "description": "A tall pale tom collins fizz with a lemon wheel, carbonated, wry.",
+    "glass": "collins",
+    "keywords": [
+      "tom collins",
+      "gin",
+      "lemon",
+      "fizz",
+      "tall"
+    ],
+    "sample": "Tom Collins",
+    "cue": "pale, tall, lemon wheel, fizz"
+  },
+  {
+    "slug": "whiskey-highball",
+    "label": "Whiskey highball",
+    "description": "A two-grams amber whiskey-and-soda highball with a twist, the simple tall pour.",
+    "glass": "highball",
+    "keywords": [
+      "highball",
+      "whiskey",
+      "soda",
+      "tall",
+      "simple",
+      "dry"
+    ],
+    "sample": "Whiskey Highball",
+    "cue": "amber, long ice spear, twist, tall"
+  },
+  {
+    "slug": "sangria",
+    "label": "Sangria / red wine",
+    "description": "A red-wine sangria in a generous tumbler with berries, orange and a stick.",
+    "glass": "highball",
+    "keywords": [
+      "red wine",
+      "fruit",
+      "sweet",
+      "sangria",
+      "summer"
+    ],
+    "sample": "Sangria",
+    "cue": "red, fruited, orange/berries, tumbler"
+  },
+  {
+    "slug": "mai-tai",
+    "label": "Mai Tai",
+    "description": "A Mai Tai over crushed ice in a rocks glass, a lime shell, mint sprig, amber-gold.",
+    "glass": "rocks",
+    "keywords": [
+      "mai tai",
+      "rum",
+      "almond",
+      "orgeat",
+      "tropical",
+      "lime",
+      "mint"
+    ],
+    "sample": "Mai Tai",
+    "cue": "gold, crushed ice, lime shell, mint, rocks"
+  },
+  {
+    "slug": "zombie",
+    "label": "Zombie / strong tiki",
+    "description": "A layered dark tropical zombie over crushed ice, fruit and a mint sprig, tall tiki.",
+    "glass": "highball",
+    "keywords": [
+      "zombie",
+      "dark rum",
+      "tropical",
+      "strong",
+      "fruit cup"
+    ],
+    "sample": "Zombie",
+    "cue": "layered, dark, crushed ice, fruit + mint, tall"
+  },
+  {
+    "slug": "pina-colada",
+    "label": "Piña colada",
+    "description": "A creamy white piña colada with a pineapple wedge and a red cherry in a tall glass.",
+    "glass": "coupe",
+    "keywords": [
+      "pina colada",
+      "rum",
+      "coconut",
+      "creamy",
+      "pineapple",
+      "sweet"
+    ],
+    "sample": "Pina Colada",
+    "cue": "creamy white, pineapple + cherry, tall"
+  },
+  {
+    "slug": "hurricane",
+    "label": "Hurricane / fruit-forward",
+    "description": "A vivid red-orange hurricane, tall with passionfruit, an orange slice and a cherry.",
+    "glass": "tiki",
+    "keywords": [
+      "hurricane",
+      "rum",
+      "passionfruit",
+      "red",
+      "tall",
+      "fruit"
+    ],
+    "sample": "Hurricane",
+    "cue": "red-orange, passionfruit, orange + cherry, funky tiki"
+  },
+  {
+    "slug": "jungle-bird",
+    "label": "Jungle bird",
+    "description": "A deep ruby Jungle Bird with a big pineapple wedge, tiki glass.",
+    "glass": "tiki",
+    "keywords": [
+      "jungle bird",
+      "rum",
+      "bitter",
+      "pineapple",
+      "dark red"
+    ],
+    "sample": "Jungle Bird",
+    "cue": "deep red, pineapple, tiki glass"
+  },
+  {
+    "slug": "strawberry-daiquiri",
+    "label": "Strawberry daiquiri",
+    "description": "A pink-to-red blended strawberry daiquiri in a coupe with a lime wheel.",
+    "glass": "coupe",
+    "keywords": [
+      "strawberry",
+      "daiquiri",
+      "rum",
+      "frozen",
+      "pink"
+    ],
+    "sample": "Strawberry Daiquiri",
+    "cue": "pink-red blended, lime, coupe"
+  },
+  {
+    "slug": "champagne-cocktail",
+    "label": "Champagne cocktail",
+    "description": "A pale champagne cocktail with a sugared twist and a little sugar cube were on the flute.",
+    "glass": "flute",
+    "keywords": [
+      "champagne",
+      "sparkle",
+      "sugar cube",
+      "wine",
+      "celebrates"
+    ],
+    "sample": "Champagne Cocktail",
+    "cue": "pale, flute, sugar cube, twist"
+  },
+  {
+    "slug": "bellini",
+    "label": "Bellini",
+    "description": "A soft-peach bellini in a flute, sparkling, delicate.",
+    "glass": "flute",
+    "keywords": [
+      "bellini",
+      "peach",
+      "sparkling",
+      "wine",
+      "soft"
+    ],
+    "sample": "Bellini",
+    "cue": "peach, flute, sparkling"
+  },
+  {
+    "slug": "frozen-daiquiri",
+    "label": "Frozen daiquiri",
+    "description": "A frost pale frozen daiquiri (blended ice) in a chilled coupe, lime wheel.",
+    "glass": "frozen",
+    "keywords": [
+      "frozen",
+      "daiquiri",
+      "rum",
+      "lime",
+      "icy"
+    ],
+    "sample": "Frozen Daiquiri",
+    "cue": "slush, pale, lime wheel, coupe"
+  },
+  {
+    "slug": "frozen-margarita",
+    "label": "Frozen margarita",
+    "description": "A pale-green frozen margarita with a salt rim and a lime, slushy.",
+    "glass": "frozen",
+    "keywords": [
+      "frozen",
+      "margarita",
+      "tequila",
+      "salt rim",
+      "lime"
+    ],
+    "sample": "Frozen Margarita",
+    "cue": "slushy pale green, salt rim, lime"
+  },
+  {
+    "slug": "frozen-strawberry",
+    "label": "Frozen strawberry",
+    "description": "A pink frozen strawberry daiquiri, slushy, with a whole strawberry.",
+    "glass": "frozen",
+    "keywords": [
+      "frozen",
+      "strawberry",
+      "rum",
+      "pink",
+      "dal"
+    ],
+    "sample": "Strawberry Margarita",
+    "cue": "slushy pink, strawberry, coupe"
+  },
+  {
+    "slug": "layered-shot",
+    "label": "Layered shooter",
+    "description": "A layered cream-and-brown shooter (B-52) with clean stripes, on a small shot glass.",
+    "glass": "shot",
+    "keywords": [
+      "layered",
+      "shooter",
+      "creamy",
+      "sweet",
+      "baileys",
+      "kahlua"
+    ],
+    "sample": "B-52",
+    "cue": "layered stripes, shot glass"
+  },
+  {
+    "slug": "shooter-clear",
+    "label": "Chilled shot",
+    "description": "A clear, chilled spirit shot, minimal, possibly a thin lemon chaser.",
+    "glass": "shot",
+    "keywords": [
+      "shot",
+      "clear",
+      "spirit",
+      "chilled",
+      "high-proof"
+    ],
+    "sample": "Lemonade Shot",
+    "cue": "clear, shot glass, minimal"
+  },
+  {
+    "slug": "mint-julep",
+    "label": "Mint julep",
+    "description": "A crushed-ice mint julep in a frosted mint and silver cup, a mound of mint on top.",
+    "glass": "julep",
+    "keywords": [
+      "mint julep",
+      "bourbon",
+      "mint",
+      "crushed ice",
+      "silver cup"
+    ],
+    "sample": "Mint Julep",
+    "cue": "silver julep cup with a mint crown, crushed ice"
+  },
+  {
+    "slug": "spritz",
+    "label": "Spritz / aperitif",
+    "description": "A bright orange Aperol spritz in a large balloon glass over ice, an orange slice, sparkling.",
+    "glass": "wine",
+    "keywords": [
+      "spritz",
+      "aperitif",
+      "aperol",
+      "orange",
+      "sparkling",
+      "light"
+    ],
+    "sample": "Aperol Spritz",
+    "cue": "orange, large glass, orange slice, sparkle"
+  },
+  {
+    "slug": "snifter-aged",
+    "label": "Snifter / aged spirits",
+    "description": "A brandy-cognac snifter with a swirl of amber, no ice, warm tones.",
+    "glass": "snifter",
+    "keywords": [
+      "cognac",
+      "brandy",
+      "aged",
+      "snifter",
+      "neat",
+      "warm"
+    ],
+    "sample": "Cognac Neat",
+    "cue": "amber, snifter, no ice"
+  }
+]

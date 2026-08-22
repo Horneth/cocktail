@@ -165,6 +165,7 @@ export function RecipeDetailScreen() {
   return (
     <div className={styles.screen}>
       <div className={styles.hero} style={{ background: `linear-gradient(180deg, ${v.tint}, var(--paper))` }}>
+        {recipe.image && <img className={styles.heroImage} src={recipe.image} alt={recipe.name} />}
         <div className={styles.heroTop}>
           <button className={styles.roundBtn} aria-label="Back" onClick={() => navigate(-1)}>
             <ChevronLeftIcon size={20} />

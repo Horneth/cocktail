@@ -101,9 +101,9 @@ managing the secret. Kept as an escape hatch, not the first move.
   `AddSheet` hides the row entirely on a build with no Firebase config. `/new` is the offline
   path in; every non-import feature must keep working signed out.
 
-### The four calls a backend has to implement
+### The calls a backend has to implement
 
-A replacement transport needs **all four** entry points in `src/import/firebaseAI.ts` — the pure
+A replacement transport needs **all five** entry points in `src/import/firebaseAI.ts` — the pure
 schemas, prompts and mappers for each live in `aiShared.ts` and should be reused verbatim.
 Note the symmetry: import and shelf scan are each a *heavy* first call followed by an
 *optional, must-not-throw* second call whose payload a local pass already shortlisted.
@@ -125,6 +125,16 @@ Note the symmetry: import and shelf scan are each a *heavy* first call followed 
    for every detection, so a failure costs accuracy, not the scan. Its payload is only the
    detected names plus the few candidate labels that same local pass shortlisted — same rule,
    don't send the inventory.
+5. `firebaseGenerateImage(recipe) → string` (a data URL) — the cocktail-image call. Unlike the
+   text/JSON calls above, it uses a **different model** (`IMAGE_MODEL` in `config.ts`, a Gemini
+   image model, via `getImageModel` in `auth/firebase.ts`) with `responseModalities: ['IMAGE']`,
+   and the input is `buildImagePrompt(recipe)` plus the matching canonical **scene** from
+   `src/assets/scenes/` as an `inlineData` edit-onto. Consistency across the library comes from
+   that fixed set of base scenes (rocks/coupe/highball, chosen by `sceneForGlassware`) — the
+   model edits the scene rather than inventing a photo. Response is read via
+   `result.response.inlineDataParts()`. **Throws `CloudAIError`**; its callers (`import/autoImage.ts`
+   and the recipe editor) treat a failure as "keep the spirit tile, offer Generate" — never a
+   failed save. Cost/spend dry-run is a `kind: 'image'` entry in `auth/analytics.ts`.
 
 ### Lazy boot (why `useAuth` looks the way it does)
 

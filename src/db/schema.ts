@@ -87,6 +87,17 @@ export interface Recipe {
   /** pinned to the top of the list and filterable */
   favorite?: boolean
 
+  /**
+   * A display photo as a JPEG/WebP data URL. Absent, a recipe falls back to the
+   * generated spirit tile. The URL (not a Blob) so it survives the JSON backup.
+   */
+  image?: string
+  /**
+   * Lifecycle of `image`'s auto-generation. `pending` is the guard that keeps a
+   * single import from spending two generations on the same recipe.
+   */
+  imageStatus?: 'none' | 'pending' | 'done' | 'failed'
+
   notes: Note[]
 
   /** provenance — all optional, unused in phase 1, no migration needed to fill later */

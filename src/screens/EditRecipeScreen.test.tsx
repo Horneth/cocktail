@@ -20,6 +20,7 @@ vi.mock('../import/firebaseAI', () => ({ firebaseParse }))
 vi.mock('../config', () => ({
   FEATURES: { cloudAI: true },
   isCloudAIConfigured: () => true,
+  firebaseConfig: {},
 }))
 
 const auth = {

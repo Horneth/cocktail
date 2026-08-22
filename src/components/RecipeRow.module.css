@@ -24,6 +24,7 @@
   height: 52px;
   border-radius: 15px;
   font-size: 27px;
+  object-fit: cover;
 }
 
 .main {

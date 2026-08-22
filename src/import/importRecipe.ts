@@ -41,6 +41,7 @@ function draftToRecipe(draft: RecipeDraft, now: number): Recipe {
     spirit: draft.spirit,
     notes: (draft.notes ?? []).map((text) => ({ id: newId(), text, createdAt: now })),
     source: draft.source,
+    image: draft.image,
     createdAt: now,
     updatedAt: now,
   }

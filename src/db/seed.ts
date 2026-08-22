@@ -1,6 +1,7 @@
 import { importRecipe } from '../import/importRecipe'
 import type { IngredientDraft, StructuredImport } from '../import/types'
 import { db } from './db'
+import { seedImages } from './seedImages'
 
 // Seed data authored as StructuredImport objects and written through the same
 // importRecipe() path the YouTube importer uses — so the import seam is
@@ -74,6 +75,7 @@ export async function seedIfEmpty(): Promise<void> {
         garnish: 'Lime wheel',
         spirit: 'rum',
         tags: ['sour', 'classic', 'citrusy'],
+        image: seedImages.daiquiri,
         instructions: 'Shake all with ice until well chilled. Double-strain into a chilled coupe.',
       },
     ),
@@ -93,6 +95,7 @@ export async function seedIfEmpty(): Promise<void> {
         garnish: 'Lemon peel & cherry',
         spirit: 'whiskey',
         tags: ['sour', 'classic'],
+        image: seedImages.whiskeysour,
         instructions:
           'Dry-shake (no ice) to emulsify the egg white, then shake with ice. Strain over fresh ice.',
       },
@@ -112,6 +115,7 @@ export async function seedIfEmpty(): Promise<void> {
         garnish: 'Orange peel',
         spirit: 'whiskey',
         tags: ['spirit-forward', 'classic'],
+        image: seedImages.oldfashioned,
         instructions:
           'Stir with ice until chilled and diluted. Strain over one large cube. Express the orange peel over the top.',
       },
@@ -131,6 +135,7 @@ export async function seedIfEmpty(): Promise<void> {
         garnish: 'Lime wheel & salt rim',
         spirit: 'tequila',
         tags: ['sour', 'classic', 'citrusy'],
+        image: seedImages.margarita,
         instructions:
           'Shake all with ice. Strain over fresh ice into a glass with an optional salt rim.',
       },

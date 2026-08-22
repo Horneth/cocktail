@@ -38,6 +38,8 @@ export interface RecipeDraft {
   spirit?: SpiritCategory
   notes?: string[]
   source?: RecipeSource
+  /** a JPEG/WebP data URL; absent means "generate from the recipe" on save */
+  image?: string
 }
 
 /** Fields an AI import may fill in from knowledge rather than from the text. */

@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Curated cocktail photos + catalog/manifest are served by the app over
+    // public Firebase Storage URLs (no user auth — the app is offline-first
+    // and reads them anonymously). Writes are done by the publish script via
+    // the service account (GCS/IAM), never from the client, so deny those.
+    match /cocktails/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Everything else: locked down by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

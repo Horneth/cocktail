@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AccentButton } from '../components/TabBar'
-import { ChevronDownIcon, SearchIcon, SparkleIcon } from '../components/icons'
+import { ChevronDownIcon, SearchIcon } from '../components/icons'
 import { makeableIds } from '../domain/availability'
 import { recipesUsingBottle } from '../domain/barInsights'
 import { matchesQuery } from '../domain/search'
 import { SPIRIT_ORDER, tileKeyForRecipe, tileMeta } from '../domain/spirits'
+import { spiritVisual } from '../domain/spiritVisual'
 import { useCocktails, useBottleCounts } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
 import { ManageBarsSheet } from './bar/ManageBarsSheet'
@@ -42,6 +43,14 @@ export function RecipesScreen() {
     if (key === 'scope') next.delete('makeable')
     setParams(next, { replace: true })
   }
+  const showCardArt = (recipe: (typeof cocktails)[number]) => {
+    const v = spiritVisual(tileKeyForRecipe(recipe))
+    return (
+      <span className={styles.photoArt} style={{ background: v.tint }}>
+        {v.emoji}
+      </span>
+    )
+  }
   return <div className={styles.screen}>
     <header className={styles.header}>
       <button className={styles.barSwitch} onClick={() => setManagingBars(true)}><span>{barName}</span><ChevronDownIcon size={13} /></button>
@@ -50,7 +59,7 @@ export function RecipesScreen() {
     </header>
     <div className={styles.searchBar}><SearchIcon size={17} className={styles.searchIcon} /><input className={styles.input} value={q} onChange={(e) => patch('q', e.target.value || null)} placeholder="Search drinks or ingredients" /></div>
     <div className={`${styles.scopeBar} hg-scroll`}><div className={styles.scopeTrack}>{scopes.map((s) => <button key={s.key} className={`${styles.scope} ${scope === s.key ? styles.scopeOn : ''}`} onClick={() => patch('scope', s.key === 'all' ? null : s.key)}>{s.label}</button>)}</div></div>
-    {list.length === 0 ? <div className={styles.empty}><h2>{cocktails.length === 0 ? 'No drinks yet' : 'Nothing matches'}</h2><p>{cocktails.length === 0 ? 'Tap Recipe to type your first one in.' : 'Try another spirit, or go back to All.'}</p></div> : <div className={styles.grid}>{list.map((recipe) => <Link key={recipe.id} className={styles.card} to={`/recipe/${recipe.id}`}><div className={styles.photo}><SparkleIcon size={22} /><span>{recipe.name}</span><u>or browse files</u></div><div className={styles.cardFoot}><h2>{recipe.name}</h2><span className={`${styles.status} ${have.size && makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? styles.ready : styles.missing}`}><i />{have.size ? (makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? 'Ready' : 'Missing') : 'Ready'}</span></div></Link>)}</div>}
+    {list.length === 0 ? <div className={styles.empty}><h2>{cocktails.length === 0 ? 'No drinks yet' : 'Nothing matches'}</h2><p>{cocktails.length === 0 ? 'Tap Recipe to type your first one in.' : 'Try another spirit, or go back to All.'}</p></div> : <div className={styles.grid}>{list.map((recipe) => <Link key={recipe.id} className={styles.card} to={`/recipe/${recipe.id}`}><div className={styles.photo}>{recipe.image ? <img className={styles.photoImg} src={recipe.image} alt="" /> : showCardArt(recipe)}</div><div className={styles.cardFoot}><h2>{recipe.name}</h2><span className={`${styles.status} ${have.size && makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? styles.ready : styles.missing}`}><i />{have.size ? (makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? 'Ready' : 'Missing') : 'Ready'}</span></div></Link>)}</div>}
     <ManageBarsSheet open={managingBars} onClose={() => setManagingBars(false)} bars={bars} activeId={barId} onSelect={setBarId} counts={counts} />
   </div>
 }

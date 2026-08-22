@@ -2,6 +2,16 @@
 
 Guidance for AI assistants (and humans) working in this repository.
 
+## Working paths: never leave this repo
+
+The workspace root is this project (`/Users/thibaultjeandet/cocktail`). Resolve
+every file path against it — `src/…`, `docs/…`, `scripts/…` — and nothing else.
+Never `cd` to, read, write, glob, git-show, or otherwise access any path that
+contains `..`, `/Users/…`, the literal string `cockpit`, or any directory outside
+this repo. If a path you are about to use does not resolve to a real file under
+this root, stop and fix the path — do not run it. The correct root is always the
+workspace root; never invent parent directories above it.
+
 ## What this is
 
 **Cocktail** is an offline-first PWA cocktail recipe book: browse drinks by base
@@ -63,6 +73,8 @@ src/
     schema.ts     Core domain types (Recipe, Ingredient, PantryItem, RecipeLink, …)
     db.ts         Dexie subclass + versioned store definitions (the ONLY DB instance)
     seed.ts       Starter recipes, authored as StructuredImport, written via importRecipe()
+    seedImages.ts Compact SVG data URLs for the seed classics (placeholders for real
+                  generated photography, committed so classics ship with images)
 
   domain/         Pure, framework-free logic — unit-tested, no React, no Dexie imports
     scaling.ts    Serving rescale + per-ingredient nudge (non-destructive)
@@ -89,11 +101,13 @@ src/
   import/         The single write seam for bulk recipe creation
     types.ts      StructuredImport / RecipeDraft / IngredientDraft (recipeId cross-links)
     importRecipe.ts  importRecipe(), saveRecipe(), deleteRecipe(), setFavorite(), countUsage(), mergeRecipes()
+    autoImage.ts  maybeGenerateImage()/regenerateImage() — background cocktail-image
+                  generation after a save; writes Recipe.image/imageStatus, never blocks a save
     aiShared.ts   Transport-agnostic AI core: schemas, prompts, model-JSON → StructuredImport
     firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse(), firebaseJudgeDuplicates(),
-                  firebaseIdentifyBottles(), firebaseReconcileBottles()
+                  firebaseIdentifyBottles(), firebaseReconcileBottles(), firebaseGenerateImage()
     limits.ts     Cost ceilings on an AI request (input chars, photo count/bytes, output tokens)
-    image.ts      Browser canvas downscale + data-URL split for the photo scan
+    image.ts      Browser canvas downscale + data-URL split for the photo scan; blobToDataUrl() for scenes
     backup.ts     Whole-library export/import (the only way data crosses an origin)
     shared.ts     Android share-target stash/consume helpers
 
@@ -318,15 +332,26 @@ anything else, so a custom spirit (cachaça, pisco, sake) gets its own mosaic ti
 without code changes. `'none'` is the sentinel for "no base spirit".
 
 ### Cloud AI — Firebase AI Logic, behind a sign-in
-Two AI paths, both augmentations inside an otherwise-manual editor: **fill a
-recipe from pasted text** (in the recipe editor) and **shelf scan** (photos →
-bottles, in the bottle add sheet). Both  call **`src/import/firebaseAI.ts`**,
+Three AI paths, all augmentations inside an otherwise-manual editor: **fill a
+recipe from pasted text** (in the recipe editor), **shelf scan** (photos →
+bottles, in the bottle add sheet), and **cocktail images** (in the recipe
+editor). All pass **`src/import/firebaseAI.ts`**,
 which goes through **Firebase AI Logic** — Google proxies the request and the
 Gemini key lives in the Firebase project, so **no credential ships in this app
 or sits in a user's browser**. The pure part (schemas, prompts, model-JSON →
 `StructuredImport`) lives in
 **`src/import/aiShared.ts`** and is transport-agnostic; a future backend should
 reuse it and only supply a new transport.
+
+Images are a **pic to a fixed canonical scene**. Consistency across the library
+is the whole point, and it comes from `firebaseGenerateImage` *editing* one of
+`src/assets/scenes/` — three base photos (rocks / coupe / highball, chosen by
+`sceneForGlassware`) with identical surface, lighting and backdrop — onto which
+the drink is rendered from its `name`/`spirit`/`method`/`ingredients`/`garnish`
+(`buildImagePrompt`). `Recipe.image` is a data URL (kept that way so backups
+survive) and `imageStatus` guards against double-spending one save. A recipe
+renders its `image` when present, else the designed `spiritVisual` tile —
+picked photos (the "Choose a photo" row) and generated ones both land there.
 
 Three gates, in order — all three must hold before an AI call happens:
 1. `FEATURES.cloudAI` in `src/config.ts` — the **kill switch**, removes every entry point.
