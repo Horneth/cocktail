@@ -95,5 +95,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Tool worktrees (e.g. `.claude/worktrees/*`) live inside the repo and would
+    // otherwise be swept up by the default `**/*.test.*` glob — running their
+    // own node_modules against a mismatched React, and double-counting names.
+    // Anchor the suite to the real source; every test lives under `src/`.
+    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
   },
 })
