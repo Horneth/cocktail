@@ -68,6 +68,23 @@ jobs:
           projectId: cocktails-c2705
           channelId: live
 
+      # functions/.env is gitignored (the root .env rule), so a fresh checkout
+      # would deploy the function without its region/SA pin. Rebuild it here
+      # from repo Variables; empty vars are skipped and the code defaults
+      # (us-central1) apply.
+      - name: Write functions env
+        if: github.event_name != 'pull_request'
+        run: |
+          {
+            [ -n "$IMAGE_FN_REGION" ] && echo "IMAGE_FN_REGION=$IMAGE_FN_REGION"
+            [ -n "$VERTEX_REGION" ] && echo "VERTEX_REGION=$VERTEX_REGION"
+            [ -n "$IMAGE_GEN_SA" ] && echo "IMAGE_GEN_SA=$IMAGE_GEN_SA"
+          } > functions/.env
+        env:
+          IMAGE_FN_REGION: ${{ vars.IMAGE_FN_REGION }}
+          VERTEX_REGION: ${{ vars.VERTEX_REGION }}
+          IMAGE_GEN_SA: ${{ vars.IMAGE_GEN_SA }}
+
       # Functions + storage rules deploy from the same service account the
       # hosting action uses (it is a JSON key). Live channel only: a PR preview
       # must never publish the image-generation function — a preview could

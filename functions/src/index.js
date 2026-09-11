@@ -46,10 +46,10 @@ const MODEL = process.env.IMAGE_GEN_MODEL ?? 'gemini-2.5-flash-image'
 // co-locating cuts latency. The Firestore rate counter is reached from either.
 // (NOT "FUNCTION_REGION" — that name is reserved by the Firebase runtime and
 // rejected from .env files.)
-const FUNCTION_REGION = process.env.IMAGE_FN_REGION ?? 'us-central1'
-const VERTEX_REGION = process.env.VERTEX_REGION ?? 'us-central1'
+const FUNCTION_REGION = process.env.IMAGE_FN_REGION || 'us-central1'
+const VERTEX_REGION = process.env.VERTEX_REGION || 'us-central1'
 /** Generations one user may spend per UTC day. Pool hits never count. */
-const DAILY_LIMIT = Number(process.env.IMAGE_GEN_DAILY_LIMIT ?? 10)
+const DAILY_LIMIT = Number(process.env.IMAGE_GEN_DAILY_LIMIT) || 10
 /**
  * Optional least-privilege runtime service account. Unset → the project's
  * default compute service account (which carries Editor by default). To pin
