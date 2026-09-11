@@ -39,6 +39,25 @@ export const TAG_KEYS = Object.keys(TAGS)
 /** Glyph for a tag, with a generic fallback for user/AI-invented ones. */
 export const tagEmoji = (t: string): string => TAGS[t] ?? '🏷️'
 
+/** Distinct tags across a library, in vocabulary order first (so the filter row
+ * never shuffles), then unknown ones alphabetically. Tags are normalized
+ * lowercase — stored tags may carry arbitrary casing (the editor doesn't
+ * normalize), the AI importer does. */
+export function libraryTags(recipes: { tags: string[] }[]): string[] {
+  const present = new Set(
+    recipes.flatMap((r) => r.tags.map((t) => t.trim().toLowerCase())).filter(Boolean),
+  )
+  const known = TAG_KEYS.filter((t) => present.has(t))
+  const extras = [...present].filter((t) => !TAG_KEYS.includes(t)).sort()
+  return [...known, ...extras]
+}
+
+/** A recipe matches when it carries every selected tag (case-insensitive). */
+export function matchesTags(recipe: { tags: string[] }, selected: readonly string[]): boolean {
+  const own = new Set(recipe.tags.map((t) => t.trim().toLowerCase()))
+  return selected.every((t) => own.has(t.toLowerCase()))
+}
+
 export const METHODS = ['Shake', 'Stir', 'Build', 'Blend', 'Throw', 'Swizzle']
 
 export const GLASSES = [

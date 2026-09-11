@@ -11,6 +11,7 @@ import { convert } from '../domain/units'
 import { newId } from '../domain/ids'
 import { KIND_LABELS } from '../domain/recipeKind'
 import { tileKeyForRecipe } from '../domain/spirits'
+import { tagEmoji } from '../domain/vocab'
 import { spiritVisual } from '../domain/spiritVisual'
 import { mergeRecipes, saveRecipe, setFavorite } from '../import/importRecipe'
 import { useBacklinks, useMixers, useRecipe } from '../hooks/useRecipes'
@@ -309,9 +310,10 @@ export function RecipeDetailScreen() {
         {recipe.tags.length > 0 && (
           <div className={styles.tagChips}>
             {recipe.tags.map((t) => (
-              <span key={t} className={styles.tagChip}>
-                #{t}
-              </span>
+              <Link key={t} className={styles.tagChip} to={`/?tags=${encodeURIComponent(t)}`}>
+                <span aria-hidden>{tagEmoji(t)}</span>
+                {t}
+              </Link>
             ))}
           </div>
         )}

@@ -182,7 +182,7 @@ same list of drinks.
 
 **Search and filters live on the one Recipes screen.** There is exactly one
 live search field in the app, on `RecipesScreen`; `?q`, the spirit chips, the
-tag sheet and the "ready to pour" toggle all narrow that same list. There is no
+tag chips and the "ready to pour" toggle all narrow that same list. There is no
 separate Search or Browse screen to keep in step, because Home, Search and
 Browse were three names for the same list of drinks.
 

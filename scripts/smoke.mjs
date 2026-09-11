@@ -145,6 +145,27 @@ await firstRecipe.click()
 await shot('09-recipe')
 check('recipe detail shows ingredients', (await page.locator('text=/oz|ml/').count()) > 0)
 
+// Tags are a filter, not decoration — and the rules run both ways, like every
+// bottle↔recipe question here: the chip row under the spirit chips narrows the
+// library, and a detail page's tag chips link into that same filter.
+await go('#/')
+const allCount = await page.locator('a[href^="#/recipe/"]').count()
+await page.locator('button', { hasText: 'Sour' }).first().click()
+await page.waitForTimeout(500)
+check(
+  'a tag chip narrows the library',
+  page.url().includes('tags=') && (await page.locator('a[href^="#/recipe/"]').count()) < allCount,
+)
+await go('#/')
+await page.locator('a[href^="#/recipe/"]').first().click()
+const chipTag = (await page.locator('a[href*="tags="]').first().getAttribute('href'))?.match(/tags=([^&]+)/)?.[1]
+await page.locator('a[href*="tags="]').first().click()
+await page.waitForTimeout(500)
+check(
+  'a detail tag chip filters too',
+  !!chipTag && page.url().includes(`tags=${chipTag}`),
+)
+
 // ── Pool references degrade to the spirit tile when the pool can't serve ────
 // The seed classics store `gen:<key>` refs. Whatever the pool answers (here:
 // nothing — the seeder hasn't run against this bucket), every reference must
@@ -207,6 +228,12 @@ check(
 // The bottle is a rum, so it must land under the Rum group rather than "Other" —
 // that is the stored category doing its job.
 check('the new bottle is categorized', (await page.locator('text=/^Rum$/').count()) > 0)
+// Each row's whole visual is the category silhouette: a bottle shape in the
+// category colour on the tinted chip — not a bare square.
+check(
+  'bottle rows carry a silhouette glyph',
+  (await page.locator('button', { hasText: 'Smith & Cross' }).locator('svg').count()) > 0,
+)
 await shot('12-bar-manual-add')
 
 // ── Bottles and recipes point at each other ─────────────────────────────────
