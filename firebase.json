@@ -1,7 +1,11 @@
 {
-  "storage": {
-    "rules": "storage.rules"
-  },
+  "storage": [
+    {
+      "//": "The bucket is declared explicitly: firebase-tools v15 otherwise resolves the project's *default* bucket via an API this project's legacy-provisioned bucket doesn't answer, and the rules deploy fails.",
+      "bucket": "cocktails-c2705.firebasestorage.app",
+      "rules": "storage.rules"
+    }
+  ],
   "functions": {
     "source": "functions"
   },
