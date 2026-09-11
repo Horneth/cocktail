@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/db'
-import { deleteRecipe } from '../import/importRecipe'
+import { deleteRecipe, importRecipe } from '../import/importRecipe'
 import { MIXER_SEEDS, classicSeeds, seedClassics } from './seed'
 import { poolKeyForName } from '../domain/poolKey.mjs'
 import { KNOWN_SPIRITS } from '../domain/spirits'
@@ -105,12 +105,83 @@ describe('seedClassics', () => {
 
   it('only runs once per install (flag set on success)', async () => {
     await seedClassics()
-    localStorage.setItem('cocktail.seedClassics', '1')
+    localStorage.setItem('cocktail.seedClassics.v2', '1')
     await deleteRecipe((await db.recipes.toArray())[0].id)
     const count = await db.recipes.count()
 
     await seedClassics()
 
     expect(await db.recipes.count()).toBe(count)
+  })
+
+  it('repairs retired seed images with pool references', async () => {
+    await importRecipe({
+      main: {
+        tempId: 'old-daiquiri',
+        kind: 'cocktail',
+        name: 'Daiquiri',
+        measureBasis: 'absolute',
+        baseServings: 1,
+        ingredients: [{ name: 'White rum', amount: 2, unit: 'oz' }],
+        image: 'https://firebasestorage.googleapis.com/v0/b/bkt/o/cocktails%2Fdaiquiri.webp?alt=media&token=x',
+      },
+    })
+
+    await seedClassics()
+
+    const daiquiri = (await db.recipes.toArray()).find((r) => r.name === 'Daiquiri')!
+    expect(daiquiri.image).toBe('gen:daiquiri')
+    expect(daiquiri.imageStatus).toBe('done')
+  })
+
+  it('leaves user uploads and pool refs alone during repair', async () => {
+    await importRecipe({
+      main: {
+        tempId: 'user-daiquiri',
+        kind: 'cocktail',
+        name: 'Daiquiri',
+        measureBasis: 'absolute',
+        baseServings: 1,
+        ingredients: [{ name: 'White rum', amount: 2, unit: 'oz' }],
+        image: 'data:image/jpeg;base64,QUJD',
+      },
+    })
+
+    await seedClassics()
+
+    const daiquiri = (await db.recipes.toArray()).find((r) => r.name === 'Daiquiri')!
+    expect(daiquiri.image).toBe('data:image/jpeg;base64,QUJD')
+  })
+
+  it('repairs the inline-SVG placeholder era and bundled-path era too', async () => {
+    await importRecipe({
+      main: {
+        tempId: 'svg-margarita',
+        kind: 'cocktail',
+        name: 'Margarita',
+        measureBasis: 'absolute',
+        baseServings: 1,
+        ingredients: [{ name: 'Blanco tequila', amount: 2, unit: 'oz' }],
+        image: 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%3E%3C%2Fsvg%3E',
+      },
+    })
+    await importRecipe({
+      main: {
+        tempId: 'bundle-mojito',
+        kind: 'cocktail',
+        name: 'Mojito',
+        measureBasis: 'absolute',
+        baseServings: 1,
+        ingredients: [{ name: 'White rum', amount: 1.5, unit: 'oz' }],
+        image: '/images/cocktails/mojito.webp',
+      },
+    })
+
+    await seedClassics()
+
+    const rows = await db.recipes.toArray()
+    const byName = new Map(rows.map((r) => [r.name, r]))
+    expect(byName.get('Margarita')!.image).toBe('gen:margarita')
+    expect(byName.get('Mojito')!.image).toBe('gen:mojito')
   })
 })

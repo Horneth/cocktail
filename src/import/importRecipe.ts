@@ -109,6 +109,37 @@ export async function markImageFailed(recipeId: string): Promise<void> {
 }
 
 /**
+ * Images that predate the pool: the bundled catalog era stored resolved
+ * Storage/bundle URLs (now deleted — the pool replaced them) and the original
+ * seed era stored inline SVG placeholders. Both are seed-authored, never user
+ * photos (uploads are JPEG/PNG data URLs), so the upgrade seed swaps them for
+ * pool references.
+ */
+export function isRetiredSeedImage(image: string | undefined | null): boolean {
+  return Boolean(
+    image &&
+      (image.startsWith('data:image/svg') ||
+        image.includes('/cocktails/') ||
+        image.includes('/cocktails%2F') ||
+        image.includes('/images/cocktails/')),
+  )
+}
+
+/** Swap a retired seed image for its pool reference. Returns whether it did. */
+export async function repairRetiredImage(recipeId: string, ref: string): Promise<boolean> {
+  if (!ref.startsWith('gen:')) throw new Error('Not a pool reference.')
+  let replaced = false
+  await db.transaction('rw', db.recipes, async () => {
+    const recipe = await db.recipes.get(recipeId)
+    // A user-uploaded photo or an existing pool ref is never overwritten.
+    if (!recipe || !isRetiredSeedImage(recipe.image)) return
+    await db.recipes.update(recipeId, { image: ref, imageStatus: 'done' })
+    replaced = true
+  })
+  return replaced
+}
+
+/**
  * Delete a recipe. If other recipes referenced it, those parents keep the
  * ingredient but lose the (now-dangling) link, so nothing points at a deleted
  * record.

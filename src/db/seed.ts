@@ -1,4 +1,4 @@
-import { importRecipe } from '../import/importRecipe'
+import { importRecipe, repairRetiredImage } from '../import/importRecipe'
 import type { IngredientDraft, StructuredImport } from '../import/types'
 import type { RecipeSource } from './schema'
 import { genRefFor } from '../domain/imagePool'
@@ -393,12 +393,18 @@ export function classicSeeds(simpleSyrupId: string, orgeatId: string): Structure
  * one-time flag is set on success, a classic the user deleted afterwards
  * stays deleted. Per-name skips make a partial run (a failed import, a
  * crashed boot) resume where it stopped.
+ *
+ * Also a repair pass: classics that predate the pool carry retired seed
+ * images (catalog-era URLs whose files are gone, or inline SVG placeholders).
+ * Those swap for pool references — user uploads never match the retired
+ * patterns and stay untouched.
  */
 export async function seedClassics(): Promise<void> {
-  const FLAG = 'cocktail.seedClassics'
+  const FLAG = 'cocktail.seedClassics.v2'
   if (localStorage.getItem(FLAG)) return
 
-  const have = new Set((await db.recipes.toArray()).map((r) => r.name))
+  const rows = await db.recipes.toArray()
+  const have = new Set(rows.map((r) => r.name))
 
   // Mixers first: the cocktails cross-link them by id, and links only resolve
   // if the target already exists.
@@ -407,7 +413,6 @@ export async function seedClassics(): Promise<void> {
   if (!have.has('Simple Syrup')) simpleSyrupId = await importRecipe(simpleSyrup)
   if (!have.has('Orgeat')) orgeatId = await importRecipe(orgeat)
   if (!simpleSyrupId || !orgeatId) {
-    const rows = await db.recipes.toArray()
     simpleSyrupId ??= rows.find((r) => r.kind === 'syrup' && r.name === 'Simple Syrup')?.id
     orgeatId ??= rows.find((r) => r.kind === 'syrup' && r.name === 'Orgeat')?.id
   }
@@ -417,5 +422,14 @@ export async function seedClassics(): Promise<void> {
     if (have.has(seed.main.name)) continue
     await importRecipe(seed)
   }
+
+  // Repair: classics that already exist but predate the pool get their retired
+  // seed images swapped for the pool reference their name now maps to.
+  const refOf = new Map(classicSeeds(simpleSyrupId, orgeatId).map((s) => [s.main.name, s.main.image]))
+  for (const row of rows) {
+    const ref = refOf.get(row.name)
+    if (ref && row.image) await repairRetiredImage(row.id, ref)
+  }
+
   localStorage.setItem(FLAG, '1')
 }

@@ -83,14 +83,17 @@ export default defineConfig({
             },
           },
           // Generated cocktail photos live only in Firebase Storage (the pool
-          // is content-addressed by drink name). Cached on first view so they
-          // render offline afterwards; not precached — entries exist per
-          // generated drink and the app must install light.
+          // is content-addressed by drink name). StaleWhileRevalidate, not
+          // CacheFirst: <img> loads are no-cors, so a missing pool entry and a
+          // real photo are indistinguishable opaque status-0 responses —
+          // CacheFirst would pin a 404 for a year (and did). SWR serves the
+          // cached copy when there is one and self-heals when there isn't.
+          // Cache name is versioned: v1 held the poisoned 404s.
           {
             urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*\/generated\/.*/i,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'cocktail-images-pool',
+              cacheName: 'cocktail-images-pool-v2',
               expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
             },
