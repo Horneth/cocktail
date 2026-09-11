@@ -195,6 +195,39 @@ const onSave = async () => {
     return true
   }
 
+  /**
+   * Generate a pool photo on demand, from the photo sheet. Form-state only —
+   * nothing touches the DB until the recipe is saved, so this works for an
+   * unsaved new recipe just as for an existing one. The `pending` status is
+   * the same guard as the save path: an upload landing while we're in flight
+   * wins, and a removed request voids the result.
+   */
+  const generateImageNow = async () => {
+    if (!form || form.image || form.imageStatus === 'pending') return
+    if (!form.name.trim() || form.kind !== 'cocktail') return
+    update({ image: undefined, imageStatus: 'pending' })
+    try {
+      const { firebaseGenerateImage } = await import('../import/imageGen')
+      const { key } = await firebaseGenerateImage({
+        name: form.name,
+        glass: form.glassware,
+        garnish: form.garnish,
+        spirit: form.spirit,
+        ingredients: form.ingredients
+          .map((i) => i.name.trim())
+          .filter(Boolean)
+          .slice(0, 8),
+      })
+      setForm((f) =>
+        f && f.imageStatus === 'pending' && !f.image
+          ? { ...f, image: `${GEN_PREFIX}${key}`, imageStatus: 'done' }
+          : f,
+      )
+    } catch {
+      setForm((f) => (f && f.imageStatus === 'pending' ? { ...f, imageStatus: 'failed' } : f))
+    }
+  }
+
   const onDelete = async () => {
     if (!confirm(`Delete “${form.name}”? This can't be undone.`)) return
     await deleteRecipe(form.id)
@@ -602,6 +635,8 @@ const onSave = async () => {
         form={form}
         imageBusy={imageBusy}
         imageError={imageError}
+        auth={auth}
+        onGenerate={() => void generateImageNow()}
         onPickFile={(file) => void onPickImage(file)}
         onRemove={() => update({ image: undefined, imageStatus: undefined })}
       />
@@ -751,24 +786,30 @@ interface PhotoPickerProps {
   form: Recipe
   imageBusy: boolean
   imageError: string | null
+  auth: ReturnType<typeof useAuth>
+  onGenerate: () => void
   onPickFile: (file: File | undefined) => void
   onRemove: () => void
 }
 
 /**
  * The one place a recipe photo is managed: the current photo (pool shot or
- * your own upload), swap it, or remove it. Choosing an image is never a step
- * in the save path — generation (Phase B) attaches automatically; this only
- * overrides.
+ * your own upload), swap it, or remove it. Image-less cocktails can also
+ * generate their pool shot right here — that's the same engine the save path
+ * uses, offered explicitly for recipes that predate it.
  */
-function PhotoPicker({ open, onClose, form, imageBusy, imageError, onPickFile, onRemove }: PhotoPickerProps) {
+function PhotoPicker({ open, onClose, form, imageBusy, imageError, auth, onGenerate, onPickFile, onRemove }: PhotoPickerProps) {
+  const canOfferGenerate =
+    form.kind === 'cocktail' && !form.image && FEATURES.cloudAI && isCloudAIConfigured() && !!form.name.trim()
+  const generating = form.imageStatus === 'pending'
+
   return (
     <BottomSheet open={open} onClose={onClose} draggable>
       <div className={styles.sheetHead}>
         <h2 className={styles.sheetHeadTitle}>Photo</h2>
       </div>
 
-      {(form.image || form.imageStatus === 'pending') && (
+      {(form.image || generating) && (
         <>
           <RecipeImage
             image={form.image}
@@ -776,13 +817,25 @@ function PhotoPicker({ open, onClose, form, imageBusy, imageError, onPickFile, o
             sizes="(min-width: 440px) 440px, 100vw"
             className={styles.photoPreview}
             alt={form.name || 'Recipe photo'}
-            generating={form.imageStatus === 'pending'}
+            generating={generating}
             fallback={<div className={styles.photoPreview} />}
           />
           <button className={styles.photoRemoveBtn} onClick={onRemove}>
             <TrashIcon size={16} /> Remove photo
           </button>
         </>
+      )}
+
+      {canOfferGenerate && !auth.aiAvailable && (
+        <button className={styles.pasteSignIn} onClick={() => void auth.signIn()}>
+          <SparkleIcon size={16} /> Sign in to generate a photo
+        </button>
+      )}
+      {canOfferGenerate && auth.aiAvailable && (
+        <button className={styles.photoGenerate} disabled={generating} onClick={onGenerate}>
+          <SparkleIcon size={16} />
+          {generating ? 'Generating…' : 'Generate a photo'}
+        </button>
       )}
 
       <label className={styles.photoUpload}>

@@ -64,6 +64,9 @@
 .photoPreview { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:16px; border:1px solid var(--line); background:var(--photo-empty); }
 .photoRemoveBtn { display:flex; align-items:center; gap:8px; align-self:flex-start; margin-top:10px; padding:9px 13px; border-radius:var(--radius-pill); background:var(--paper); border:1px solid var(--line); color:var(--danger); font-size:13px; font-weight:700; }
 .photoUpload { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; padding:14px; border:1px dashed var(--line); border-radius:var(--radius-sm); background:var(--card); color:var(--accent); font-size:14px; font-weight:800; cursor:pointer; }
+.photoGenerate { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; padding:14px; border:0; border-radius:var(--radius-sm); background:var(--accent-grad); box-shadow:var(--shadow-accent); color:#fff; font-size:14px; font-weight:800; cursor:pointer; }
+.photoGenerate:disabled { opacity:.6; cursor:default; }
+.photoGenerate + .photoUpload, .pasteSignIn + .photoUpload { margin-top:10px; }
 .imageError { margin:8px 0 0; color:var(--missing-fg); font-size:12.5px; font-weight:600; }
 
 /* ── Paste sheet ─────────────────────────────────────────────────── */
