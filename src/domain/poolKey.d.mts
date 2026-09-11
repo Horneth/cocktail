@@ -13,6 +13,7 @@ export type PoolSizeName = 'thumb' | 'card' | 'full'
 export declare const POOL_V: string
 export declare const POOL_SIZES: Record<PoolSizeName, PoolSizeSpec>
 export declare const MAX_NAME: number
+export declare const MAX_INGREDIENTS: number
 
 export declare function slugifyPoolKey(name: string): string
 export declare function poolKeyForName(name: string): string

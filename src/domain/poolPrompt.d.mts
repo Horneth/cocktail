@@ -10,6 +10,8 @@ export interface DrinkSpec {
   glass?: string
   garnish?: string
   spirit?: string
+  /** key ingredient names — the drink's colour follows from these */
+  ingredients?: string[]
 }
 
 export declare function buildImagePrompt(spec: DrinkSpec): string

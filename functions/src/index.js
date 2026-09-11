@@ -31,8 +31,9 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { GoogleAuth } from 'google-auth-library'
 import sharp from 'sharp'
-import { MAX_NAME, poolKeyForName, poolPath, sanitizeDrinkName } from '../shared/poolKey.mjs'
+import { MAX_INGREDIENTS, MAX_NAME, poolKeyForName, poolPath, sanitizeDrinkName } from '../shared/poolKey.mjs'
 import { buildImagePrompt } from '../shared/poolPrompt.mjs'
+import { CURATED_KEYS } from '../shared/curatedKeys.mjs'
 
 initializeApp()
 
@@ -81,6 +82,15 @@ function validateInput(data) {
     glass: str(data?.glass, LONG_FIELD, 'glass'),
     garnish: str(data?.garnish, LONG_FIELD, 'garnish'),
     spirit: str(data?.spirit, LONG_FIELD, 'spirit'),
+    // Ingredient names are the colour signal — capped count and length like
+    // every other field, sanitized one by one.
+    ingredients: Array.isArray(data?.ingredients)
+      ? data.ingredients
+          .filter((v) => typeof v === 'string')
+          .slice(0, MAX_INGREDIENTS)
+          .map((v) => sanitizeDrinkName(v))
+          .filter(Boolean)
+      : undefined,
   }
 }
 
@@ -186,6 +196,16 @@ export const generateImage = onCall(
     // Pool hit: the drink already has an image everyone shares. Free.
     const have = await Promise.all(Object.values(paths).map((p) => fileExists(bucket, p)))
     if (have.every(Boolean)) return { key, cached: true }
+
+    // Curated classics are seeder-only. The first person to add a classic must
+    // never dictate the image everyone else shares; the seeder publishes their
+    // shot (`npm run images`), and until then the app falls back to the tile.
+    if (CURATED_KEYS.has(key)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This classic pool image is curated — it will appear when published.',
+      )
+    }
 
     await enforceRateLimit(req.auth.uid)
 

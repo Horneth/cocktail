@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
     "images": "node scripts/generate-images.mjs",
+    "images:sync-keys": "node scripts/sync-curated-keys.mjs",
     "images:verify": "node scripts/verify-vertex.mjs"
   },
   "dependencies": {

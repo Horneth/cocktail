@@ -95,9 +95,10 @@ export async function attachGeneratedImage(recipeId: string, ref: string): Promi
   if (!ref.startsWith('gen:')) throw new Error('Not a pool reference.')
   await db.transaction('rw', db.recipes, async () => {
     const recipe = await db.recipes.get(recipeId)
-    // The user may have uploaded their own photo while the pool shot was in
-    // flight — theirs wins.
-    if (!recipe || recipe.image) return
+    // The user may have uploaded their own photo — theirs wins — or removed
+    // the pending request entirely. Attaching is sanctioned only by the
+    // `pending` guard the save wrote; anything else means don't.
+    if (!recipe || recipe.image || recipe.imageStatus !== 'pending') return
     await db.recipes.update(recipeId, { image: ref, imageStatus: 'done' })
   })
 }

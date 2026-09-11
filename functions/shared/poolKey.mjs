@@ -28,6 +28,9 @@ export const POOL_SIZES = {
 /** Hard cap on how much of a drink name the generator may ever see. */
 export const MAX_NAME = 80
 
+/** How many ingredient names one generation request may carry. */
+export const MAX_INGREDIENTS = 8
+
 /**
  * Content-addressed pool key for a drink name: case-, punctuation- and
  * diacritic-insensitive, stable, filesystem-safe. '' when nothing usable

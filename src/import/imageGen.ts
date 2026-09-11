@@ -1,7 +1,7 @@
 import { FEATURES, functionsRegion, isCloudAIConfigured } from '../config'
 import { ensureFirebaseApp } from '../auth/firebase'
 import { logAiCall } from '../auth/analytics'
-import { MAX_NAME, poolKeyForName, sanitizeDrinkName } from '../domain/poolKey.mjs'
+import { MAX_INGREDIENTS, MAX_NAME, poolKeyForName, sanitizeDrinkName } from '../domain/poolKey.mjs'
 import { CloudAIError, friendlyError } from './firebaseAI'
 
 // Client transport for the image pool's Cloud Function (`generateImage`).
@@ -22,6 +22,8 @@ export interface GenerateImageSpec {
   glass?: string
   garnish?: string
   spirit?: string
+  /** key ingredient names — the colour signal */
+  ingredients?: string[]
 }
 
 export interface GenerateImageResult {
@@ -60,6 +62,13 @@ export async function firebaseGenerateImage(spec: GenerateImageSpec): Promise<Ge
       glass: spec.glass ? sanitizeDrinkName(spec.glass).slice(0, 60) : undefined,
       garnish: spec.garnish ? sanitizeDrinkName(spec.garnish).slice(0, 60) : undefined,
       spirit: spec.spirit ? sanitizeDrinkName(spec.spirit).slice(0, 60) : undefined,
+      ingredients: spec.ingredients
+        ? spec.ingredients
+            .filter((v) => typeof v === 'string' && v.trim())
+            .slice(0, MAX_INGREDIENTS)
+            .map((v) => sanitizeDrinkName(v))
+            .filter(Boolean)
+        : undefined,
     })
     data = res.data
   } catch (err) {

@@ -171,6 +171,12 @@ const onSave = async () => {
         glass: recipe.glassware,
         garnish: recipe.garnish,
         spirit: recipe.spirit,
+        // Ingredients are the colour signal — Campari is what makes a Paper
+        // Plane red. Names only, the strongest few.
+        ingredients: recipe.ingredients
+          .map((i) => i.name.trim())
+          .filter(Boolean)
+          .slice(0, 8),
       })
       await attachGeneratedImage(recipe.id, `${GEN_PREFIX}${key}`)
     } catch {
@@ -364,6 +370,7 @@ const onSave = async () => {
               size="thumb"
               sizes="54px"
               className={styles.photoThumbImg}
+              generating={form.imageStatus === 'pending'}
               fallback={<UploadIcon size={18} />}
             />
           </button>
@@ -761,7 +768,7 @@ function PhotoPicker({ open, onClose, form, imageBusy, imageError, onPickFile, o
         <h2 className={styles.sheetHeadTitle}>Photo</h2>
       </div>
 
-      {form.image && (
+      {(form.image || form.imageStatus === 'pending') && (
         <>
           <RecipeImage
             image={form.image}
@@ -769,6 +776,7 @@ function PhotoPicker({ open, onClose, form, imageBusy, imageError, onPickFile, o
             sizes="(min-width: 440px) 440px, 100vw"
             className={styles.photoPreview}
             alt={form.name || 'Recipe photo'}
+            generating={form.imageStatus === 'pending'}
             fallback={<div className={styles.photoPreview} />}
           />
           <button className={styles.photoRemoveBtn} onClick={onRemove}>

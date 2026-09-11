@@ -239,6 +239,18 @@ describe('attachGeneratedImage / markImageFailed', () => {
     expect((await db.recipes.get(id))!.image).toBe('data:image/webp;base64,QUJD')
   })
 
+  it('does not attach after the user removed the pending request', async () => {
+    const id = await importRecipe(cocktail('Paper Plane', 'syrup'))
+    await saveRecipe({ ...(await db.recipes.get(id))!, imageStatus: 'pending' })
+    await db.recipes.update(id, { imageStatus: 'none' })
+
+    await attachGeneratedImage(id, 'gen:paper-plane')
+
+    const saved = await db.recipes.get(id)
+    expect(saved!.image).toBeUndefined()
+    expect(saved!.imageStatus).toBe('none')
+  })
+
   it('refuses a value that is not a pool reference', async () => {
     const id = await importRecipe(cocktail('Paper Plane', 'syrup'))
     await expect(attachGeneratedImage(id, 'https://example.com/x.webp')).rejects.toThrow(/pool/)

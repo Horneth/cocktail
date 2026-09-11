@@ -166,13 +166,14 @@ export function RecipeDetailScreen() {
   return (
     <div className={styles.screen}>
       <div className={styles.hero} style={{ background: `linear-gradient(180deg, ${v.tint}, var(--paper))` }}>
-        {recipe.image ? (
+        {recipe.image || recipe.imageStatus === 'pending' ? (
           <RecipeImage
             image={recipe.image}
             size="full"
             sizes="(min-width: 440px) 440px, 100vw"
             className={styles.heroImage}
             alt={recipe.name}
+            generating={recipe.imageStatus === 'pending'}
             fallback={null}
           />
         ) : null}

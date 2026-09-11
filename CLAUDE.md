@@ -376,10 +376,14 @@ generated on demand by the **`generateImage` callable** in `functions/`
 (Vertex AI with the function's service account — image gen isn't supported in
 template-only mode): **auto-attached at save** to every image-less cocktail a
 signed-in user saves (`wantsGeneratedImage` in `EditRecipeScreen`, the
-`imageStatus: 'pending'` guard prevents double spends), with a per-user daily
-rate limit in Firestore that fails closed, and a pool hit before it — the
-prompt stays **entirely server-side**: the client sends a drink name and
-receives a key, never a prompt. Setup and knobs:
+`imageStatus: 'pending'` guard prevents double spends and a late remove
+voids it), with a per-user daily rate limit in Firestore that fails closed,
+a pool hit before it, and ingredient names riding along as the colour signal
+(Campari is what makes a Paper Plane red). Curated classics
+(`scripts/classics.json`) are **seeder-only** — on-demand generation refuses
+their keys so the first comer never dictates the look; the prompt stays
+**entirely server-side**: the client sends a drink name and receives a key,
+never a prompt. Setup and knobs:
 **docs/cloud-ai-backend.md → "The image pool"**.
 
 Three gates, in order — all three must hold before an AI call happens:

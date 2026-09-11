@@ -10,7 +10,7 @@
 // (see poolKey.mjs) and is embedded as a quoted DATA line; everything the
 // model renders is decided by the fixed STYLE below.
 
-import { sanitizeDrinkName } from './poolKey.mjs'
+import { MAX_INGREDIENTS, sanitizeDrinkName } from './poolKey.mjs'
 
 export const IMAGE_MODEL = 'gemini-3.1-flash-image'
 
@@ -26,6 +26,9 @@ props, no brand names, no people. Vertical 3:4 composition.`
  * @property {string} [glass] - glass name like "coupe", "rocks glass", "highball"
  * @property {string} [garnish]
  * @property {string} [spirit]
+ * @property {string[]} [ingredients] - key ingredient names; the drink's COLOUR
+ *   comes from what's in the glass (Campari = red), so these are the strongest
+ *   appearance signal the model gets. Sanitized + capped by the caller.
  */
 
 /**
@@ -41,12 +44,18 @@ export function buildImagePrompt(spec) {
   const glass = sanitizeDrinkName(spec.glass ?? '')
   const garnish = sanitizeDrinkName(spec.garnish ?? '')
   const spirit = sanitizeDrinkName(spec.spirit ?? '')
+  const ingredients = (spec.ingredients ?? [])
+    .map(sanitizeDrinkName)
+    .filter(Boolean)
+    .slice(0, MAX_INGREDIENTS)
   const look = [
     `The drink is called "${name}".`,
     glass && `Serve it in a ${glass}.`,
     spirit && `Base spirit: ${spirit}.`,
+    ingredients.length && `Ingredients: ${ingredients.join(', ')}.`,
     garnish && `Garnish: ${garnish}.`,
-    'Match the drink as it is actually made: its colour, opacity, ice and garnish.',
+    'Match the drink as it is actually made: its colour, opacity, ice and garnish must' +
+      ' follow from those ingredients.',
   ]
     .filter(Boolean)
     .join(' ')

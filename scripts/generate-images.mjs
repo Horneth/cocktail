@@ -143,6 +143,8 @@ for (const spec of targets) {
       glass: spec.glass,
       garnish: spec.garnish,
       spirit: spec.spirit,
+      // Ingredients are the strongest colour signal (Campari = red).
+      ingredients: spec.ingredients,
     })
     const raw = await generateFullImage(prompt)
     const sizes = await deriveSizes(raw)

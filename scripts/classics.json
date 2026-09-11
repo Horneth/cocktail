@@ -1,102 +1,785 @@
 [
-  { "name": "Americano", "glass": "highball", "garnish": "orange half-wheel", "spirit": "aperitivo" },
-  { "name": "Aviation", "glass": "coupe", "garnish": "brandied cherry", "spirit": "gin" },
-  { "name": "Bee's Knees", "glass": "coupe", "garnish": "lemon twist", "spirit": "gin" },
-  { "name": "Bellini", "glass": "flute", "garnish": "none", "spirit": "prosecco" },
-  { "name": "Between the Sheets", "glass": "coupe", "garnish": "lemon twist", "spirit": "brandy" },
-  { "name": "Boulevardier", "glass": "rocks", "garnish": "orange twist", "spirit": "whiskey" },
-  { "name": "Clover Club", "glass": "coupe", "garnish": "none", "spirit": "gin" },
-  { "name": "Daiquiri", "glass": "coupe", "garnish": "lime wheel", "spirit": "rum" },
-  { "name": "Dry Martini", "glass": "martini", "garnish": "olive", "spirit": "gin" },
-  { "name": "Dirty Martini", "glass": "martini", "garnish": "olives", "spirit": "gin" },
-  { "name": "Gin Fizz", "glass": "highball", "garnish": "lemon twist", "spirit": "gin" },
-  { "name": "Manhattan", "glass": "nick and nora", "garnish": "brandied cherry", "spirit": "whiskey" },
-  { "name": "Martinez", "glass": "coupe", "garnish": "lemon twist", "spirit": "gin" },
-  { "name": "Negroni", "glass": "rocks", "garnish": "orange peel", "spirit": "gin" },
-  { "name": "Old Fashioned", "glass": "rocks", "garnish": "orange peel", "spirit": "whiskey" },
-  { "name": "Sazerac", "glass": "rocks", "garnish": "lemon peel", "spirit": "rye whiskey" },
-  { "name": "Sidecar", "glass": "coupe", "garnish": "sugar rim, orange peel", "spirit": "brandy" },
-  { "name": "Whiskey Sour", "glass": "rocks", "garnish": "cherry and orange", "spirit": "bourbon" },
-  { "name": "White Lady", "glass": "coupe", "garnish": "lemon twist", "spirit": "gin" },
-  { "name": "Margarita", "glass": "rocks", "garnish": "salt rim, lime wheel", "spirit": "tequila" },
-  { "name": "Mojito", "glass": "highball", "garnish": "mint sprig", "spirit": "rum" },
-  { "name": "Moscow Mule", "glass": "copper mug", "garnish": "lime wedge", "spirit": "vodka" },
-  { "name": "Mint Julep", "glass": "julep cup", "garnish": "mint bouquet", "spirit": "bourbon" },
-  { "name": "Mimosa", "glass": "flute", "garnish": "none", "spirit": "champagne" },
-  { "name": "Aperol Spritz", "glass": "wine glass", "garnish": "orange slice", "spirit": "aperitivo" },
-  { "name": "Negroni Sbagliato", "glass": "rocks", "garnish": "orange twist", "spirit": "campari" },
-  { "name": "Cosmopolitan", "glass": "martini", "garnish": "orange twist", "spirit": "vodka" },
-  { "name": "Caipirinha", "glass": "rocks", "garnish": "lime wedge", "spirit": "cachaça" },
-  { "name": "White Russian", "glass": "rocks", "garnish": "none", "spirit": "vodka" },
-  { "name": "Black Russian", "glass": "rocks", "garnish": "lemon twist", "spirit": "vodka" },
-  { "name": "Screwdriver", "glass": "highball", "garnish": "orange slice", "spirit": "vodka" },
-  { "name": "Bloody Mary", "glass": "highball", "garnish": "celery stalk", "spirit": "vodka" },
-  { "name": "Amaretto Sour", "glass": "rocks", "garnish": "orange and cherry", "spirit": "amaretto" },
-  { "name": "Southside", "glass": "coupe", "garnish": "mint leaf", "spirit": "gin" },
-  { "name": "Gimlet", "glass": "coupe", "garnish": "lime wheel", "spirit": "gin" },
-  { "name": "Corpse Reviver No. 2", "glass": "coupe", "garnish": "lemon twist", "spirit": "gin" },
-  { "name": "Last Word", "glass": "coupe", "garnish": "none", "spirit": "gin" },
-  { "name": "Paper Plane", "glass": "coupe", "garnish": "none", "spirit": "bourbon" },
-  { "name": "Penicillin", "glass": "rocks", "garnish": "candied ginger", "spirit": "blended scotch" },
-  { "name": "Gold Rush", "glass": "rocks", "garnish": "lemon twist", "spirit": "bourbon" },
-  { "name": "Oaxaca Old Fashioned", "glass": "rocks", "garnish": "orange peel", "spirit": "tequila" },
-  { "name": "Espresso Martini", "glass": "martini", "garnish": "coffee beans", "spirit": "vodka" },
-  { "name": "French 75", "glass": "flute", "garnish": "lemon twist", "spirit": "gin" },
-  { "name": "French Martini", "glass": "martini", "garnish": "raspberry", "spirit": "vodka" },
-  { "name": "Irish Coffee", "glass": "glass mug", "garnish": "cream float", "spirit": "irish whiskey" },
-  { "name": "Lemon Drop Martini", "glass": "martini", "garnish": "sugar rim, lemon twist", "spirit": "vodka" },
-  { "name": "Long Island Iced Tea", "glass": "highball", "garnish": "lemon wedge", "spirit": "vodka" },
-  { "name": "Mai Tai", "glass": "rocks", "garnish": "mint sprig, lime shell", "spirit": "rum" },
-  { "name": "Piña Colada", "glass": "hurricane", "garnish": "pineapple wedge, cherry", "spirit": "rum" },
-  { "name": "Sea Breeze", "glass": "highball", "garnish": "lime wedge", "spirit": "vodka" },
-  { "name": "Sex on the Beach", "glass": "highball", "garnish": "orange slice", "spirit": "vodka" },
-  { "name": "Singapore Sling", "glass": "highball", "garnish": "pineapple and cherry", "spirit": "gin" },
-  { "name": "Tequila Sunrise", "glass": "highball", "garnish": "orange slice", "spirit": "tequila" },
-  { "name": "Ti' Punch", "glass": "rocks", "garnish": "lime disc", "spirit": "rhum agricole" },
-  { "name": "Tommy's Margarita", "glass": "rocks", "garnish": "lime wedge", "spirit": "tequila" },
-  { "name": "Vesper", "glass": "martini", "garnish": "lemon peel", "spirit": "gin" },
-  { "name": "Zombie", "glass": "tiki mug", "garnish": "mint sprig", "spirit": "rum" },
-  { "name": "Yellow Bird", "glass": "hurricane", "garnish": "lime wheel, cherry", "spirit": "rum" },
-  { "name": "Painkiller", "glass": "rocks", "garnish": "nutmeg, pineapple", "spirit": "rum" },
-  { "name": "Jungle Bird", "glass": "rocks", "garnish": "pineapple frond", "spirit": "rum" },
-  { "name": "Blue Hawaii", "glass": "hurricane", "garnish": "pineapple wedge", "spirit": "rum" },
-  { "name": "Blue Lagoon", "glass": "highball", "garnish": "lemon slice, cherry", "spirit": "vodka" },
-  { "name": "El Diablo", "glass": "highball", "garnish": "lime wheel", "spirit": "tequila" },
-  { "name": "Paloma", "glass": "highball", "garnish": "lime wedge, salt rim", "spirit": "tequila" },
-  { "name": "Ranch Water", "glass": "highball", "garnish": "lime wedge", "spirit": "tequila" },
-  { "name": "Frozen Margarita", "glass": "frozen glass", "garnish": "salt rim, lime", "spirit": "tequila" },
-  { "name": "Frozen Daiquiri", "glass": "frozen glass", "garnish": "lime wheel", "spirit": "rum" },
-  { "name": "Strawberry Daiquiri", "glass": "coupe", "garnish": "strawberry", "spirit": "rum" },
-  { "name": "Banana Daiquiri", "glass": "coupe", "garnish": "banana slice", "spirit": "rum" },
-  { "name": "Hemingway Daiquiri", "glass": "coupe", "garnish": "none", "spirit": "white rum" },
-  { "name": "Godfather", "glass": "rocks", "garnish": "orange peel", "spirit": "scotch" },
-  { "name": "Godmother", "glass": "rocks", "garnish": "none", "spirit": "vodka" },
-  { "name": "Rusty Nail", "glass": "rocks", "garnish": "lemon twist", "spirit": "scotch" },
-  { "name": "Dark 'n' Stormy", "glass": "highball", "garnish": "lime wedge", "spirit": "dark rum" },
-  { "name": "Gin and Tonic", "glass": "highball", "garnish": "lime wedge", "spirit": "gin" },
-  { "name": "Fuzzy Navel", "glass": "highball", "garnish": "orange slice", "spirit": "peach schnapps" },
-  { "name": "Harvey Wallbanger", "glass": "highball", "garnish": "orange slice, cherry", "spirit": "vodka" },
-  { "name": "Kamikaze", "glass": "martini", "garnish": "lime wedge", "spirit": "vodka" },
-  { "name": "Hurricane", "glass": "hurricane", "garnish": "orange wheel, cherry", "spirit": "rum" },
-  { "name": "Singapore Gin Sling", "glass": "highball", "garnish": "pineapple, cherry", "spirit": "gin" },
-  { "name": "Tom Collins", "glass": "collins", "garnish": "cherry and orange", "spirit": "gin" },
-  { "name": "John Collins", "glass": "collins", "garnish": "cherry and orange", "spirit": "bourbon" },
-  { "name": "Airmail", "glass": "flute", "garnish": "lime twist", "spirit": "rum" },
-  { "name": "Bamboo", "glass": "coupe", "garnish": "lemon twist", "spirit": "sherry" },
-  { "name": "Adonis", "glass": "coupe", "garnish": "orange peel", "spirit": "sherry" },
-  { "name": "Army and Navy", "glass": "coupe", "garnish": "lemon twist", "spirit": "gin" },
-  { "name": "Casino", "glass": "martini", "garnish": "cherry, lemon twist", "spirit": "gin" },
-  { "name": "Paradise", "glass": "coupe", "garnish": "none", "spirit": "gin" },
-  { "name": "Planter's Punch", "glass": "highball", "garnish": "orange, pineapple, cherry", "spirit": "dark rum" },
-  { "name": "American Beauty", "glass": "coupe", "garnish": "none", "spirit": "brandy" },
-  { "name": "Blood and Sand", "glass": "coupe", "garnish": "orange peel", "spirit": "scotch" },
-  { "name": "Brooklyn", "glass": "martini", "garnish": "lemon twist", "spirit": "rye whiskey" },
-  { "name": "Vieux Carre", "glass": "rocks", "garnish": "lemon twist", "spirit": "rye whiskey" },
-  { "name": "Bramble", "glass": "rocks", "garnish": "lemon slice, berries", "spirit": "gin" },
-  { "name": "Canchanchara", "glass": "rocks", "garnish": "lime wedge", "spirit": "rum" },
-  { "name": "Bee Sting", "glass": "coupe", "garnish": "none", "spirit": "tequila" },
-  { "name": "Sgroppino", "glass": "flute", "garnish": "none", "spirit": "lemon sorbet" },
-  { "name": "White Negroni", "glass": "rocks", "garnish": "grapefruit twist", "spirit": "gin" },
-  { "name": "Honeymoon", "glass": "coupe", "garnish": "lemon twist", "spirit": "applejack" },
-  { "name": "Ward 8", "glass": "coupe", "garnish": "orange and lemon", "spirit": "rye whiskey" }
+  {
+    "name": "Americano",
+    "glass": "highball",
+    "garnish": "orange half-wheel",
+    "spirit": "aperitivo",
+    "ingredients": [
+      "Campari",
+      "Sweet vermouth",
+      "Soda water"
+    ]
+  },
+  {
+    "name": "Aviation",
+    "glass": "coupe",
+    "garnish": "brandied cherry",
+    "spirit": "gin"
+  },
+  {
+    "name": "Bee's Knees",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "gin",
+    "ingredients": [
+      "Gin",
+      "Lemon juice",
+      "Honey syrup"
+    ]
+  },
+  {
+    "name": "Bellini",
+    "glass": "flute",
+    "garnish": "none",
+    "spirit": "prosecco"
+  },
+  {
+    "name": "Between the Sheets",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "brandy"
+  },
+  {
+    "name": "Boulevardier",
+    "glass": "rocks",
+    "garnish": "orange twist",
+    "spirit": "whiskey",
+    "ingredients": [
+      "Bourbon",
+      "Campari",
+      "Sweet vermouth"
+    ]
+  },
+  {
+    "name": "Clover Club",
+    "glass": "coupe",
+    "garnish": "none",
+    "spirit": "gin"
+  },
+  {
+    "name": "Daiquiri",
+    "glass": "coupe",
+    "garnish": "lime wheel",
+    "spirit": "rum"
+  },
+  {
+    "name": "Dry Martini",
+    "glass": "martini",
+    "garnish": "olive",
+    "spirit": "gin"
+  },
+  {
+    "name": "Dirty Martini",
+    "glass": "martini",
+    "garnish": "olives",
+    "spirit": "gin"
+  },
+  {
+    "name": "Gin Fizz",
+    "glass": "highball",
+    "garnish": "lemon twist",
+    "spirit": "gin"
+  },
+  {
+    "name": "Manhattan",
+    "glass": "nick and nora",
+    "garnish": "brandied cherry",
+    "spirit": "whiskey"
+  },
+  {
+    "name": "Martinez",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "gin"
+  },
+  {
+    "name": "Negroni",
+    "glass": "rocks",
+    "garnish": "orange peel",
+    "spirit": "gin",
+    "ingredients": [
+      "Gin",
+      "Campari",
+      "Sweet vermouth"
+    ]
+  },
+  {
+    "name": "Old Fashioned",
+    "glass": "rocks",
+    "garnish": "orange peel",
+    "spirit": "whiskey"
+  },
+  {
+    "name": "Sazerac",
+    "glass": "rocks",
+    "garnish": "lemon peel",
+    "spirit": "rye whiskey",
+    "ingredients": [
+      "Rye whiskey",
+      "Absinthe rinse",
+      "Peychaud bitters",
+      "Sugar"
+    ]
+  },
+  {
+    "name": "Sidecar",
+    "glass": "coupe",
+    "garnish": "sugar rim, orange peel",
+    "spirit": "brandy"
+  },
+  {
+    "name": "Whiskey Sour",
+    "glass": "rocks",
+    "garnish": "cherry and orange",
+    "spirit": "bourbon"
+  },
+  {
+    "name": "White Lady",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "gin"
+  },
+  {
+    "name": "Margarita",
+    "glass": "rocks",
+    "garnish": "salt rim, lime wheel",
+    "spirit": "tequila"
+  },
+  {
+    "name": "Mojito",
+    "glass": "highball",
+    "garnish": "mint sprig",
+    "spirit": "rum"
+  },
+  {
+    "name": "Moscow Mule",
+    "glass": "copper mug",
+    "garnish": "lime wedge",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Mint Julep",
+    "glass": "julep cup",
+    "garnish": "mint bouquet",
+    "spirit": "bourbon"
+  },
+  {
+    "name": "Mimosa",
+    "glass": "flute",
+    "garnish": "none",
+    "spirit": "champagne"
+  },
+  {
+    "name": "Aperol Spritz",
+    "glass": "wine glass",
+    "garnish": "orange slice",
+    "spirit": "aperitivo",
+    "ingredients": [
+      "Aperol",
+      "Prosecco",
+      "Soda water"
+    ]
+  },
+  {
+    "name": "Negroni Sbagliato",
+    "glass": "rocks",
+    "garnish": "orange twist",
+    "spirit": "campari",
+    "ingredients": [
+      "Campari",
+      "Sweet vermouth",
+      "Prosecco"
+    ]
+  },
+  {
+    "name": "Cosmopolitan",
+    "glass": "martini",
+    "garnish": "orange twist",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Caipirinha",
+    "glass": "rocks",
+    "garnish": "lime wedge",
+    "spirit": "cachaça"
+  },
+  {
+    "name": "White Russian",
+    "glass": "rocks",
+    "garnish": "none",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Black Russian",
+    "glass": "rocks",
+    "garnish": "lemon twist",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Screwdriver",
+    "glass": "highball",
+    "garnish": "orange slice",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Bloody Mary",
+    "glass": "highball",
+    "garnish": "celery stalk",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Amaretto Sour",
+    "glass": "rocks",
+    "garnish": "orange and cherry",
+    "spirit": "amaretto"
+  },
+  {
+    "name": "Southside",
+    "glass": "coupe",
+    "garnish": "mint leaf",
+    "spirit": "gin",
+    "ingredients": [
+      "Gin",
+      "Lime juice",
+      "Mint",
+      "Sugar syrup"
+    ]
+  },
+  {
+    "name": "Gimlet",
+    "glass": "coupe",
+    "garnish": "lime wheel",
+    "spirit": "gin"
+  },
+  {
+    "name": "Corpse Reviver No. 2",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "gin"
+  },
+  {
+    "name": "Last Word",
+    "glass": "coupe",
+    "garnish": "none",
+    "spirit": "gin"
+  },
+  {
+    "name": "Paper Plane",
+    "glass": "coupe",
+    "garnish": "none",
+    "spirit": "bourbon",
+    "ingredients": [
+      "Bourbon",
+      "Aperitivo (Campari)",
+      "Amaro Nonino",
+      "Lemon juice"
+    ]
+  },
+  {
+    "name": "Penicillin",
+    "glass": "rocks",
+    "garnish": "candied ginger",
+    "spirit": "blended scotch",
+    "ingredients": [
+      "Blended scotch",
+      "Lemon juice",
+      "Honey-ginger syrup",
+      "Islay scotch float"
+    ]
+  },
+  {
+    "name": "Gold Rush",
+    "glass": "rocks",
+    "garnish": "lemon twist",
+    "spirit": "bourbon",
+    "ingredients": [
+      "Bourbon",
+      "Lemon juice",
+      "Honey syrup"
+    ]
+  },
+  {
+    "name": "Oaxaca Old Fashioned",
+    "glass": "rocks",
+    "garnish": "orange peel",
+    "spirit": "tequila",
+    "ingredients": [
+      "Blanco tequila",
+      "Mezcal",
+      "Agave nectar",
+      "Bitters"
+    ]
+  },
+  {
+    "name": "Espresso Martini",
+    "glass": "martini",
+    "garnish": "coffee beans",
+    "spirit": "vodka",
+    "ingredients": [
+      "Vodka",
+      "Fresh espresso",
+      "Coffee liqueur",
+      "Sugar syrup"
+    ]
+  },
+  {
+    "name": "French 75",
+    "glass": "flute",
+    "garnish": "lemon twist",
+    "spirit": "gin"
+  },
+  {
+    "name": "French Martini",
+    "glass": "martini",
+    "garnish": "raspberry",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Irish Coffee",
+    "glass": "glass mug",
+    "garnish": "cream float",
+    "spirit": "irish whiskey"
+  },
+  {
+    "name": "Lemon Drop Martini",
+    "glass": "martini",
+    "garnish": "sugar rim, lemon twist",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Long Island Iced Tea",
+    "glass": "highball",
+    "garnish": "lemon wedge",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Mai Tai",
+    "glass": "rocks",
+    "garnish": "mint sprig, lime shell",
+    "spirit": "rum"
+  },
+  {
+    "name": "Piña Colada",
+    "glass": "hurricane",
+    "garnish": "pineapple wedge, cherry",
+    "spirit": "rum"
+  },
+  {
+    "name": "Sea Breeze",
+    "glass": "highball",
+    "garnish": "lime wedge",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Sex on the Beach",
+    "glass": "highball",
+    "garnish": "orange slice",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Singapore Sling",
+    "glass": "highball",
+    "garnish": "pineapple and cherry",
+    "spirit": "gin"
+  },
+  {
+    "name": "Tequila Sunrise",
+    "glass": "highball",
+    "garnish": "orange slice",
+    "spirit": "tequila"
+  },
+  {
+    "name": "Ti' Punch",
+    "glass": "rocks",
+    "garnish": "lime disc",
+    "spirit": "rhum agricole",
+    "ingredients": [
+      "Rhum agricole",
+      "Lime",
+      "Cane syrup"
+    ]
+  },
+  {
+    "name": "Tommy's Margarita",
+    "glass": "rocks",
+    "garnish": "lime wedge",
+    "spirit": "tequila"
+  },
+  {
+    "name": "Vesper",
+    "glass": "martini",
+    "garnish": "lemon peel",
+    "spirit": "gin"
+  },
+  {
+    "name": "Zombie",
+    "glass": "tiki mug",
+    "garnish": "mint sprig",
+    "spirit": "rum"
+  },
+  {
+    "name": "Yellow Bird",
+    "glass": "hurricane",
+    "garnish": "lime wheel, cherry",
+    "spirit": "rum",
+    "ingredients": [
+      "White rum",
+      "Galliano",
+      "Orange juice",
+      "Pineapple juice",
+      "Lime"
+    ]
+  },
+  {
+    "name": "Painkiller",
+    "glass": "rocks",
+    "garnish": "nutmeg, pineapple",
+    "spirit": "rum"
+  },
+  {
+    "name": "Jungle Bird",
+    "glass": "rocks",
+    "garnish": "pineapple frond",
+    "spirit": "rum",
+    "ingredients": [
+      "Dark rum",
+      "Campari",
+      "Pineapple juice",
+      "Lime",
+      "Simple syrup"
+    ]
+  },
+  {
+    "name": "Blue Hawaii",
+    "glass": "hurricane",
+    "garnish": "pineapple wedge",
+    "spirit": "rum"
+  },
+  {
+    "name": "Blue Lagoon",
+    "glass": "highball",
+    "garnish": "lemon slice, cherry",
+    "spirit": "vodka"
+  },
+  {
+    "name": "El Diablo",
+    "glass": "highball",
+    "garnish": "lime wheel",
+    "spirit": "tequila"
+  },
+  {
+    "name": "Paloma",
+    "glass": "highball",
+    "garnish": "lime wedge, salt rim",
+    "spirit": "tequila"
+  },
+  {
+    "name": "Ranch Water",
+    "glass": "highball",
+    "garnish": "lime wedge",
+    "spirit": "tequila"
+  },
+  {
+    "name": "Frozen Margarita",
+    "glass": "frozen glass",
+    "garnish": "salt rim, lime",
+    "spirit": "tequila"
+  },
+  {
+    "name": "Frozen Daiquiri",
+    "glass": "frozen glass",
+    "garnish": "lime wheel",
+    "spirit": "rum"
+  },
+  {
+    "name": "Strawberry Daiquiri",
+    "glass": "coupe",
+    "garnish": "strawberry",
+    "spirit": "rum"
+  },
+  {
+    "name": "Banana Daiquiri",
+    "glass": "coupe",
+    "garnish": "banana slice",
+    "spirit": "rum"
+  },
+  {
+    "name": "Hemingway Daiquiri",
+    "glass": "coupe",
+    "garnish": "none",
+    "spirit": "white rum",
+    "ingredients": [
+      "White rum",
+      "Maraschino liqueur",
+      "Grapefruit juice",
+      "Lime juice"
+    ]
+  },
+  {
+    "name": "Godfather",
+    "glass": "rocks",
+    "garnish": "orange peel",
+    "spirit": "scotch"
+  },
+  {
+    "name": "Godmother",
+    "glass": "rocks",
+    "garnish": "none",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Rusty Nail",
+    "glass": "rocks",
+    "garnish": "lemon twist",
+    "spirit": "scotch"
+  },
+  {
+    "name": "Dark 'n' Stormy",
+    "glass": "highball",
+    "garnish": "lime wedge",
+    "spirit": "dark rum"
+  },
+  {
+    "name": "Gin and Tonic",
+    "glass": "highball",
+    "garnish": "lime wedge",
+    "spirit": "gin"
+  },
+  {
+    "name": "Fuzzy Navel",
+    "glass": "highball",
+    "garnish": "orange slice",
+    "spirit": "peach schnapps"
+  },
+  {
+    "name": "Harvey Wallbanger",
+    "glass": "highball",
+    "garnish": "orange slice, cherry",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Kamikaze",
+    "glass": "martini",
+    "garnish": "lime wedge",
+    "spirit": "vodka"
+  },
+  {
+    "name": "Hurricane",
+    "glass": "hurricane",
+    "garnish": "orange wheel, cherry",
+    "spirit": "rum"
+  },
+  {
+    "name": "Singapore Gin Sling",
+    "glass": "highball",
+    "garnish": "pineapple, cherry",
+    "spirit": "gin"
+  },
+  {
+    "name": "Tom Collins",
+    "glass": "collins",
+    "garnish": "cherry and orange",
+    "spirit": "gin"
+  },
+  {
+    "name": "John Collins",
+    "glass": "collins",
+    "garnish": "cherry and orange",
+    "spirit": "bourbon"
+  },
+  {
+    "name": "Airmail",
+    "glass": "flute",
+    "garnish": "lime twist",
+    "spirit": "rum",
+    "ingredients": [
+      "Aged rum",
+      "Honey syrup",
+      "Lime juice",
+      "Champagne"
+    ]
+  },
+  {
+    "name": "Bamboo",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "sherry",
+    "ingredients": [
+      "Dry sherry",
+      "Dry vermouth",
+      "Bitters"
+    ]
+  },
+  {
+    "name": "Adonis",
+    "glass": "coupe",
+    "garnish": "orange peel",
+    "spirit": "sherry",
+    "ingredients": [
+      "Dry sherry",
+      "Sweet vermouth",
+      "Orange bitters"
+    ]
+  },
+  {
+    "name": "Army and Navy",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "gin",
+    "ingredients": [
+      "Gin",
+      "Orgeat",
+      "Lemon juice",
+      "Bitters"
+    ]
+  },
+  {
+    "name": "Casino",
+    "glass": "martini",
+    "garnish": "cherry, lemon twist",
+    "spirit": "gin",
+    "ingredients": [
+      "Gin",
+      "Maraschino liqueur",
+      "Lemon juice",
+      "Orange bitters"
+    ]
+  },
+  {
+    "name": "Paradise",
+    "glass": "coupe",
+    "garnish": "none",
+    "spirit": "gin"
+  },
+  {
+    "name": "Planter's Punch",
+    "glass": "highball",
+    "garnish": "orange, pineapple, cherry",
+    "spirit": "dark rum"
+  },
+  {
+    "name": "American Beauty",
+    "glass": "coupe",
+    "garnish": "none",
+    "spirit": "brandy",
+    "ingredients": [
+      "Brandy",
+      "Dry vermouth",
+      "Port float",
+      "Orange juice",
+      "Grenadine"
+    ]
+  },
+  {
+    "name": "Blood and Sand",
+    "glass": "coupe",
+    "garnish": "orange peel",
+    "spirit": "scotch",
+    "ingredients": [
+      "Blended scotch",
+      "Cherry heering",
+      "Sweet vermouth",
+      "Orange juice"
+    ]
+  },
+  {
+    "name": "Brooklyn",
+    "glass": "martini",
+    "garnish": "lemon twist",
+    "spirit": "rye whiskey",
+    "ingredients": [
+      "Rye whiskey",
+      "Dry vermouth",
+      "Maraschino liqueur",
+      "Amaro"
+    ]
+  },
+  {
+    "name": "Vieux Carre",
+    "glass": "rocks",
+    "garnish": "lemon twist",
+    "spirit": "rye whiskey",
+    "ingredients": [
+      "Rye whiskey",
+      "Cognac",
+      "Sweet vermouth",
+      "Beneditine",
+      "Bitters"
+    ]
+  },
+  {
+    "name": "Bramble",
+    "glass": "rocks",
+    "garnish": "lemon slice, berries",
+    "spirit": "gin",
+    "ingredients": [
+      "Gin",
+      "Lemon juice",
+      "Sugar syrup",
+      "Blackberry liqueur (Chambord)"
+    ]
+  },
+  {
+    "name": "Canchanchara",
+    "glass": "rocks",
+    "garnish": "lime wedge",
+    "spirit": "rum",
+    "ingredients": [
+      "Aged rum",
+      "Lime juice",
+      "Honey"
+    ]
+  },
+  {
+    "name": "Bee Sting",
+    "glass": "coupe",
+    "garnish": "none",
+    "spirit": "tequila",
+    "ingredients": [
+      "Tequila",
+      "Lemon juice",
+      "Honey syrup"
+    ]
+  },
+  {
+    "name": "Sgroppino",
+    "glass": "flute",
+    "garnish": "none",
+    "spirit": "lemon sorbet"
+  },
+  {
+    "name": "White Negroni",
+    "glass": "rocks",
+    "garnish": "grapefruit twist",
+    "spirit": "gin",
+    "ingredients": [
+      "Gin",
+      "Suze",
+      "Lillet Blanc"
+    ]
+  },
+  {
+    "name": "Honeymoon",
+    "glass": "coupe",
+    "garnish": "lemon twist",
+    "spirit": "applejack",
+    "ingredients": [
+      "Applejack",
+      "Curacao",
+      "Lemon juice",
+      "Orange curacao"
+    ]
+  },
+  {
+    "name": "Ward 8",
+    "glass": "coupe",
+    "garnish": "orange and lemon",
+    "spirit": "rye whiskey",
+    "ingredients": [
+      "Rye whiskey",
+      "Lemon juice",
+      "Orange juice",
+      "Grenadine"
+    ]
+  }
 ]

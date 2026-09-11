@@ -197,11 +197,18 @@ enforces, in order:
 2. **Strict validation** — every field sanitized + length-capped before any
    prompt is composed.
 3. **Pool hit → free return.** A name that already has an image costs nothing.
-4. **Per-user daily rate limit** in **Firestore** (`imageGenUsage/<uid>:<day>`,
+4. **Curated classics are seeder-only.** Any name in `scripts/classics.json`
+   refuses on-demand generation — the first person to add a classic must never
+   dictate the pool image everyone else shares. `npm run images` publishes
+   their shot; until then the app shows the spirit tile. To re-curate one:
+   regenerate it (`npm run images -- --only negroni --force`) and bump
+   `POOL_V` in `src/domain/poolKey.mjs` (+ the `functions/shared` copy) so
+   cached clients pick up the new file.
+5. **Per-user daily rate limit** in **Firestore** (`imageGenUsage/<uid>:<day>`,
    `IMAGE_GEN_DAILY_LIMIT`, default 10), evaluated *before* generation and
    **failing closed** — a quota-check outage disables generation, never the
-   limit.
-5. **Vertex AI with the function's service account (ADC)** — no API key exists
+   limit. Pool hits never touch the counter.
+6. **Vertex AI with the function's service account (ADC)** — no API key exists
    anywhere; the project's template-only mode for AI Logic doesn't apply to
    server-side Vertex calls.
 

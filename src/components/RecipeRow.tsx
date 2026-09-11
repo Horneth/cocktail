@@ -30,6 +30,7 @@ export function RecipeRow({ recipe, badge = null, onDelete }: Props) {
         size="thumb"
         sizes="52px"
         className={styles.thumb}
+        generating={recipe.imageStatus === 'pending'}
         fallback={
           <span className={styles.thumb} style={{ background: v.tint }}>
             {v.emoji}
