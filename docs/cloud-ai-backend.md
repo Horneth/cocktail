@@ -181,10 +181,12 @@ Do this in the [Firebase console](https://console.firebase.google.com/) — the 
 Recipe photos come from one **generated-image pool** in Firebase Storage,
 content-addressed by drink name (`generated/v1/<key>-{thumb,card,full}.webp`).
 Everyone who adds the same drink shares one entry, generated once — seeded for
-~100 classics by `npm run images` (your own AI Studio key, no function needed),
-and generated on demand for anything else by the **`generateImage` callable**
-in `functions/`. The editor auto-attaches a pool shot to every image-less
-cocktail a signed-in user saves; a hit is instant and free.
+~100 classics by the seeder (`npm run images`, your own AI Studio key, no
+function needed: `--review` generates into `tmp/pool-review/` for eyeballing,
+`--upload-review` then publishes exactly those files with no further model
+calls), and generated on demand for anything else by the **`generateImage`
+callable** in `functions/`. The editor auto-attaches a pool shot to every
+image-less cocktail a signed-in user saves; a hit is instant and free.
 
 Why a function instead of AI Logic: image generation isn't supported in
 template-only mode, and the prompt must never ship to the client. So the

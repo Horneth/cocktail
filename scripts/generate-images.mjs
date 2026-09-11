@@ -10,11 +10,13 @@
 //   GOOGLE_API_KEY=... node scripts/generate-images.mjs               # all classics
 //   GOOGLE_API_KEY=... node scripts/generate-images.mjs --only daiquiri
 //   GOOGLE_API_KEY=... node scripts/generate-images.mjs --review      # write files, no upload
+//   npm run images -- --upload-review                                 # upload the reviewed files, no generation
 //   GOOGLE_API_KEY=... node scripts/generate-images.mjs --force       # regenerate existing
 //
-// Entries already in the pool are skipped (idempotent), so a partially
-// finished run resumes where it stopped. Uploads use the same service-account
-// story the old publish script had:
+// The intended flow: `--review` generates the classics into tmp/pool-review/
+// for eyeballing; once a set is good, `--upload-review` publishes exactly
+// those files (no model calls, no cost). Direct runs without --review generate
+// AND upload in one pass. Uploads use a dedicated Firebase service account:
 //   GOOGLE_APPLICATION_CREDENTIALS=/path/to/firebase-service-account.json npm run images
 // (grant the account roles/storage.objectAdmin on the bucket).
 
@@ -30,10 +32,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const reviewDir = resolve(root, 'tmp/pool-review')
 const model = process.env.GEMINI_IMAGE_MODEL ?? IMAGE_MODEL
 const apiKey = process.env.GOOGLE_API_KEY
-if (!apiKey) {
-  console.error('Set GOOGLE_API_KEY (AI Studio key) to run the pool seeder.')
-  process.exit(1)
-}
 
 // Bucket: --bucket wins, else VITE_FIREBASE_STORAGE_BUCKET from .env.local.
 function bucketFromEnv() {
@@ -51,16 +49,28 @@ const argv = process.argv.slice(2)
 const only = []
 let force = false
 let review = false
+let uploadReview = false
 let argBucket = null
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--only') only.push(argv[++i])
   else if (argv[i] === '--force') force = true
   else if (argv[i] === '--review') review = true
+  else if (argv[i] === '--upload-review') uploadReview = true
   else if (argv[i] === '--bucket') argBucket = argv[++i]
+}
+if (review && uploadReview) {
+  console.error('--review writes files locally; --upload-review uploads them. Pick one.')
+  process.exit(1)
 }
 const bucketName = argBucket ?? bucketFromEnv()
 if (!review && !bucketName) {
   console.error('No bucket. Pass --bucket <name> or set VITE_FIREBASE_STORAGE_BUCKET in .env.local.')
+  process.exit(1)
+}
+// Generating (review included) needs the AI Studio key; uploading reviewed
+// files needs neither the key nor the model.
+if (!uploadReview && !apiKey) {
+  console.error('Set GOOGLE_API_KEY (AI Studio key) to run the pool seeder.')
   process.exit(1)
 }
 
@@ -126,7 +136,22 @@ const uploadOpts = {
   contentType: 'image/webp',
 }
 
-console.log(`Seeding ${targets.length} pool image(s) with ${model}${review ? ' [review only]' : ''}…`)
+/** The three reviewed sizes for one key, or null when the review run never produced them. */
+function reviewedSizes(key) {
+  const read = (size) => {
+    try {
+      return readFileSync(resolve(reviewDir, `${key}-${size}.webp`))
+    } catch {
+      throw new Error(`no reviewed ${size} — generate it first with npm run images -- --review --only ${key}`)
+    }
+  }
+  return { thumb: read('thumb'), card: read('card'), full: read('full') }
+}
+
+console.log(
+  `Seeding ${targets.length} pool image(s)` +
+    `${review ? ` with ${model} [review only]` : uploadReview ? ' from tmp/pool-review/ [no generation]' : ` with ${model}`}…`,
+)
 let seeded = 0
 let skipped = 0
 for (const spec of targets) {
@@ -138,16 +163,20 @@ for (const spec of targets) {
       console.log('  =', key, '(already in the pool)')
       continue
     }
-    const prompt = buildImagePrompt({
-      name: sanitizeDrinkName(spec.name),
-      glass: spec.glass,
-      garnish: spec.garnish,
-      spirit: spec.spirit,
-      // Ingredients are the strongest colour signal (Campari = red).
-      ingredients: spec.ingredients,
-    })
-    const raw = await generateFullImage(prompt)
-    const sizes = await deriveSizes(raw)
+    let sizes
+    if (uploadReview) {
+      sizes = reviewedSizes(key)
+    } else {
+      const prompt = buildImagePrompt({
+        name: sanitizeDrinkName(spec.name),
+        glass: spec.glass,
+        garnish: spec.garnish,
+        spirit: spec.spirit,
+        // Ingredients are the strongest colour signal (Campari = red).
+        ingredients: spec.ingredients,
+      })
+      sizes = await deriveSizes(await generateFullImage(prompt))
+    }
     for (const size of ['thumb', 'card', 'full']) {
       if (review) {
         mkdirSync(reviewDir, { recursive: true })
