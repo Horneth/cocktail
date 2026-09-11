@@ -50,6 +50,10 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_RECAPTCHA_SITE_KEY: ${{ vars.VITE_RECAPTCHA_SITE_KEY }}
+          # Region the generateImage callable deploys to. Unset → us-central1;
+          # must match FUNCTION_REGION in functions/.env when the pool runs
+          # outside the US (the Functions SDK only looks in one region).
+          VITE_FIREBASE_FUNCTIONS_REGION: ${{ vars.VITE_FIREBASE_FUNCTIONS_REGION }}
           # Optional. Unset means the AI usage events in auth/analytics.ts stay
           # silent; nothing else changes.
           VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}

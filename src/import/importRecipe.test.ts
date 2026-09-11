@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/db'
-import { countUsage, deleteRecipe, importRecipe, mergeRecipes, saveRecipe } from './importRecipe'
+import { attachGeneratedImage, countUsage, deleteRecipe, importRecipe, markImageFailed, mergeRecipes, saveRecipe } from './importRecipe'
 import type { StructuredImport } from './types'
 
 /** A syrup, imported as its own recipe. */
@@ -210,5 +210,45 @@ describe('mergeRecipes', () => {
       },
     })
     await expect(mergeRecipes(compoundId, subId)).rejects.toThrow(/ingredient/)
+  })
+})
+
+describe('attachGeneratedImage / markImageFailed', () => {
+  beforeEach(async () => {
+    await db.recipes.clear()
+    await db.recipeLinks.clear()
+  })
+
+  it('attaches a pool reference and clears the pending guard', async () => {
+    const id = await importRecipe(cocktail('Paper Plane', 'syrup'))
+    await saveRecipe({ ...(await db.recipes.get(id))!, imageStatus: 'pending' })
+
+    await attachGeneratedImage(id, 'gen:paper-plane')
+
+    const saved = await db.recipes.get(id)
+    expect(saved!.image).toBe('gen:paper-plane')
+    expect(saved!.imageStatus).toBe('done')
+  })
+
+  it('never overwrites a photo the user chose while generation was in flight', async () => {
+    const id = await importRecipe(cocktail('Paper Plane', 'syrup'))
+    await saveRecipe({ ...(await db.recipes.get(id))!, image: 'data:image/webp;base64,QUJD' })
+
+    await attachGeneratedImage(id, 'gen:paper-plane')
+
+    expect((await db.recipes.get(id))!.image).toBe('data:image/webp;base64,QUJD')
+  })
+
+  it('refuses a value that is not a pool reference', async () => {
+    const id = await importRecipe(cocktail('Paper Plane', 'syrup'))
+    await expect(attachGeneratedImage(id, 'https://example.com/x.webp')).rejects.toThrow(/pool/)
+  })
+
+  it('records failure without touching the image field', async () => {
+    const id = await importRecipe(cocktail('Paper Plane', 'syrup'))
+    await markImageFailed(id)
+    const saved = await db.recipes.get(id)
+    expect(saved!.imageStatus).toBe('failed')
+    expect(saved!.image).toBeUndefined()
   })
 })

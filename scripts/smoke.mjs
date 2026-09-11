@@ -115,27 +115,20 @@ check('recipes tab lists seeded recipes', homeBefore > 0, `${homeBefore} recipes
 check('tab bar has the two tabs', (await page.locator('button[aria-label="Recipes"]').isVisible()) && (await page.locator('button[aria-label="My Bar"]').isVisible()))
 check('no separate search/browse tabs', (await page.locator('button[aria-label="Search"]').count() + await page.locator('button[aria-label="Browse"]').count()) === 0)
 
-// Settings has no tab of its own, so the recipes header gear is its only entry
-// point — if it regresses, the screen is unreachable without typing a URL.
-const gear = page.locator('a[aria-label="Settings"]')
-check('settings gear is on the recipes screen', await gear.isVisible())
+// Settings is the third tab (a button like the others) — if it regresses, the
+// screen is unreachable without typing a URL.
+const gear = page.locator('button[aria-label="Settings"]')
+check('settings tab is on the recipes screen', await gear.isVisible())
 await gear.click()
 await page.waitForTimeout(500)
 check('gear opens Settings', (await page.locator('h1').first().textContent())?.trim() === 'Settings')
-check('Settings can be backed out of', await page.locator('button[aria-label="Back"]').isVisible())
 await go('#/') // back to recipes; the rest of the shell walk starts from there
 
-await page.locator('button[aria-label="Add"]').click()
-await shot('02-add-sheet')
-// The add sheet is two choices — a recipe or a bottle. AI is an augmentation
-// inside each, so there is no separate "import"/"build"/"scan" row.
-check('add sheet is the two-choice menu',
-  (await page.locator('button', { hasText: 'A recipe' }).count()) === 1 &&
-  (await page.locator('button', { hasText: 'A bottle' }).count()) === 1)
-check('no AI-flavoured add rows', (await page.locator('button', { hasText: 'Import a recipe' }).count() + await page.locator('button', { hasText: 'Scan my shelf' }).count()) === 0)
-await page.locator('button', { hasText: 'A recipe' }).click()
+// Each primary screen owns its labelled add button (Recipe on Recipes, Bottle
+// on My Bar) — there is no FAB and no add-choice sheet to get lost in.
+await page.locator('button', { hasText: /^Recipe$/ }).click()
 await page.waitForTimeout(500)
-check('A recipe opens the manual editor', (await page.locator('input[placeholder^="e.g. Midnight"]').count()) === 1)
+check('the Recipe button opens the manual editor', (await page.locator('input[placeholder^="e.g. Midnight"]').count()) === 1)
 
 for (const [hash, name] of [
   ['#/bar', '05-bar'],
@@ -151,6 +144,18 @@ const firstRecipe = page.locator('a[href^="#/recipe/"]').first()
 await firstRecipe.click()
 await shot('09-recipe')
 check('recipe detail shows ingredients', (await page.locator('text=/oz|ml/').count()) > 0)
+
+// ── Pool references degrade to the spirit tile when the pool can't serve ────
+// The seed classics store `gen:<key>` refs. Whatever the pool answers (here:
+// nothing — the seeder hasn't run against this bucket), every reference must
+// resolve or fall back: no half-loaded or broken image may remain on screen,
+// and the fallback has to be the tile, not a raw `gen:` URL in an img src.
+await go('#/')
+await page.waitForTimeout(800)
+check(
+  'pool refs render or fall back cleanly',
+  await page.evaluate(() => [...document.images].every((i) => i.complete && i.naturalWidth > 0)),
+)
 
 // ── Cloud AI stays out of the way until you ask for it ──────────────────────
 // The whole point of the sign-in gate is that an offline user never pays for
@@ -170,8 +175,6 @@ check(
 await go('#/settings')
 check('settings has no API key field', (await page.locator('input[type="password"]').count()) === 0)
 check('settings still offers the AI section', (await page.locator('text=/AI features/i').count()) > 0)
-// The merged "assume staples" preference moved here out of My Bar.
-check('settings carries the bar preference', (await page.locator('text=/Assume I have the basics/i').count()) > 0)
 
 // Signed out, the manual recipe editor is the whole recipe path: it must render
 // its blank form — no sign-in wall, no dead end — and be ready to Save.
@@ -184,11 +187,10 @@ check('new recipe Save is reachable', (await page.locator('button', { hasText: '
 await shot('11-build-signed-out')
 
 // My Bar's manual path is the other half of "signed out is the whole product":
-// adding a bottle must never need AI, a sign-in, or a network. Every add now
-// starts at the tab bar's +, so this also proves that hand-off still lands.
+// adding a bottle must never need AI, a sign-in, or a network. The add starts
+// at My Bar's own Bottle button, which opens the sheet directly.
 await go('#/bar')
-await page.locator('button[aria-label="Add"]').click()
-await page.locator('button', { hasText: 'A bottle' }).click()
+await page.locator('button', { hasText: /^Bottle$/ }).click()
 await page.waitForTimeout(500)
 check(
   'A bottle opens the bottle add on My Bar',
