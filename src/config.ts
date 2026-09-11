@@ -41,6 +41,13 @@ export const firebaseConfig = {
 /** reCAPTCHA v3 site key for Firebase App Check (required to call AI Logic). */
 export const recaptchaSiteKey = env.VITE_RECAPTCHA_SITE_KEY ?? "";
 
+/**
+ * Region the callable Cloud Functions deploy to (e.g. `europe-west1` to keep
+ * image generation in the EU). Must match FUNCTION_REGION in functions/src —
+ * the Functions SDK only looks in one region.
+ */
+export const functionsRegion = env.VITE_FIREBASE_FUNCTIONS_REGION ?? "us-central1";
+
 // The Gemini model is no longer chosen here: each server prompt template names
 // its own in frontmatter (see docs/prompt-templates/). Moving models is now a
 // console change, not a redeploy — and a client cannot pick a costlier one.

@@ -9,6 +9,7 @@ vi.mock('../config', () => ({
   FEATURES: { cloudAI: true },
   firebaseConfig: {},
   recaptchaSiteKey: '',
+  functionsRegion: 'us-central1',
   isCloudAIConfigured: vi.fn(() => true),
 }))
 
@@ -40,7 +41,10 @@ describe('firebaseGenerateImage', () => {
   it('calls the generateImage callable and returns the pool key', async () => {
     const out = await firebaseGenerateImage({ name: 'Paper Plane', glass: 'coupe' })
     expect(out).toEqual({ key: 'daiquiri', cached: false })
-    const { httpsCallable } = await import('firebase/functions')
+    const { getFunctions, httpsCallable } = await import('firebase/functions')
+    // The Functions SDK only looks in one region — pin the client to the same
+    // region the function deploys to.
+    expect(getFunctions).toHaveBeenCalledWith({ name: 'test-app' }, 'us-central1')
     expect(httpsCallable).toHaveBeenCalledWith('functions-handle', 'generateImage')
   })
 

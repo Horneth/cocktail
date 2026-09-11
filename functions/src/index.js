@@ -40,7 +40,12 @@ initializeApp()
 // The model must render images AND be callable via Vertex with ADC — verify a
 // model id exists on Vertex before shipping a change (`npm run images:verify`).
 const MODEL = process.env.IMAGE_GEN_MODEL ?? 'gemini-2.5-flash-image'
-const REGION = process.env.VERTEX_REGION ?? 'us-central1'
+// Two independent regions: where the callable deploys (FUNCTION_REGION — the
+// client must point at the same one) and where the model API is called
+// (VERTEX_REGION — must serve IMAGE_GEN_MODEL). They don't have to match, but
+// co-locating cuts latency. The Firestore rate counter is reached from either.
+const FUNCTION_REGION = process.env.FUNCTION_REGION ?? 'us-central1'
+const VERTEX_REGION = process.env.VERTEX_REGION ?? 'us-central1'
 /** Generations one user may spend per UTC day. Pool hits never count. */
 const DAILY_LIMIT = Number(process.env.IMAGE_GEN_DAILY_LIMIT ?? 10)
 /**
@@ -118,8 +123,8 @@ async function generateImageBytes(prompt) {
   const client = await auth.getClient()
   const { token } = await client.getAccessToken()
   const url =
-    `https://${REGION}-aiplatform.googleapis.com/v1/projects/${process.env.GCLOUD_PROJECT}` +
-    `/locations/${REGION}/publishers/google/models/${MODEL}:generateContent`
+    `https://${VERTEX_REGION}-aiplatform.googleapis.com/v1/projects/${process.env.GCLOUD_PROJECT}` +
+    `/locations/${VERTEX_REGION}/publishers/google/models/${MODEL}:generateContent`
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -156,7 +161,7 @@ const UPLOAD_OPTS = {
 export const generateImage = onCall(
   {
     enforceAppCheck: true,
-    region: REGION,
+    region: FUNCTION_REGION,
     maxInstances: 5,
     timeoutSeconds: 120,
     memory: '1GiB',

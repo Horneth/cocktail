@@ -259,7 +259,8 @@ below is in the Google Cloud console for that project unless it says Firebase.
    It fires one real generateContent request and tells you which step is
    missing on failure (API disabled, role missing → 403; wrong model id → 404).
    The default model is `gemini-2.5-flash-image`; change with
-   `IMAGE_GEN_MODEL` and re-run the check before deploying.
+   `IMAGE_GEN_MODEL` and re-run the check before deploying. Pass
+   `--region <region>` to check model availability in a non-US region.
 
 5. **Create the Firestore database.** Firebase console → Firestore Database →
    Create → **Native mode**, location `us-central1` (same region as the
@@ -279,10 +280,23 @@ below is in the Google Cloud console for that project unless it says Firebase.
    callable).
 
 Knobs (all env vars on the function, all optional):
-`IMAGE_GEN_MODEL` (default `gemini-2.5-flash-image`), `VERTEX_REGION`
-(default `us-central1` — the model must exist there), `IMAGE_GEN_DAILY_LIMIT`
+`IMAGE_GEN_MODEL` (default `gemini-2.5-flash-image`), `FUNCTION_REGION`
+(default `us-central1` — where the callable deploys; the client must point at
+the same one via `VITE_FIREBASE_FUNCTIONS_REGION`), `VERTEX_REGION` (default
+`us-central1` — where the model API is called; must serve
+`IMAGE_GEN_MODEL`), `IMAGE_GEN_DAILY_LIMIT`
 (default 10 generations/user/day; pool hits never count),
 `IMAGE_GEN_SA` (least-privilege runtime account, see step 3).
+
+**Keeping it in Europe.** Nothing forces US regions: create
+`functions/.env` with `FUNCTION_REGION=europe-west1` and
+`VERTEX_REGION=europe-west1`, set
+`VITE_FIREBASE_FUNCTIONS_REGION=europe-west1` for the app build, and check
+the model actually serves there with `npm run images:verify -- --region
+europe-west1` before deploying (if it 404s, try `europe-west3`, `europe-west2`,
+`europe-west4` — the script tells you). The Firestore database at `eur3` and a
+European bucket need no changes: the admin SDK reaches them from any region,
+and the counter is a handful of writes per user per day.
 
 **Cost shape.** Only *misses* bill: ~$0.03–0.04 per generated drink for
 flash-image models (three resizes come out of the one generation). The

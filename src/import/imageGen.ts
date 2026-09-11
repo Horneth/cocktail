@@ -1,4 +1,4 @@
-import { FEATURES, isCloudAIConfigured } from '../config'
+import { FEATURES, functionsRegion, isCloudAIConfigured } from '../config'
 import { ensureFirebaseApp } from '../auth/firebase'
 import { logAiCall } from '../auth/analytics'
 import { MAX_NAME, poolKeyForName, sanitizeDrinkName } from '../domain/poolKey.mjs'
@@ -52,7 +52,7 @@ export async function firebaseGenerateImage(spec: GenerateImageSpec): Promise<Ge
     const app = await ensureFirebaseApp()
     const { getFunctions, httpsCallable } = await import('firebase/functions')
     const call = httpsCallable<GenerateImageSpec, { key?: string; cached?: boolean }>(
-      getFunctions(app),
+      getFunctions(app, functionsRegion),
       'generateImage',
     )
     const res = await call({
