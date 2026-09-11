@@ -89,6 +89,9 @@ jobs:
       # hosting action uses (it is a JSON key). Live channel only: a PR preview
       # must never publish the image-generation function — a preview could
       # replace the prod callable from unreviewed code.
+      - name: Install functions dependencies
+        run: npm ci --prefix functions
+
       - name: Deploy functions + storage rules
         if: github.event_name != 'pull_request'
         run: |
