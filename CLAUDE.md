@@ -79,7 +79,11 @@ src/
   db/
     schema.ts     Core domain types (Recipe, Ingredient, PantryItem, RecipeLink, …)
     db.ts         Dexie subclass + versioned store definitions (the ONLY DB instance)
-    seed.ts       Starter recipes, authored as StructuredImport, written via importRecipe()
+    seed.ts       Starter recipes, authored as StructuredImport, written via importRecipe() —
+                  14 classics (IBA / Difford's specs, provenance in `source`) + 2 mixers
+                  (Simple Syrup, Orgeat) they cross-link to; `seedClassics()` is a one-time
+                  upgrade seed (versioned flag) so existing installs pick new classics up
+                  without resurrecting deletions
 
   domain/         Pure, framework-free logic — unit-tested, no React, no Dexie imports
     scaling.ts    Serving rescale + per-ingredient nudge (non-destructive)

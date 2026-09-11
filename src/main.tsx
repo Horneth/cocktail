@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createHashRouter, RouterProvider } from 'react-router-dom'
 import './theme.css'
-import { seedIfEmpty } from './db/seed'
+import { seedClassics } from './db/seed'
 import { ensureDefaultBar } from './domain/bars'
 import { App } from './App'
 import { RecipesScreen } from './screens/RecipesScreen'
@@ -55,7 +55,7 @@ async function bootstrap() {
   handleShareTarget()
   forgetRetiredApiKey()
   try {
-    await seedIfEmpty()
+    await seedClassics()
     await ensureDefaultBar()
   } catch (err) {
     console.error('Seeding failed', err)

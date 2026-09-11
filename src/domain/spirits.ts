@@ -29,6 +29,7 @@ const KNOWN: Record<string, KnownMeta> = {
   pisco: { label: 'Pisco', emoji: '🍇', gradient: 'linear-gradient(145deg,#9c7a4a,#463315)' },
   wine: { label: 'Wine & bubbles', emoji: '🍷', gradient: 'linear-gradient(145deg,#9a3a55,#4a1a28)' },
   liqueur: { label: 'Liqueur', emoji: '🍶', gradient: 'linear-gradient(145deg,#9c4d90,#48203f)' },
+  aperitivo: { label: 'Aperitivo', emoji: '🍊', gradient: 'linear-gradient(145deg,#d4703f,#7a2e18)' },
   mocktail: { label: 'Mocktails', emoji: '🍹', gradient: 'linear-gradient(145deg,#3f9f6a,#175236)' },
   syrup: { label: 'Syrups', emoji: '🍯', gradient: 'linear-gradient(145deg,#c0813e,#5f3312)' },
   cordial: { label: 'Cordials', emoji: '🍷', gradient: 'linear-gradient(145deg,#9c4d90,#48203f)' },
@@ -38,7 +39,7 @@ const KNOWN: Record<string, KnownMeta> = {
 /** Display order for known spirits on the mosaic; custom spirits follow. */
 export const SPIRIT_ORDER = [
   'gin', 'vodka', 'rum', 'cachaça', 'whiskey', 'tequila', 'mezcal', 'agave',
-  'brandy', 'cognac', 'pisco', 'wine', 'liqueur', 'mocktail', 'other',
+  'brandy', 'cognac', 'pisco', 'wine', 'aperitivo', 'liqueur', 'mocktail', 'other',
 ]
 
 /** Suggestions for the spirit input (users can still type anything else). */
