@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AccentButton } from '../../components/TabBar'
+import { BottleGlyph } from '../../components/BottleGlyph'
 import { ChevronDownIcon, ChevronRightIcon } from '../../components/icons'
 import type { PantryItem } from '../../db/schema'
 import { bulkAddPantry, removeFromPantry, updateBottle, type BottleInput } from '../../domain/pantry'
@@ -103,6 +104,7 @@ export function BarScreen() {
             return (
               <div key={g.key} className={styles.group}>
                 <div className={styles.groupHead}>
+                  <BottleGlyph shape={v.silhouette} size={14} color={v.dot} className={styles.groupGlyph} />
                   <span className={styles.groupLabel}>{v.label}</span>
                   <span className={styles.groupCount}>{g.items.length}</span>
                 </div>
@@ -112,7 +114,7 @@ export function BarScreen() {
                       return (
                         <button className={styles.item} onClick={() => setViewing(item)}>
                           <span className={styles.itemGlyph} style={{ background: v.tint }} aria-hidden>
-                            {v.emoji}
+                            <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
                           </span>
                           <span className={styles.itemText}>
                             <span className={styles.itemName}>{item.label}</span>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BottomSheet } from '../../components/BottomSheet'
+import { BottleGlyph } from '../../components/BottleGlyph'
 import { CheckIcon, SearchIcon, SparkleIcon } from '../../components/icons'
 import type { PantryItem, Recipe } from '../../db/schema'
 import { normIngredient } from '../../domain/availability'
@@ -137,6 +138,7 @@ export function AddBottleSheet({
   const showTyped =
     !!typedKey && !have.has(typedKey) && !suggestions.some((s) => s.name === typedKey) && !picked.has(typedKey)
   const typedGuess = typedCategory ?? (q ? categoryForName(q) : undefined)
+  const typedVisual = spiritVisual(typedGuess ?? 'other')
   const typedUnlocks = useMemo(
     () => (showTyped ? unlocksFor([q], cocktails, byId, have, assumeStaples).unlocks : 0),
     [showTyped, q, cocktails, byId, have, assumeStaples],
@@ -250,7 +252,7 @@ export function AddBottleSheet({
             className={`${styles.chip} ${selected === key ? styles.chipOn : ''}`}
             onClick={() => onPick(key)}
           >
-            <span aria-hidden>{v.emoji}</span> {v.label}
+            <BottleGlyph shape={v.silhouette} size={13} color={v.dot} /> {v.label}
           </button>
         )
       })}
@@ -314,12 +316,8 @@ export function AddBottleSheet({
       {showTyped && (
         <>
           <div className={`${styles.row} ${styles.rowTyped}`}>
-            <span
-              className={styles.glyph}
-              style={{ background: spiritVisual(typedGuess ?? 'other').tint }}
-              aria-hidden
-            >
-              {spiritVisual(typedGuess ?? 'other').emoji}
+            <span className={styles.glyph} style={{ background: typedVisual.tint }} aria-hidden>
+              <BottleGlyph shape={typedVisual.silhouette} size={20} color={typedVisual.dot} />
             </span>
             <button className={styles.text} onClick={addTyped}>
               <span className={styles.label}>{q}</span>
@@ -347,16 +345,14 @@ export function AddBottleSheet({
         </>
       )}
 
-      {customPicks.map(([key, bottle]) => (
-        <div key={key}>
-          <div className={`${styles.row} ${styles.rowOn}`}>
-            <span
-              className={styles.glyph}
-              style={{ background: spiritVisual(bottle.category ?? 'other').tint }}
-              aria-hidden
-            >
-              {spiritVisual(bottle.category ?? 'other').emoji}
-            </span>
+      {customPicks.map(([key, bottle]) => {
+        const v = spiritVisual(bottle.category ?? 'other')
+        return (
+          <div key={key}>
+            <div className={`${styles.row} ${styles.rowOn}`}>
+              <span className={styles.glyph} style={{ background: v.tint }} aria-hidden>
+                <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
+              </span>
             <span className={styles.text}>
               <span className={styles.label}>{bottle.label}</span>
             </span>
@@ -380,7 +376,8 @@ export function AddBottleSheet({
             setPicking(null)
           })}
         </div>
-      ))}
+      )
+        })}
 
       <div className={sheet.body}>
         {shown.length === 0 && !showTyped ? (
@@ -398,7 +395,7 @@ export function AddBottleSheet({
                 onClick={() => toggle(s.name, { label: s.label })}
               >
                 <span className={styles.glyph} style={{ background: v.tint }} aria-hidden>
-                  {v.emoji}
+                  <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
                 </span>
                 <span className={styles.text}>
                   <span className={styles.label}>{s.label}</span>
@@ -424,12 +421,16 @@ export function AddBottleSheet({
           {scanResults.map((r) => {
             const on = scanPicked.has(r.canonicalName)
             const already = r.verdict === 'same'
+            const v = spiritVisual(r.detected.category ?? 'other')
             return (
               <button
                 key={r.canonicalName}
                 className={`${styles.row} ${on ? styles.rowOn : ''} ${already ? styles.rowMuted : ''}`}
                 onClick={() => toggleScan(r.canonicalName)}
               >
+                <span className={styles.glyph} style={{ background: v.tint }} aria-hidden>
+                  <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
+                </span>
                 <span className={styles.text}>
                   <span className={styles.label}>{r.canonicalName}</span>
                   {r.match && (

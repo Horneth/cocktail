@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BottomSheet } from '../../components/BottomSheet'
+import { BottleGlyph } from '../../components/BottleGlyph'
 import { ChevronRightIcon } from '../../components/icons'
 import type { PantryItem, Recipe } from '../../db/schema'
 import { makeableIds } from '../../domain/availability'
@@ -70,7 +71,7 @@ export function BottleSheet({
         <>
           <div className={styles.head}>
             <span className={styles.glyph} style={{ background: visual.tint }} aria-hidden>
-              {visual.emoji}
+              <BottleGlyph shape={visual.silhouette} size={30} color={visual.dot} />
             </span>
             <span className={styles.headText}>
               <span className={sheet.title}>{bottle.label}</span>
@@ -102,7 +103,7 @@ export function BottleSheet({
                       setEditingCategory(false)
                     }}
                   >
-                    <span aria-hidden>{v.emoji}</span> {v.label}
+                    <BottleGlyph shape={v.silhouette} size={13} color={v.dot} /> {v.label}
                   </button>
                 )
               })}

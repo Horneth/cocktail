@@ -29,6 +29,9 @@
   margin-bottom: 12px;
 }
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: var(--radius-pill);
   background: var(--card);
@@ -106,7 +109,6 @@ button.row:active {
    width: 34px;
    height: 34px;
    border-radius: 11px;
-   font-size: 0;
 }
 .text {
   flex: 1;
