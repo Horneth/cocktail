@@ -36,7 +36,8 @@ export const TEMPLATES = {
   reconcile: 'cocktail-reconcile-v1-0-0',
 } as const
 
-function friendlyError(err: unknown): string {
+/** Map a raw transport failure to something a person can act on. Shared with the image transport. */
+export function friendlyError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
   // The friendly strings below are lossy on purpose, which makes a real failure
   // hard to diagnose. Keep the original where only a developer will see it.

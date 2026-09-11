@@ -64,6 +64,20 @@ jobs:
           projectId: cocktails-c2705
           channelId: live
 
+      # Functions + storage rules deploy from the same service account the
+      # hosting action uses (it is a JSON key). Live channel only: a PR preview
+      # must never publish the image-generation function — a preview could
+      # replace the prod callable from unreviewed code.
+      - name: Deploy functions + storage rules
+        if: github.event_name != 'pull_request'
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_COCKTAILS_C2705 }}' > /tmp/sa.json
+          npx firebase-tools deploy --only functions,storage \
+            --project cocktails-c2705 \
+            --service-account-key-file=/tmp/sa.json \
+            --non-interactive
+          rm -f /tmp/sa.json
+
       # Skipped for forked PRs, which can't read the service-account secret.
       - name: Deploy a preview channel
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository

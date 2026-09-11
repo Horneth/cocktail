@@ -1,5 +1,6 @@
 import type { Auth, User } from 'firebase/auth'
 import type { AI, TemplateGenerativeModel } from 'firebase/ai'
+import type { FirebaseApp } from 'firebase/app'
 import { firebaseConfig, isCloudAIConfigured, recaptchaSiteKey } from '../config'
 
 // Firebase bootstrap for the optional cloud-AI features. Everything here is
@@ -8,6 +9,7 @@ import { firebaseConfig, isCloudAIConfigured, recaptchaSiteKey } from '../config
 // project — this file only handles Google sign-in and getting a model handle.
 
 interface FirebaseHandles {
+  app: FirebaseApp
   auth: Auth
   ai: AI
 }
@@ -58,7 +60,7 @@ function ensureFirebase(): Promise<FirebaseHandles> {
       const auth = getAuth(app)
       // Gemini Developer API provider — works on the free Spark plan.
       const ai = getAI(app, { backend: new GoogleAIBackend() })
-      return { auth, ai }
+      return { app, auth, ai }
     })()
   }
   return handles
@@ -109,4 +111,14 @@ export async function getTemplateModel(): Promise<TemplateGenerativeModel> {
   const { ai } = await ensureFirebase()
   const { getTemplateGenerativeModel } = await import('firebase/ai')
   return getTemplateGenerativeModel(ai)
+}
+
+/**
+ * The initialized app, for transports that aren't AI Logic (the image pool's
+ * Cloud Function call goes through firebase/functions on the same app). Same
+ * lazy boot, same App Check arming — nothing runs until an AI feature asks.
+ */
+export async function ensureFirebaseApp(): Promise<FirebaseApp> {
+  const { app } = await ensureFirebase()
+  return app
 }

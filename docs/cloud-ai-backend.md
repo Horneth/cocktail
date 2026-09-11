@@ -169,10 +169,62 @@ Do this in the [Firebase console](https://console.firebase.google.com/) — the 
    `VITE_RECAPTCHA_SITE_KEY`. `.github/workflows/deploy.yml` already passes them through. For
    local dev, put the same values in a `.env.local`.
 
+## The image pool (generateImage Cloud Function)
+
+Recipe photos come from one **generated-image pool** in Firebase Storage,
+content-addressed by drink name (`generated/v1/<key>-{thumb,card,full}.webp`).
+Everyone who adds the same drink shares one entry, generated once — seeded for
+~100 classics by `npm run images` (your own AI Studio key, no function needed),
+and generated on demand for anything else by the **`generateImage` callable**
+in `functions/`. The editor auto-attaches a pool shot to every image-less
+cocktail a signed-in user saves; a hit is instant and free.
+
+Why a function instead of AI Logic: image generation isn't supported in
+template-only mode, and the prompt must never ship to the client. So the
+callable composes the prompt itself from `functions/shared/poolPrompt.mjs` —
+a verbatim copy of `src/domain/poolPrompt.mjs`, kept identical by a test. The
+client sends five recipe fields and receives `{key, cached}`; the callable
+enforces, in order:
+
+1. **App Check + auth** (`enforceAppCheck`, uid required).
+2. **Strict validation** — every field sanitized + length-capped before any
+   prompt is composed.
+3. **Pool hit → free return.** A name that already has an image costs nothing.
+4. **Per-user daily rate limit** in **Firestore** (`imageGenUsage/<uid>:<day>`,
+   `IMAGE_GEN_DAILY_LIMIT`, default 10), evaluated *before* generation and
+   **failing closed** — a quota-check outage disables generation, never the
+   limit.
+5. **Vertex AI with the function's service account (ADC)** — no API key exists
+   anywhere; the project's template-only mode for AI Logic doesn't apply to
+   server-side Vertex calls.
+
+One-time console setup for the pool, on top of the list above:
+
+- **Firestore Database →** create one (Native mode). Its only use is the rate
+  counter; if it's missing, generation fails closed (signed-in users get a
+  "try again" error rather than unmetered spend).
+- **Vertex AI API →** enable on the project. The callable runs on the default
+  service account — grant it (or the runtime account you configure) the
+  **Vertex AI User** role. The image model is `IMAGE_GEN_MODEL`
+  (default `gemini-2.5-flash-image`); verify a model id exists on Vertex before
+  changing it. `VERTEX_REGION` and `IMAGE_GEN_DAILY_LIMIT` are the other knobs.
+- **Deploy:** `npx firebase deploy --only functions,storage` (the deploy
+  workflow does this on pushes to main — never on PR previews, so unreviewed
+  code can't replace the prod callable).
+
+Storage rules allow public read of `generated/**` (the app renders pool URLs
+without auth, like the old catalog) and no client writes.
+
+The client side (`src/import/imageGen.ts`) re-validates input, logs one
+`ai_call` event with `kind: 'image'` per call, and derives all URLs itself from
+the returned key — the server's answer can't make the app fetch an arbitrary
+URL. Signed-out users simply never generate: they keep spirit tiles and any
+uploaded photos, and the SW caches pool images after first view.
+
 ## Measuring usage
 
 `src/auth/analytics.ts` logs one `ai_call` event per call that actually reached the model,
-with three params and nothing else: `kind` (parse / dupes / vision / reconcile), `outcome`
+with three params and nothing else: `kind` (parse / dupes / vision / reconcile / image), `outcome`
 (ok / error) and `results` (recipes parsed, bottles read, verdicts returned).
 
 **Why it exists.** Every question about a free allowance or a price — how many imports a

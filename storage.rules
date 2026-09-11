@@ -9,6 +9,13 @@ service firebase.storage {
       allow read: if true;
       allow write: if false;
     }
+    // The generated-image pool: content-addressed per drink, written only by
+    // the generateImage Cloud Function (admin SDK), read by the app over
+    // public URLs like the catalog above.
+    match /generated/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
     // Everything else: locked down by default.
     match /{allPaths=**} {
       allow read, write: if false;

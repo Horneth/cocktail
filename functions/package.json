@@ -1,0 +1,20 @@
+{
+  "name": "cocktail-functions",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^8.0.1",
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^7.0.0",
+    "google-auth-library": "^10.0.0",
+    "sharp": "^0.34.0"
+  }
+}

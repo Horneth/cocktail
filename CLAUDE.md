@@ -116,7 +116,8 @@ src/
     aiShared.ts   Transport-agnostic AI core: response shapes + model-JSON → StructuredImport
     firebaseAI.ts Cloud transport via Firebase AI Logic: firebaseParse(), firebaseJudgeDuplicates(),
                   firebaseIdentifyBottles(), firebaseReconcileBottles()
-    limits.ts     Cost ceilings on an AI request (input chars, photo count/bytes, output tokens)
+    imageGen.ts   Client transport for the generateImage callable (pool photo at save):
+                  gates, input caps, `gen:<key>` back — the prompt never passes through here
     limits.ts     Cost ceilings on an AI request (input chars, photo count/bytes, output tokens)
     image.ts      Browser canvas downscale + data-URL split for the photo scan; blobToDataUrl() for scenes
     backup.ts     Whole-library export/import (the only way data crosses an origin)
@@ -143,6 +144,12 @@ src/
   components/     Reusable UI (TabBar, RecipeRow, RecipeImage, IngredientRow,
                   BottomSheet, ServingStepper, SwipeableRow,
                   ErrorBoundary, icons)
+
+functions/        The generateImage callable (Node 22, plain JS ESM — no build step).
+  src/index.js    Validate → pool hit (free) → Firestore rate limit → Vertex AI
+                  (ADC) → sharp sizes → Storage upload. The ONLY prompt composer.
+  shared/         Verbatim copies of src/domain/poolKey.mjs + poolPrompt.mjs —
+                  a test in src/domain fails the build if they drift.
 ```
 
 **Routes** (hash-based, see `main.tsx`): `/` (recipes), `/recipe/:id`,
@@ -364,10 +371,16 @@ users shares one entry, generated once. Recipes store the reference
 per render size; spirit tiles are the fallback while an entry is missing or
 offline. Classics are pre-seeded by `scripts/generate-images.mjs`
 (`scripts/classics.json`) using your own Gemini key directly (not Firebase AI
-Logic), so the project's template-only mode doesn't apply. On-demand generation
-(Phase B, Cloud Function + auto-attach at save) keeps the prompt **entirely
-server-side** — the client sends a drink name and receives a key, never a
-prompt.
+Logic), so the project's template-only mode doesn't apply. Everything else is
+generated on demand by the **`generateImage` callable** in `functions/`
+(Vertex AI with the function's service account — image gen isn't supported in
+template-only mode): **auto-attached at save** to every image-less cocktail a
+signed-in user saves (`wantsGeneratedImage` in `EditRecipeScreen`, the
+`imageStatus: 'pending'` guard prevents double spends), with a per-user daily
+rate limit in Firestore that fails closed, and a pool hit before it — the
+prompt stays **entirely server-side**: the client sends a drink name and
+receives a key, never a prompt. Setup and knobs:
+**docs/cloud-ai-backend.md → "The image pool"**.
 
 Three gates, in order — all three must hold before an AI call happens:
 1. `FEATURES.cloudAI` in `src/config.ts` — the **kill switch**, removes every entry point.

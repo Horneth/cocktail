@@ -23,7 +23,7 @@ import { firebaseConfig } from '../config'
 //    library stays on the device, and a metrics pipeline is not an exception.
 
 /** Which of the calls. Mirrors the metering units a paid tier would use. */
-export type AiCallKind = 'parse' | 'dupes' | 'vision' | 'reconcile'
+export type AiCallKind = 'parse' | 'dupes' | 'vision' | 'reconcile' | 'image'
 
 export interface AiCallFacts {
   /**

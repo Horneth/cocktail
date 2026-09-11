@@ -87,6 +87,27 @@ export async function setFavorite(recipeId: string, favorite: boolean): Promise<
 }
 
 /**
+ * Attach an image to a recipe after the fact (the auto-generated pool shot
+ * arriving while the user is elsewhere in the app). Guarded: never overwrites
+ * a photo the user chose meanwhile, and the reference must be a pool ref.
+ */
+export async function attachGeneratedImage(recipeId: string, ref: string): Promise<void> {
+  if (!ref.startsWith('gen:')) throw new Error('Not a pool reference.')
+  await db.transaction('rw', db.recipes, async () => {
+    const recipe = await db.recipes.get(recipeId)
+    // The user may have uploaded their own photo while the pool shot was in
+    // flight — theirs wins.
+    if (!recipe || recipe.image) return
+    await db.recipes.update(recipeId, { image: ref, imageStatus: 'done' })
+  })
+}
+
+/** Record that auto-generation failed (spirit tile renders until retried). */
+export async function markImageFailed(recipeId: string): Promise<void> {
+  await db.recipes.update(recipeId, { imageStatus: 'failed' })
+}
+
+/**
  * Delete a recipe. If other recipes referenced it, those parents keep the
  * ingredient but lose the (now-dangling) link, so nothing points at a deleted
  * record.

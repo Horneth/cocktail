@@ -5,13 +5,14 @@ import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon, UploadIco
 import { FEATURES, isCloudAIConfigured } from '../config'
 import type { Ingredient, MeasureBasis, Recipe, RecipeKind, Unit } from '../db/schema'
 import { newId } from '../domain/ids'
+import { GEN_PREFIX } from '../domain/imagePool'
 import { shortlistCandidates } from '../domain/dupeMatch'
 import { KIND_LABELS, RECIPE_KINDS } from '../domain/recipeKind'
 import { KNOWN_SPIRITS } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { UNIT_ORDER, UNITS } from '../domain/units'
 import { GLASSES, METHODS } from '../domain/vocab'
-import { deleteRecipe, saveRecipe } from '../import/importRecipe'
+import { attachGeneratedImage, deleteRecipe, markImageFailed, saveRecipe } from '../import/importRecipe'
 import { downscaleDataUrl } from '../import/image'
 import { RecipeImage } from '../components/RecipeImage'
 import type { GuessedField, StructuredImport } from '../import/types'
@@ -146,8 +147,46 @@ const onSave = async () => {
         .filter((i) => i.name.trim() !== '')
         .map((i) => ({ ...i, name: i.name.trim() })),
     }
+    if (wantsGeneratedImage(cleaned)) cleaned.imageStatus = 'pending'
     await saveRecipe(cleaned)
+    void maybeGenerateImage(cleaned)
     navigate(`/recipe/${cleaned.id}`, { replace: true })
+  }
+
+  /**
+   * Auto-attach a pool photo at save: any image-less cocktail the user saves
+   * signs in and online gets one generated for it — or, for a drink the pool
+   * already has (every classic is seeded), an instant free hit. Fire-and-forget:
+   * the recipe is saved before this runs, and the photo lands (or the spirit
+   * tile stays) whenever it resolves. The `pending` status — written on the
+   * record itself in the same save — is the guard that keeps a second save
+   * from spending two generations on the same recipe.
+   */
+  const maybeGenerateImage = async (recipe: Recipe) => {
+    if (recipe.imageStatus !== 'pending') return
+    try {
+      const { firebaseGenerateImage } = await import('../import/imageGen')
+      const { key } = await firebaseGenerateImage({
+        name: recipe.name,
+        glass: recipe.glassware,
+        garnish: recipe.garnish,
+        spirit: recipe.spirit,
+      })
+      await attachGeneratedImage(recipe.id, `${GEN_PREFIX}${key}`)
+    } catch {
+      // Silent: a failed generation costs the user nothing but the tile
+      // they'd see anyway. Retrying is implicit — the next save tries again.
+      await markImageFailed(recipe.id).catch(() => {})
+    }
+  }
+
+  /** Should this save carry the auto-generation `pending` guard? */
+  const wantsGeneratedImage = (recipe: Recipe): boolean => {
+    if (!FEATURES.cloudAI || !isCloudAIConfigured()) return false
+    if (recipe.kind !== 'cocktail' || recipe.image) return false
+    if (!auth.aiAvailable) return false
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false
+    return true
   }
 
   const onDelete = async () => {
@@ -156,7 +195,7 @@ const onSave = async () => {
     navigate('/', { replace: true })
   }
 
-  // ── Image: pick a photo, or pick the closest curated catalog shot ──
+  // ── Image: upload your own photo (the manual path; generation is automatic) ──
   const onPickImage = async (file: File | undefined) => {
     if (!file || imageBusy) return
     setImageBusy(true)
