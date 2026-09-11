@@ -93,9 +93,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_COCKTAILS_C2705 }}' > /tmp/sa.json
-          npx firebase-tools deploy --only functions,storage \
+          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json npx -y firebase-tools@15 deploy --only functions,storage \
             --project cocktails-c2705 \
-            --service-account-key-file=/tmp/sa.json \
             --non-interactive
           rm -f /tmp/sa.json
 
