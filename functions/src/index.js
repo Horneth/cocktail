@@ -40,11 +40,13 @@ initializeApp()
 // The model must render images AND be callable via Vertex with ADC — verify a
 // model id exists on Vertex before shipping a change (`npm run images:verify`).
 const MODEL = process.env.IMAGE_GEN_MODEL ?? 'gemini-2.5-flash-image'
-// Two independent regions: where the callable deploys (FUNCTION_REGION — the
+// Two independent regions: where the callable deploys (IMAGE_FN_REGION — the
 // client must point at the same one) and where the model API is called
 // (VERTEX_REGION — must serve IMAGE_GEN_MODEL). They don't have to match, but
 // co-locating cuts latency. The Firestore rate counter is reached from either.
-const FUNCTION_REGION = process.env.FUNCTION_REGION ?? 'us-central1'
+// (NOT "FUNCTION_REGION" — that name is reserved by the Firebase runtime and
+// rejected from .env files.)
+const FUNCTION_REGION = process.env.IMAGE_FN_REGION ?? 'us-central1'
 const VERTEX_REGION = process.env.VERTEX_REGION ?? 'us-central1'
 /** Generations one user may spend per UTC day. Pool hits never count. */
 const DAILY_LIMIT = Number(process.env.IMAGE_GEN_DAILY_LIMIT ?? 10)

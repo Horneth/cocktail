@@ -280,7 +280,7 @@ below is in the Google Cloud console for that project unless it says Firebase.
    callable).
 
 Knobs (all env vars on the function, all optional):
-`IMAGE_GEN_MODEL` (default `gemini-2.5-flash-image`), `FUNCTION_REGION`
+`IMAGE_GEN_MODEL` (default `gemini-2.5-flash-image`), `IMAGE_FN_REGION`
 (default `us-central1` — where the callable deploys; the client must point at
 the same one via `VITE_FIREBASE_FUNCTIONS_REGION`), `VERTEX_REGION` (default
 `us-central1` — where the model API is called; must serve
@@ -289,7 +289,7 @@ the same one via `VITE_FIREBASE_FUNCTIONS_REGION`), `VERTEX_REGION` (default
 `IMAGE_GEN_SA` (least-privilege runtime account, see step 3).
 
 **Keeping it in Europe.** Nothing forces US regions: create
-`functions/.env` with `FUNCTION_REGION=europe-west1` and
+`functions/.env` with `IMAGE_FN_REGION=europe-west1` and
 `VERTEX_REGION=europe-west1`, set
 `VITE_FIREBASE_FUNCTIONS_REGION=europe-west1` for the app build, and check
 the model actually serves there with `npm run images:verify -- --region
