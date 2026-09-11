@@ -48,7 +48,7 @@
 /* ── Photo: a compact row that opens the picker sheet ────────────── */
 .photoRow { display:flex; align-items:center; gap:12px; }
 .photoThumb,.photoAdd { flex:0 0 auto; display:grid; place-items:center; width:54px; height:54px; border-radius:14px; border:1px solid var(--line); background:var(--photo-empty); overflow:hidden; }
-.photoThumb img { width:100%; height:100%; object-fit:cover; }
+.photoThumb img,.photoThumbImg { width:100%; height:100%; object-fit:cover; }
 .photoAdd { color:var(--faint); }
 .photoText { flex:1; display:flex; flex-direction:column; gap:2px; text-align:left; }
 .photoLabel { font-size:14.5px; font-weight:700; color:var(--ink-display); }
@@ -63,10 +63,6 @@
 /* ── Photo picker sheet ──────────────────────────────────────────── */
 .photoPreview { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:16px; border:1px solid var(--line); background:var(--photo-empty); }
 .photoRemoveBtn { display:flex; align-items:center; gap:8px; align-self:flex-start; margin-top:10px; padding:9px 13px; border-radius:var(--radius-pill); background:var(--paper); border:1px solid var(--line); color:var(--danger); font-size:13px; font-weight:700; }
-.photoSuggestRow { display:flex; gap:8px; overflow-x:auto; }
-.photoSuggest { flex:0 0 auto; display:flex; flex-direction:column; gap:5px; width:88px; border:0; background:none; text-align:center; }
-.photoSuggest img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:12px; border:1px solid var(--line); background:var(--photo-empty); }
-.photoSuggest span { color:var(--muted); font-size:10.5px; font-weight:600; line-height:1.2; }
 .photoUpload { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px; padding:14px; border:1px dashed var(--line); border-radius:var(--radius-sm); background:var(--card); color:var(--accent); font-size:14px; font-weight:800; cursor:pointer; }
 .imageError { margin:8px 0 0; color:var(--missing-fg); font-size:12.5px; font-weight:600; }
 

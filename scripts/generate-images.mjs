@@ -1,52 +1,93 @@
-// Generate the curated cocktail-image catalog into `public/images/cocktails/`.
+// Seed the shared generated-image pool in Firebase Storage.
 //
-// Uses YOUR OWN Gemini API key (AI Studio) DIRECTLY — NOT Firebase AI Logic — so
-// the project's template-only mode does not apply here. Run it on a laptop, review
-// the output, then publish to Firebase Storage (see `scripts/publish-images.mjs`).
+// The pool is content-addressed by drink name (see src/domain/poolKey.mjs):
+//   generated/v1/<key>-{thumb,card,full}.webp
+// Every user who adds the same drink shares one entry, so seeding the classics
+// here is what makes their first save an instant, free hit. The prompt lives
+// entirely in src/domain/poolPrompt.mjs — the client never composes prompts.
 //
 // Usage:
-//   GOOGLE_API_KEY=... node scripts/generate-images.mjs            # all slots
-//   GOOGLE_API_KEY=... node scripts/generate-images.mjs --only mai-tai   # one slot
-//   GOOGLE_API_KEY=... node scripts/generate-images.mjs --model gemini-3.1-flash-image
+//   GOOGLE_API_KEY=... node scripts/generate-images.mjs               # all classics
+//   GOOGLE_API_KEY=... node scripts/generate-images.mjs --only daiquiri
+//   GOOGLE_API_KEY=... node scripts/generate-images.mjs --review      # write files, no upload
+//   GOOGLE_API_KEY=... node scripts/generate-images.mjs --force       # regenerate existing
 //
-// Re-use for a new style:
-//   1. Append a row to `src/domain/recipeImages.ts` (copy one, change slug/glass/
-//      keywords/cue/sample).
-//   2. Run `--only <new-slug>` to render just that shot.
-//   3. Review, re-run if needed, publish. No full regeneration, no app redeploy
-//      (the app merges a Storage-hosted manifest over the bundled catalog).
+// Entries already in the pool are skipped (idempotent), so a partially
+// finished run resumes where it stopped. Uploads use the same service-account
+// story the old publish script had:
+//   GOOGLE_APPLICATION_CREDENTIALS=/path/to/firebase-service-account.json npm run images
+// (grant the account roles/storage.objectAdmin on the bucket).
 
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Storage } from '@google-cloud/storage'
+import sharp from 'sharp'
+import { poolKeyForName, poolPath, sanitizeDrinkName } from '../src/domain/poolKey.mjs'
+import { buildImagePrompt, IMAGE_MODEL } from '../src/domain/poolPrompt.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const outDir = resolve(root, 'public/images/cocktails')
-const outManifest = resolve(root, 'src/domain/recipeImagesManifest.json')
-
-const model = process.env.GEMINI_IMAGE_MODEL ?? 'gemini-3.1-flash-image'
+const reviewDir = resolve(root, 'tmp/pool-review')
+const model = process.env.GEMINI_IMAGE_MODEL ?? IMAGE_MODEL
 const apiKey = process.env.GOOGLE_API_KEY
 if (!apiKey) {
-  console.error('Set GOOGLE_API_KEY (AI Studio key) to run the image generator.')
+  console.error('Set GOOGLE_API_KEY (AI Studio key) to run the pool seeder.')
   process.exit(1)
 }
 
-// The fixed style contract — identical for every slot. This is what keeps the
-// whole catalog looking like one photographer shot it. Keep it in sync with the
-// description text the app's matcher uses (see src/domain/recipeImages.ts).
-const STYLE = `Editorial cocktail photography, centered close shot, shallow depth of field,
-warm blurred bar-back bokeh, soft rim light, the drink prominent in its glass on a
-clean warm tabletop. One glass only. No text, no labels, no hands, no logos, no
-props, no brand names, no people. Vertical 3:4 composition.`
-
-function buildPrompt(slot) {
-  return `${STYLE}
-
-Render: ${slot.label} — ${slot.description} ${slot.cue}.`
+// Bucket: --bucket wins, else VITE_FIREBASE_STORAGE_BUCKET from .env.local.
+function bucketFromEnv() {
+  try {
+    const env = readFileSync(resolve(root, '.env.local'), 'utf8')
+    const m = env.match(/^VITE_FIREBASE_STORAGE_BUCKET=(.*)$/m)
+    if (m) return m[1].trim().replace(/["']/g, '')
+  } catch {
+    /* no .env.local */
+  }
+  return null
 }
 
-async function generateOne(slot) {
-  const prompt = buildPrompt(slot)
+const argv = process.argv.slice(2)
+const only = []
+let force = false
+let review = false
+let argBucket = null
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === '--only') only.push(argv[++i])
+  else if (argv[i] === '--force') force = true
+  else if (argv[i] === '--review') review = true
+  else if (argv[i] === '--bucket') argBucket = argv[++i]
+}
+const bucketName = argBucket ?? bucketFromEnv()
+if (!review && !bucketName) {
+  console.error('No bucket. Pass --bucket <name> or set VITE_FIREBASE_STORAGE_BUCKET in .env.local.')
+  process.exit(1)
+}
+
+const classics = JSON.parse(readFileSync(resolve(root, 'scripts/classics.json'), 'utf8'))
+const targets = only.length ? classics.filter((c) => poolKeyForName(c.name) && only.includes(poolKeyForName(c.name))) : classics
+if (only.length && targets.length !== only.length) {
+  const known = new Set(classics.map((c) => poolKeyForName(c.name)))
+  console.error(`Unknown key(s): ${only.filter((k) => !known.has(k)).join(', ')}`)
+  process.exit(1)
+}
+
+const storage = review ? null : new Storage()
+const bucket = storage ? storage.bucket(bucketName) : null
+
+function classify(err) {
+  const msg = err?.message ?? ''
+  if (/accountDisabled|billing|disabled in state closed/i.test(msg)) {
+    return 'Cloud Storage rejected the upload ("account disabled" — likely a personal Google account via gcloud ADC). Use a dedicated Firebase service account:\n' +
+      '  GOOGLE_APPLICATION_CREDENTIALS=/path/to/firebase-service-account.json npm run images'
+  }
+  if (/permissionDenied|403/i.test(msg)) {
+    return `Permission denied. Grant the service account "Storage Object Admin" (roles/storage.objectAdmin) on gs://${bucketName}.`
+  }
+  return msg
+}
+
+async function generateFullImage(prompt) {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -61,68 +102,63 @@ async function generateOne(slot) {
       }),
     },
   )
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Gemini ${res.status}: ${body.slice(0, 300)}`)
-  }
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`)
   const data = await res.json()
   const part = data?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)
-  if (!part?.inlineData?.data) throw new Error(`No image returned for ${slot.slug}.`)
+  if (!part?.inlineData?.data) throw new Error('No image returned.')
+  return Buffer.from(part.inlineData.data, 'base64')
+}
+
+// Derivatives from whatever frame the model produced. card/thumb are square
+// centre-crops (they render in 1:1 containers), full keeps the 3:4 hero frame.
+async function deriveSizes(raw) {
+  const base = sharp(raw).resize(896, 1200, { fit: 'cover' })
   return {
-    mimeType: part.inlineData.mimeType,
-    base64: part.inlineData.data,
+    full: await base.clone().webp({ quality: 78 }).toBuffer(),
+    card: await sharp(raw).resize(512, 512, { fit: 'cover' }).webp({ quality: 80 }).toBuffer(),
+    thumb: await sharp(raw).resize(256, 256, { fit: 'cover' }).webp({ quality: 80 }).toBuffer(),
   }
 }
 
-function parseArgs(argv) {
-  const only = []
-  for (let i = 2; i < argv.length; i++) {
-    if (argv[i] === '--only') only.push(argv[i + 1])
-  }
-  return { only: only.filter(Boolean) }
+const uploadOpts = {
+  gzip: false,
+  cacheControl: 'public, max-age=31536000, immutable',
+  contentType: 'image/webp',
 }
 
-// Import the catalog from the repo's JSON (the single source of truth).
-async function loadCatalog() {
-  const json = readFileSync(resolve(root, 'src/domain/recipeImages.json'), 'utf8')
-  return JSON.parse(json)
-}
-
-mkdirSync(outDir, { recursive: true })
-
-const catalog = await loadCatalog()
-const { only } = parseArgs(process.argv)
-const targets = only.length ? catalog.filter((s) => only.includes(s.slug)) : catalog
-if (only.length && targets.length !== only.length) {
-  const missing = only.filter((s) => !catalog.some((c) => c.slug === s))
-  console.error(`Unknown slug(s): ${missing.join(', ')} — check src/domain/recipeImages.ts`)
-  process.exit(1)
-}
-
-console.log(`Generating ${targets.length} image(s) with ${model}…`)
-const manifest = {}
-for (const slot of targets) {
+console.log(`Seeding ${targets.length} pool image(s) with ${model}${review ? ' [review only]' : ''}…`)
+let seeded = 0
+let skipped = 0
+for (const spec of targets) {
+  const key = poolKeyForName(spec.name)
   try {
-    const { mimeType, base64 } = await generateOne(slot)
-    const ext = mimeType === 'image/png' ? 'png' : 'webp'
-    const file = `${slot.slug}.${ext}`
-    writeFileSync(resolve(outDir, file), Buffer.from(base64, 'base64'))
-    manifest[slot.slug] = file
-    console.log('  ✓', file)
+    const existing = review ? [false] : await bucket.file(poolPath(key, 'full')).exists()
+    if (existing[0] && !force) {
+      skipped += 1
+      console.log('  =', key, '(already in the pool)')
+      continue
+    }
+    const prompt = buildImagePrompt({
+      name: sanitizeDrinkName(spec.name),
+      glass: spec.glass,
+      garnish: spec.garnish,
+      spirit: spec.spirit,
+    })
+    const raw = await generateFullImage(prompt)
+    const sizes = await deriveSizes(raw)
+    for (const size of ['thumb', 'card', 'full']) {
+      if (review) {
+        mkdirSync(reviewDir, { recursive: true })
+        writeFileSync(resolve(reviewDir, `${key}-${size}.webp`), sizes[size])
+      } else {
+        await bucket.file(poolPath(key, size)).save(sizes[size], uploadOpts)
+      }
+    }
+    seeded += 1
+    console.log('  ✓', key)
   } catch (err) {
-    console.error('  ✗', slot.slug, err.message)
+    console.error('  ✗', key, classify(err) || err.message)
   }
 }
-// Bundled manifest: slug -> file, committed so the app knows each slot's file
-// name offline. Merged, so a --only run never wipes entries it didn't touch.
-let existing = {}
-try {
-  existing = JSON.parse(readFileSync(outManifest, 'utf8'))
-} catch {
-  /* first run */
-}
-writeFileSync(
-  outManifest,
-  JSON.stringify({ ...existing, ...manifest }, null, 2) + '\n',
-)
-console.log('Manifest → src/domain/recipeImagesManifest.json')
+console.log(`Done. ${seeded} seeded, ${skipped} already present.` +
+  (review ? ` Review files in tmp/pool-review/ — nothing was uploaded.` : ` Pool: gs://${bucketName}/generated/v1/`))

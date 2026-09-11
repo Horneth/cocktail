@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IngredientRow, type IngredientLink, type Override } from '../components/IngredientRow'
+import { RecipeImage } from '../components/RecipeImage'
 import { ServingStepper } from '../components/ServingStepper'
 import { ChevronLeftIcon, EditIcon, HeartIcon, PlusIcon } from '../components/icons'
 import type { Ingredient, Recipe } from '../db/schema'
@@ -165,7 +166,16 @@ export function RecipeDetailScreen() {
   return (
     <div className={styles.screen}>
       <div className={styles.hero} style={{ background: `linear-gradient(180deg, ${v.tint}, var(--paper))` }}>
-        {recipe.image && <img className={styles.heroImage} src={recipe.image} alt={recipe.name} />}
+        {recipe.image ? (
+          <RecipeImage
+            image={recipe.image}
+            size="full"
+            sizes="(min-width: 440px) 440px, 100vw"
+            className={styles.heroImage}
+            alt={recipe.name}
+            fallback={null}
+          />
+        ) : null}
         <div className={styles.heroTop}>
           <button className={styles.roundBtn} aria-label="Back" onClick={() => navigate(-1)}>
             <ChevronLeftIcon size={20} />

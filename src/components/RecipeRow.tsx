@@ -3,6 +3,7 @@ import type { Recipe } from '../db/schema'
 import { summarize } from '../domain/recipeSummary'
 import { tileKeyForRecipe } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
+import { RecipeImage } from './RecipeImage'
 import { SwipeableRow } from './SwipeableRow'
 import styles from './RecipeRow.module.css'
 
@@ -24,13 +25,17 @@ export function RecipeRow({ recipe, badge = null, onDelete }: Props) {
   const v = spiritVisual(tileKeyForRecipe(recipe))
   const body = (
     <Link className={styles.row} to={`/recipe/${recipe.id}`} draggable={false}>
-      {recipe.image ? (
-        <img className={styles.thumb} src={recipe.image} alt="" />
-      ) : (
-        <span className={styles.thumb} style={{ background: v.tint }}>
-          {v.emoji}
-        </span>
-      )}
+      <RecipeImage
+        image={recipe.image}
+        size="thumb"
+        sizes="52px"
+        className={styles.thumb}
+        fallback={
+          <span className={styles.thumb} style={{ background: v.tint }}>
+            {v.emoji}
+          </span>
+        }
+      />
       <span className={styles.main}>
         <span className={styles.name}>{recipe.name}</span>
         <span className={styles.sub}>{summarize(recipe)}</span>

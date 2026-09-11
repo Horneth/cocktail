@@ -82,23 +82,16 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // Curated cocktail photos: bundled copies are precached; Storage-hosted
-          // ones are cached on first view so they render offline afterwards.
+          // Generated cocktail photos live only in Firebase Storage (the pool
+          // is content-addressed by drink name). Cached on first view so they
+          // render offline afterwards; not precached — entries exist per
+          // generated drink and the app must install light.
           {
-            urlPattern: /\/images\/cocktails\/.*/i,
+            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*\/generated\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'cocktail-images',
-              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*\/cocktails\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'cocktail-images-storage',
-              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheName: 'cocktail-images-pool',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

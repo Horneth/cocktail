@@ -13,17 +13,7 @@ import { UNIT_ORDER, UNITS } from '../domain/units'
 import { GLASSES, METHODS } from '../domain/vocab'
 import { deleteRecipe, saveRecipe } from '../import/importRecipe'
 import { downscaleDataUrl } from '../import/image'
-import {
-  bundleImageUrl,
-  catalogImageUrl,
-  getMergedCatalog,
-  getMergedManifest,
-  storageImageUrl,
-} from '../import/catalogImages'
-import bundledManifest from '../domain/recipeImagesManifest.json'
-const bundledManifestMap = bundledManifest as Record<string, string>
-import { suggestImages } from '../domain/recipeImage'
-import type { CocktailImage } from '../domain/recipeImages'
+import { RecipeImage } from '../components/RecipeImage'
 import type { GuessedField, StructuredImport } from '../import/types'
 import { consumeSharedImport } from '../import/shared'
 import { useAuth } from '../hooks/useAuth'
@@ -95,42 +85,10 @@ export function EditRecipeScreen() {
   const [pasteError, setPasteError] = useState<string | null>(null)
   const [parsed, setParsed] = useState<StructuredImport[] | null>(null)
 
-  // ── Image state (pick / generate) ──
+  // ── Image state (pick / remove) ──
   const [imageBusy, setImageBusy] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
   const [photoOpen, setPhotoOpen] = useState(false)
-
-  // Suggestions: the closest curated catalog shots for the drink as it's being
-  // edited. Recomputes as the form changes (name/spirit/glass/garnish/tags).
-  const [suggestions, setSuggestions] = useState<CocktailImage[]>([])
-  // Thumbnail URL per suggestion slug, resolved from the merged manifest so a
-  // Storage-only shot gets a working thumbnail too.
-  const [suggestionThumbs, setSuggestionThumbs] = useState<Record<string, string>>({})
-  useEffect(() => {
-    if (!form || form.kind !== 'cocktail') {
-      setSuggestions([])
-      setSuggestionThumbs({})
-      return
-    }
-    let alive = true
-    void (async () => {
-      const [catalog, manifest] = await Promise.all([getMergedCatalog(), getMergedManifest()])
-      if (!alive) return
-      const hits = suggestImages(form, 4, catalog)
-      // Keep only slots that have a resolvable image (bundled or Storage).
-      const resolvable = hits.filter((h) => manifest[h.slot.slug])
-      setSuggestions(resolvable.map((h) => h.slot))
-      const thumbs: Record<string, string> = {}
-      for (const h of resolvable) {
-        const file = manifest[h.slot.slug]
-        if (file) thumbs[h.slot.slug] = bundledManifestMap[h.slot.slug] ? bundleImageUrl(file) : (storageImageUrl(file) ?? '')
-      }
-      setSuggestionThumbs(thumbs)
-    })()
-    return () => {
-      alive = false
-    }
-  }, [form?.name, form?.spirit, form?.glassware, form?.garnish, form?.tags, form?.ingredients])
 
   useEffect(() => {
     if (!isNew && existing && !form) {
@@ -212,12 +170,6 @@ const onSave = async () => {
     } finally {
       setImageBusy(false)
     }
-  }
-
-  const pickSuggestion = async (slug: string) => {
-    const url = await catalogImageUrl(slug)
-    if (url) update({ image: url, imageStatus: 'done' })
-    setPhotoOpen(false)
   }
 
   const isCocktailKind = form.kind === 'cocktail'
@@ -368,13 +320,17 @@ const onSave = async () => {
             onClick={() => setPhotoOpen(true)}
             aria-label={form.image ? 'Change photo' : 'Add a photo'}
           >
-            {form.image ? <img src={form.image} alt="" /> : <UploadIcon size={18} />}
+            <RecipeImage
+              image={form.image}
+              size="thumb"
+              sizes="54px"
+              className={styles.photoThumbImg}
+              fallback={<UploadIcon size={18} />}
+            />
           </button>
           <div className={styles.photoText}>
             <span className={styles.photoLabel}>{form.image ? 'Photo' : 'Add a photo'}</span>
-            <span className={styles.photoHint}>
-              {isCocktailKind && suggestions.length > 0 ? `${suggestions.length} suggested` : 'Optional'}
-            </span>
+            <span className={styles.photoHint}>Optional</span>
           </div>
           {form.image && (
             <button
@@ -598,11 +554,8 @@ const onSave = async () => {
         open={photoOpen}
         onClose={() => setPhotoOpen(false)}
         form={form}
-        suggestions={suggestions}
-        suggestionThumbs={suggestionThumbs}
         imageBusy={imageBusy}
         imageError={imageError}
-        onPickSuggestion={(slug) => void pickSuggestion(slug)}
         onPickFile={(file) => void onPickImage(file)}
         onRemove={() => update({ image: undefined, imageStatus: undefined })}
       />
@@ -750,34 +703,19 @@ interface PhotoPickerProps {
   open: boolean
   onClose: () => void
   form: Recipe
-  suggestions: CocktailImage[]
-  suggestionThumbs: Record<string, string>
   imageBusy: boolean
   imageError: string | null
-  onPickSuggestion: (slug: string) => void
   onPickFile: (file: File | undefined) => void
   onRemove: () => void
 }
 
 /**
- * The one place a recipe photo is chosen: the closest curated catalog shots for
- * the drink as it's being edited, plus the option to upload your own. Kept out
- * of the form so the editor stays a form — image choice is a separate step.
+ * The one place a recipe photo is managed: the current photo (pool shot or
+ * your own upload), swap it, or remove it. Choosing an image is never a step
+ * in the save path — generation (Phase B) attaches automatically; this only
+ * overrides.
  */
-function PhotoPicker({
-  open,
-  onClose,
-  form,
-  suggestions,
-  suggestionThumbs,
-  imageBusy,
-  imageError,
-  onPickSuggestion,
-  onPickFile,
-  onRemove,
-}: PhotoPickerProps) {
-  const isCocktail = form.kind === 'cocktail'
-
+function PhotoPicker({ open, onClose, form, imageBusy, imageError, onPickFile, onRemove }: PhotoPickerProps) {
   return (
     <BottomSheet open={open} onClose={onClose} draggable>
       <div className={styles.sheetHead}>
@@ -786,33 +724,17 @@ function PhotoPicker({
 
       {form.image && (
         <>
-          <img className={styles.photoPreview} src={form.image} alt={form.name || 'Recipe photo'} />
+          <RecipeImage
+            image={form.image}
+            size="full"
+            sizes="(min-width: 440px) 440px, 100vw"
+            className={styles.photoPreview}
+            alt={form.name || 'Recipe photo'}
+            fallback={<div className={styles.photoPreview} />}
+          />
           <button className={styles.photoRemoveBtn} onClick={onRemove}>
             <TrashIcon size={16} /> Remove photo
           </button>
-        </>
-      )}
-
-      {isCocktail && suggestions.length > 0 && (
-        <>
-          <p className={styles.sheetSection}>Suggested</p>
-          <div className={styles.photoSuggestRow}>
-            {suggestions.map((s) => {
-              const thumb = suggestionThumbs[s.slug]
-              if (!thumb) return null
-              return (
-                <button
-                  key={s.slug}
-                  className={styles.photoSuggest}
-                  onClick={() => onPickSuggestion(s.slug)}
-                  aria-label={`Use the ${s.label} photo`}
-                >
-                  <img src={thumb} alt="" />
-                  <span>{s.label}</span>
-                </button>
-              )
-            })}
-          </div>
         </>
       )}
 

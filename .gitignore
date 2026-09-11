@@ -13,3 +13,6 @@ scripts/shots
 .firebase
 # Local Firebase client config for `npm run dev`; CI injects these as repo Variables.
 .env
+
+# Local review output for the image-pool seeder (--review), before upload.
+tmp/

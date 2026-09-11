@@ -80,8 +80,6 @@ src/
     schema.ts     Core domain types (Recipe, Ingredient, PantryItem, RecipeLink, …)
     db.ts         Dexie subclass + versioned store definitions (the ONLY DB instance)
     seed.ts       Starter recipes, authored as StructuredImport, written via importRecipe()
-    seedImages.ts Compact SVG data URLs for the seed classics (placeholders for real
-                  generated photography, committed so classics ship with images)
 
   domain/         Pure, framework-free logic — unit-tested, no React, no Dexie imports
     scaling.ts    Serving rescale + per-ingredient nudge (non-destructive)
@@ -103,6 +101,13 @@ src/
     textNormalize.ts  normalizeMixerName() + duplicateMixerGroups() (dedup/merge)
     recipeSummary.ts  Short ingredient summaries for cards
     recipeActions.ts  deleteRecipeWithConfirm (thin wrapper over import/importRecipe)
+    poolKey.mjs   The shared pool rules (key = slug of the name, name sanitization,
+                  size spec) — imported verbatim by the app, the seeder script and
+                  the future Cloud Function, so a stored key can never drift
+    poolPrompt.mjs  The one style contract + prompt builder. Generation-side only —
+                  the app never imports it; the prompt stays server-side
+    imagePool.ts  Client contract around poolKey: `gen:<key>` refs, Storage URLs,
+                  per-size srcset
     ids.ts        newId()
 
   import/         The single write seam for bulk recipe creation
@@ -135,7 +140,7 @@ src/
                   BarScreen + ManageBarsSheet / AddBottleSheet / BottleSheet,
                   plus sheet.module.css for their shared chrome
 
-  components/     Reusable UI (TabBar, RecipeRow, IngredientRow, AddSheet,
+  components/     Reusable UI (TabBar, RecipeRow, RecipeImage, IngredientRow,
                   BottomSheet, ServingStepper, SwipeableRow,
                   ErrorBoundary, icons)
 ```
@@ -351,13 +356,18 @@ copies of the four templates are in **`docs/prompt-templates/`** — edit there,
 then paste — and the pure part left in **`src/import/aiShared.ts`** (response
 shapes, model-JSON → `StructuredImport`) stays transport-agnostic.
 
-Cocktail **photos** are not AI at all — they are a **curated catalog** shipped to
-Firebase Storage and merged over a bundled copy at boot. The editor suggests the
-closest catalog shot for the drink being built (`domain/recipeImage.ts`), and a
-Storage-hosted `catalog.json`/`manifest.json` extends it so new styles can land
-without an app deploy. The generation + publish scripts (`scripts/`) use your own
-Gemini key directly (not Firebase AI Logic), so the project's template-only mode
-doesn't apply to them. `Recipe.image` stores a data URL or resolved catalog URL.
+Cocktail **photos** come from one **generated-image pool** in Firebase Storage,
+content-addressed by drink name (`generated/v1/<key>-{thumb,card,full}.webp`,
+key rules in `src/domain/poolKey.mjs`). The same drink added by any number of
+users shares one entry, generated once. Recipes store the reference
+`gen:<key>` (`domain/imagePool.ts`) and `components/RecipeImage.tsx` resolves it
+per render size; spirit tiles are the fallback while an entry is missing or
+offline. Classics are pre-seeded by `scripts/generate-images.mjs`
+(`scripts/classics.json`) using your own Gemini key directly (not Firebase AI
+Logic), so the project's template-only mode doesn't apply. On-demand generation
+(Phase B, Cloud Function + auto-attach at save) keeps the prompt **entirely
+server-side** — the client sends a drink name and receives a key, never a
+prompt.
 
 Three gates, in order — all three must hold before an AI call happens:
 1. `FEATURES.cloudAI` in `src/config.ts` — the **kill switch**, removes every entry point.
