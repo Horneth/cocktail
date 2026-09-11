@@ -274,7 +274,7 @@ below is in the Google Cloud console for that project unless it says Firebase.
    channel caveat: enforcement rejects calls from PR preview URLs, which is
    accepted — previews never deploy the function anyway.
 
-7. **Deploy.** `npx firebase deploy --only functions,storage` — or just push
+7. **Deploy.** `npx firebase-tools deploy --only functions,storage` — or just push
    to `main`, the workflow deploys functions + storage rules on the live
    channel only (never PR previews, so unreviewed code can't replace the prod
    callable).
