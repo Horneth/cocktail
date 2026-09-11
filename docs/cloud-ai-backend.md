@@ -148,15 +148,22 @@ start. `scripts/smoke.mjs` asserts the chunk is never requested for a signed-out
 Do this in the [Firebase console](https://console.firebase.google.com/) — the project is
 **`cocktails-c2705`**, the same one that serves Hosting.
 
-1. Keep the project on the **Spark (free)** plan — do **not** link a billing account.
+1. **Plan.** The four AI Logic calls (parse / dupes / vision / reconcile) work on the
+   **Spark (free)** plan. The **image pool** (below) needs **Blaze**, because 2nd-gen Cloud
+   Functions require it and Vertex AI image generation bills per image. If you never deploy
+   the function, everything except pool photos works free; if you do, the four AI Logic calls
+   keep using the Gemini Developer API free tier exactly as before.
 2. **Authentication →** enable the **Google** sign-in provider. Under **Settings → Authorized
    domains**, confirm `localhost`, `cocktails-c2705.web.app` and `cocktails-c2705.firebaseapp.com`
    are listed (Hosting adds the last two for you).
 3. **Firebase AI Logic →** enable it and choose the **Gemini Developer API** provider (the
    free-tier path; the Vertex AI provider requires the Blaze plan).
-4. **App Check →** register the web app with **reCAPTCHA v3** and turn on **enforcement** for
-   AI Logic. Domains are bare hostnames, no scheme or port:
-   `cocktails-c2705.web.app`, `cocktails-c2705.firebaseapp.com`, `localhost`.
+4. **App Check →** register the web app with **reCAPTCHA v3**. Domains are bare hostnames, no
+   scheme or port: `cocktails-c2705.web.app`, `cocktails-c2705.firebaseapp.com`, `localhost`.
+   Enforcement for AI Logic can go on immediately; enforcement for **Cloud Functions**
+   (needed by `generateImage`) is a separate toggle on the same page — start it in
+   **Monitoring** if you'd rather watch a few days first, the callable rejects unattested
+   requests only once enforcement is on.
 5. **(Optional) Per-user rate limit →** in the Google Cloud console, open the Firebase AI Logic
    API's **Quotas** tab and lower the per-user RPM to fit expected usage.
 6. **(Optional) Analytics →** enable Google Analytics on the project and copy the
@@ -198,22 +205,95 @@ enforces, in order:
    anywhere; the project's template-only mode for AI Logic doesn't apply to
    server-side Vertex calls.
 
-One-time console setup for the pool, on top of the list above:
+### Vertex AI setup for the pool (step by step)
 
-- **Firestore Database →** create one (Native mode). Its only use is the rate
-  counter; if it's missing, generation fails closed (signed-in users get a
-  "try again" error rather than unmetered spend).
-- **Vertex AI API →** enable on the project. The callable runs on the default
-  service account — grant it (or the runtime account you configure) the
-  **Vertex AI User** role. The image model is `IMAGE_GEN_MODEL`
-  (default `gemini-2.5-flash-image`); verify a model id exists on Vertex before
-  changing it. `VERTEX_REGION` and `IMAGE_GEN_DAILY_LIMIT` are the other knobs.
-- **Deploy:** `npx firebase deploy --only functions,storage` (the deploy
-  workflow does this on pushes to main — never on PR previews, so unreviewed
-  code can't replace the prod callable).
+Do these once, in order. The project is `cocktails-c2705`; every console path
+below is in the Google Cloud console for that project unless it says Firebase.
 
-Storage rules allow public read of `generated/**` (the app renders pool URLs
-without auth, like the old catalog) and no client writes.
+1. **Upgrade the project to Blaze** (Firebase console → ⚙ Usage and billing →
+   Modify plan → Blaze). 2nd-gen Cloud Functions are built on Cloud Run, which
+   requires a billing account even at zero usage. Nothing else in this app
+   changes: the AI Logic calls stay on the Gemini Developer API free tier, and
+   Storage/Hosting free allowances still apply. Set a budget alert
+   (Cloud console → Billing → Budgets, e.g. $5) as a tripwire.
+
+2. **Enable the Vertex AI API.** Console → APIs & Services → Library → search
+   "Vertex AI API" → Enable (project `cocktails-c2705`). Equivalent CLI:
+   `gcloud services enable aiplatform.googleapis.com --project cocktails-c2705`
+
+3. **Pick the runtime service account and grant it three roles.** By default the
+   callable runs as the project's *default compute service account*
+   (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`, shown in
+   console → ⚙ Project settings → Service accounts), which carries Project
+   **Editor** — the calls work, but Editor is more than this one function
+   needs. Least-privilege alternative:
+
+   ```bash
+   # a dedicated runtime account
+   gcloud iam service-accounts create image-gen --project cocktails-c2705 \
+     --display-name "generateImage runtime"
+   SA=image-gen@cocktails-c2705.iam.gserviceaccount.com
+
+   # 1) call the image model
+   gcloud projects add-iam-policy-binding cocktails-c2705 \
+     --member "serviceAccount:$SA" --role roles/aiplatform.user
+   # 2) write pool files to the app bucket (admin SDK Storage)
+   gsutil iam ch serviceAccount:$SA:objectAdmin gs://<VITE_FIREBASE_STORAGE_BUCKET>
+   # 3) read+write the daily rate counter
+   gcloud projects add-iam-policy-binding cocktails-c2705 \
+     --member "serviceAccount:$SA" --role roles/datastore.user
+   ```
+
+   then point the function at it with the `IMAGE_GEN_SA` env var set to the
+   same email — the function's `serviceAccount` option pins it. If you skip
+   this step entirely, the default account's Editor covers all three needs;
+   you're trading auditability for zero IAM clicking.
+
+4. **Verify the model before deploying.** With your own credentials:
+
+   ```bash
+   gcloud auth application-default login   # your account, same roles as step 3 to test
+   npm run images:verify                    # scripts/verify-vertex.mjs
+   ```
+
+   It fires one real generateContent request and tells you which step is
+   missing on failure (API disabled, role missing → 403; wrong model id → 404).
+   The default model is `gemini-2.5-flash-image`; change with
+   `IMAGE_GEN_MODEL` and re-run the check before deploying.
+
+5. **Create the Firestore database.** Firebase console → Firestore Database →
+   Create → **Native mode**, location `us-central1` (same region as the
+   function), **locked mode** (the client never touches it — only the admin
+   SDK reads/writes `imageGenUsage/<uid>:<day>`). Miss this and generation
+   fails closed: users get "try again", never unmetered spend.
+
+6. **Turn on Cloud Functions App Check enforcement** (App Check → Cloud
+   Functions → Enforce). The callable also declares `enforceAppCheck: true`,
+   so unattested calls are rejected at both layers. Note the earlier preview-
+   channel caveat: enforcement rejects calls from PR preview URLs, which is
+   accepted — previews never deploy the function anyway.
+
+7. **Deploy.** `npx firebase deploy --only functions,storage` — or just push
+   to `main`, the workflow deploys functions + storage rules on the live
+   channel only (never PR previews, so unreviewed code can't replace the prod
+   callable).
+
+Knobs (all env vars on the function, all optional):
+`IMAGE_GEN_MODEL` (default `gemini-2.5-flash-image`), `VERTEX_REGION`
+(default `us-central1` — the model must exist there), `IMAGE_GEN_DAILY_LIMIT`
+(default 10 generations/user/day; pool hits never count),
+`IMAGE_GEN_SA` (least-privilege runtime account, see step 3).
+
+**Cost shape.** Only *misses* bill: ~$0.03–0.04 per generated drink for
+flash-image models (three resizes come out of the one generation). The
+`imageStatus`/`pending` guard and the Firestore rate limit bound the spend per
+user per day; the seeded classics make the common path a $0 pool hit. Storage
+for the pool is webp at ~250 KB per drink for all three sizes.
+
+**If you'd rather not enable Vertex at all:** the seeder (`npm run images`)
+already fills the pool for classics without it, and you can keep the project
+on Spark — signed-in users simply never generate on-demand images (they keep
+spirit tiles and uploads). The function only ever adds the long tail.
 
 The client side (`src/import/imageGen.ts`) re-validates input, logs one
 `ai_call` event with `kind: 'image'` per call, and derives all URLs itself from

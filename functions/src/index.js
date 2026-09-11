@@ -38,11 +38,19 @@ initializeApp()
 
 // Env knobs (set in the console or via firebase functions:config equivalents).
 // The model must render images AND be callable via Vertex with ADC — verify a
-// model id exists on Vertex before shipping a change.
+// model id exists on Vertex before shipping a change (`npm run images:verify`).
 const MODEL = process.env.IMAGE_GEN_MODEL ?? 'gemini-2.5-flash-image'
 const REGION = process.env.VERTEX_REGION ?? 'us-central1'
 /** Generations one user may spend per UTC day. Pool hits never count. */
 const DAILY_LIMIT = Number(process.env.IMAGE_GEN_DAILY_LIMIT ?? 10)
+/**
+ * Optional least-privilege runtime service account. Unset → the project's
+ * default compute service account (which carries Editor by default). To pin
+ * a dedicated one, create it, grant exactly roles/aiplatform.user,
+ * roles/storage.objectAdmin (on the app bucket) and roles/datastore.user,
+ * and set IMAGE_GEN_SA to its full email here.
+ */
+const SERVICE_ACCOUNT = process.env.IMAGE_GEN_SA || undefined
 
 const LONG_FIELD = 60
 
@@ -152,6 +160,7 @@ export const generateImage = onCall(
     maxInstances: 5,
     timeoutSeconds: 120,
     memory: '1GiB',
+    serviceAccount: SERVICE_ACCOUNT,
   },
   async (req) => {
     if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to generate images.')
