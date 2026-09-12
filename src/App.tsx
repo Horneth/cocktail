@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { TabBar, type Tab } from './components/TabBar'
 import { hasSharedImport } from './import/shared'
@@ -35,11 +35,16 @@ export function App() {
 
   // Reset the boundary when the route changes, so navigating away from a screen
   // that threw clears the error instead of trapping the user on it.
+  // ScrollRestoration: hash navigation is same-document, so the browser would
+  // otherwise carry the old screen's scroll position into a newly pushed one —
+  // open a drink from deep in the grid and its page loads scrolled down. It
+  // scrolls to top on push/replace and gives Back the old position back.
   return (
     <>
       <ErrorBoundary resetKey={pathname}>
         <Outlet />
       </ErrorBoundary>
+      <ScrollRestoration />
       {tab && <TabBar active={tab} />}
     </>
   )
