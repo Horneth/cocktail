@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AccentButton } from '../components/TabBar'
-import { ChevronDownIcon, SearchIcon } from '../components/icons'
+import { ChevronDownIcon, HeartIcon, SearchIcon } from '../components/icons'
 import { RecipeImage } from '../components/RecipeImage'
 import { makeableIds } from '../domain/availability'
 import { recipesUsingBottle } from '../domain/barInsights'
@@ -58,6 +58,10 @@ export function RecipesScreen() {
     if (q) result = result.filter((r) => matchesQuery(r, q))
     return result
   }, [recipes, scope, byId, have, assumeStaples, ingredient, family, selectedTags, q])
+  // Favorites float to the top in their own section — in every scope, so a
+  // filtered view never buries them either. No favorites: exactly one grid, as before.
+  const favorites = list.filter((r) => r.favorite)
+  const rest = list.filter((r) => !r.favorite)
   const patch = (key: string, value: string | null) => {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value); else next.delete(key)
@@ -83,6 +87,19 @@ export function RecipesScreen() {
       </span>
     )
   }
+  const card = (recipe: (typeof recipes)[number]) => (
+    <Link key={recipe.id} className={styles.card} to={`/recipe/${recipe.id}`}>
+      <div className={styles.photo}>
+        <RecipeImage image={displayImage(recipe)} size="card" sizes="(max-width: 480px) 45vw, 200px" className={styles.photoImg} generating={recipe.imageStatus === 'pending'} fallback={showCardArt(recipe)} />
+      </div>
+      <div className={styles.cardFoot}>
+        <h2>{recipe.name}</h2>
+        <span className={`${styles.status} ${have.size && makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? styles.ready : styles.missing}`}>
+          <i />{have.size ? (makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? 'Ready' : 'Missing') : 'Ready'}
+        </span>
+      </div>
+    </Link>
+  )
   return <div className={styles.screen}>
     <header className={styles.header}>
       <button className={styles.barSwitch} onClick={() => setManagingBars(true)}><span>{barName}</span><ChevronDownIcon size={13} /></button>
@@ -102,7 +119,18 @@ export function RecipesScreen() {
         </div>
       </div>
     )}
-    {list.length === 0 ? <div className={styles.empty}><h2>{recipes.length === 0 ? 'No drinks yet' : 'Nothing matches'}</h2><p>{recipes.length === 0 ? 'Tap Recipe to type your first one in.' : 'Try another spirit, or go back to All.'}</p></div> : <div className={styles.grid}>{list.map((recipe) => <Link key={recipe.id} className={styles.card} to={`/recipe/${recipe.id}`}><div className={styles.photo}><RecipeImage image={displayImage(recipe)} size="card" sizes="(max-width: 480px) 45vw, 200px" className={styles.photoImg} generating={recipe.imageStatus === 'pending'} fallback={showCardArt(recipe)} /></div><div className={styles.cardFoot}><h2>{recipe.name}</h2><span className={`${styles.status} ${have.size && makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? styles.ready : styles.missing}`}><i />{have.size ? (makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? 'Ready' : 'Missing') : 'Ready'}</span></div></Link>)}</div>}
+    {list.length === 0 ? <div className={styles.empty}><h2>{recipes.length === 0 ? 'No drinks yet' : 'Nothing matches'}</h2><p>{recipes.length === 0 ? 'Tap Recipe to type your first one in.' : 'Try another spirit, or go back to All.'}</p></div> : (
+      <>
+        {favorites.length > 0 && (
+          <>
+            <h2 className={styles.sectionTitle}><HeartIcon size={13} filled />Favorites</h2>
+            <div className={styles.grid}>{favorites.map(card)}</div>
+            {rest.length > 0 && <h2 className={`${styles.sectionTitle} ${styles.sectionGap}`}>All recipes</h2>}
+          </>
+        )}
+        {rest.length > 0 && <div className={styles.grid}>{rest.map(card)}</div>}
+      </>
+    )}
     <ManageBarsSheet open={managingBars} onClose={() => setManagingBars(false)} bars={bars} activeId={barId} onSelect={setBarId} counts={counts} />
   </div>
 }
