@@ -145,6 +145,39 @@ await firstRecipe.click()
 await shot('09-recipe')
 check('recipe detail shows ingredients', (await page.locator('text=/oz|ml/').count()) > 0)
 
+// A pushed screen must load at the top. Hash navigation is same-document, so
+// the scroll position survives the route change unless the router resets it —
+// and the reset only works while the document (not #root) is the scroller, a
+// contract theme.css documents. Scroll deep, tap a card raw (evaluate, so
+// Playwright's own scroll-into-view can't rescue the assertion), and require
+// both scrollers to read zero on the detail page.
+await go('#/')
+await page.evaluate(() => {
+  const root = document.getElementById('root')
+  if (root && root.scrollHeight > root.clientHeight) root.scrollTop = root.scrollHeight
+  else window.scrollTo(0, document.documentElement.scrollHeight)
+  return { root: root?.scrollTop ?? 0, win: window.scrollY }
+})
+{
+  const scrolled = await page.evaluate(() => ({
+    root: document.getElementById('root')?.scrollTop ?? 0,
+    win: window.scrollY,
+  }))
+  check(
+    'the recipes list actually scrolls before the tap',
+    scrolled.root > 0 || scrolled.win > 0,
+    JSON.stringify(scrolled),
+  )
+  await page.locator('a[href^="#/recipe/"]').nth(2).evaluate((el) => el.click())
+  await page.waitForTimeout(500)
+  const after = await page.evaluate(() => ({
+    root: document.getElementById('root')?.scrollTop ?? 0,
+    win: window.scrollY,
+  }))
+  check('a pushed recipe loads at the top', after.win === 0 && after.root === 0, JSON.stringify(after))
+  await shot('09b-recipe-top')
+}
+
 // Tags are a filter, not decoration — and the rules run both ways, like every
 // bottle↔recipe question here: the chip row under the spirit chips narrows the
 // library, and a detail page's tag chips link into that same filter.

@@ -81,8 +81,7 @@
 }
 
 html,
-body,
-#root {
+body {
   height: 100%;
   margin: 0;
 }
@@ -104,6 +103,11 @@ body {
   min-height: 100%;
   background: var(--paper);
   position: relative;
+  /* Clips anything that pokes out horizontally. Deliberately NOT height:100%:
+   * with overflow-x hidden, a fixed-height #root computes overflow-y to auto
+   * and becomes the page's scroll container — and a same-document hash
+   * navigation carries its scrollTop across routes, which <ScrollRestoration/>
+   * (window-only) can't reset. Keep the document the scroller. */
   overflow-x: hidden;
 }
 

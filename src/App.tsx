@@ -38,7 +38,9 @@ export function App() {
   // ScrollRestoration: hash navigation is same-document, so the browser would
   // otherwise carry the old screen's scroll position into a newly pushed one —
   // open a drink from deep in the grid and its page loads scrolled down. It
-  // scrolls to top on push/replace and gives Back the old position back.
+  // scrolls to top on push/replace and gives Back the old position back. It
+  // drives `window`, which is the scroller only as long as #root stays
+  // height-less (see theme.css) — that pairing is what makes this work.
   return (
     <>
       <ErrorBoundary resetKey={pathname}>
