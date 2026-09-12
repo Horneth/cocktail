@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { BOTTLE_PATHS, BOTTLE_SHAPES, SHAPE_FOR, spiritVisual } from './spiritVisual'
 import { SPIRIT_ORDER } from './spirits'
 
-// Every key that can reach spiritVisual: the mosaic order, the mixers' kinds
-// and the special tiles.
-const ALL_KEYS = [...SPIRIT_ORDER, 'syrup', 'cordial', 'all', 'favorites']
+// Every key that can reach spiritVisual: the mosaic order, the mixer kind and
+// the special tiles.
+const ALL_KEYS = [...SPIRIT_ORDER, 'syrup', 'all', 'favorites']
 
 describe('bottle silhouettes', () => {
   it('maps every known tile key to a defined shape with a path', () => {

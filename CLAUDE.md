@@ -175,28 +175,29 @@ augmentation inside each entity's manual form (paste-to-fill on the recipe
 editor, photo scan inside the bottle form), never a parallel add path.
 
 **Search and filters live on the one Recipes screen.** There is exactly one
-live search field in the app, on `RecipesScreen`; `?q`, the spirit scope bar and
-the ready scope all narrow that same list. There is no separate Search or Browse
-screen to keep in step, because Home, Search and Browse were three names for the
-same list of drinks.
-
-**Search and filters live on the one Recipes screen.** There is exactly one
 live search field in the app, on `RecipesScreen`; `?q`, the spirit chips, the
-tag chips and the "ready to pour" toggle all narrow that same list. There is no
+tag chips and the "ready" scope all narrow that same list — and the list is the
+WHOLE library: syrups ride in "All" with their drawn bottles, a "Syrups" chip
+joins the spirit row when mixers exist (`useAllRecipes` feeds it), and the tag
+row reads every recipe, so a syrup's tag chip never dead-ends. There is no
 separate Search or Browse screen to keep in step, because Home, Search and
 Browse were three names for the same list of drinks.
 
 ## Key concepts — read these before making changes
 
 ### One entity, cross-linked (the data model)
-A **cocktail, a syrup and a cordial are the same `Recipe`**, distinguished only
-by `kind: 'cocktail' | 'syrup' | 'cordial'`. Every kind is added, edited and
-imported the same way. Any recipe can reference any other through an
-`Ingredient.recipeId` cross-link — in practice a cocktail's ingredient points at
-a syrup or cordial. A denormalized **`recipeLinks`** table indexes that
-relationship both ways, powering fast "Used in" back-links and duplicate-merge.
-`recipeLinks` is an *index, rebuildable from `recipes` alone* — never treat it as
-a second source of truth. See `src/db/schema.ts`.
+A **cocktail and a syrup are the same `Recipe`**, distinguished only by
+`kind: 'cocktail' | 'syrup'`. Every kind is added, edited and imported the same
+way. Any recipe can reference any other through an `Ingredient.recipeId`
+cross-link — in practice a cocktail's ingredient points at a syrup. A
+denormalized **`recipeLinks`** table indexes that relationship both ways,
+powering fast "Used in" back-links and duplicate-merge. `recipeLinks` is an
+*index, rebuildable from `recipes` alone* — never treat it as a second source of
+truth. See `src/db/schema.ts`.
+
+(Cordials used to be a third kind; they folded into `syrup` — `migrateLegacyRecipe`
+rewrites stored `cordial`/`component` blobs to `syrup`, at open via the v5
+migration and at backup import, so no stored recipe can stay a cordial.)
 
 ### The import seam is the only bulk write path
 Every recipe source — the seed data today, the YouTube importer, the cloud AI
@@ -222,8 +223,9 @@ the `.upgrade()` copies rows into `bottles` under a default "My Bar" and leaves
 the dead `pantry` store untouched; fresh installs (which skip the upgrade) get
 their default bar from `ensureDefaultBar()` at boot. **v4** splits the old
 `component` kind into `syrup`/`cordial` and renames the cross-link field
-`subRecipeId` → `recipeId`; both live in the stored JSON, so it is a data rewrite
-(`migrateLegacyRecipe` in `domain/recipeKind.ts`), not a re-key.
+`subRecipeId` → `recipeId`; **v5** retires `cordial` (everything mixery becomes
+`syrup`). Both are data rewrites — the values live in the stored JSON, so
+`migrateLegacyRecipe` (`domain/recipeKind.ts`) rewrites records, not keys.
 
 ### State = the database
 There is no separate app state store. Read data with the `useLiveQuery` hooks in
@@ -309,6 +311,14 @@ If you add a third way to ask "does this bottle count for this ingredient", make
 it call `bottleCovers` — do not re-derive it from substring matching, which is
 what the bottle sheet used to do and why it looked empty.
 
+**A stocked syrup is the same recipe in another view.** `categoryForName` sends
+mixer names to a `syrup` category — deliberately NOT in `MATCHABLE_CATEGORIES`,
+so a syrup bottle satisfies a call by its own name, never a family — and the
+Bar groups it under "Syrups" with the drawn bottle art (`BottleArt` uses
+`syrupArt`'s liquid colour, same as the recipe card). `syrupRecipeFor()`
+(barInsights) matches the loose mixer key, and the bottle sheet shows a
+"View recipe" hop back to the syrup's page when the user has written one.
+
 ### Photo → bar (Gemini vision), in two passes
 "Scan my shelf" downscales photos client-side (`import/image.ts`, max 4) and runs
 **two** model calls with an on-device step between them. Gated on `auth.aiAvailable`.
@@ -342,8 +352,8 @@ Two properties hold and should keep holding:
 A library can hold near-duplicate syrups (a hand-added "Simple Syrup" plus an
 imported "Semi Rich Simple Syrup"). `mergeRecipes(fromId, toId)` (in the import
 seam) repoints every parent's `recipeId`, rebuilds `recipeLinks`, and deletes the
-loser in one transaction (with a cycle guard); both must be mixers of the same
-kind. Surfaced as a "Duplicate?" merge picker on a syrup/cordial's detail screen.
+loser in one transaction (with a cycle guard); both must be mixers.
+Surfaced as a "Duplicate?" merge picker on a syrup's detail screen.
 `normalizeMixerName()` / `duplicateMixerGroups()` (`domain/textNormalize.ts`)
 detect likely dupes.
 
@@ -389,6 +399,16 @@ their keys so the first comer never dictates the look; the prompt stays
 **entirely server-side**: the client sends a drink name and receives a key,
 never a prompt. Setup and knobs:
 **docs/cloud-ai-backend.md → "The image pool"**.
+
+**Syrup art is drawn, never generated.** A syrup is an ingredient, and photo
+models keep turning it into a served drink no matter what the prompt says.
+Instead, `domain/syrupArt.ts` maps the syrup's name (through
+`normalizeMixerName`) to a liquid colour and one of the generic bottle
+silhouettes (`BottleGlyph`); `components/SyrupBottle.tsx` draws it wherever a
+recipe photo would sit — rows, recipe cards, the detail hero. It renders
+unless the user uploaded their own photo; a pool `gen:` ref on a syrup never
+renders (`displayImage` in `domain/imagePool.ts` suppresses it) and syrups are
+excluded from save-time generation, so no mixer ever spends a credit.
 
 Three gates, in order — all three must hold before an AI call happens:
 1. `FEATURES.cloudAI` in `src/config.ts` — the **kill switch**, removes every entry point.
@@ -445,8 +465,8 @@ only the client knows is a limit the client can remove.
 ### Fill-from-text: what the AI decides, and what it admits to guessing
 `EditRecipeScreen`'s paste sheet makes **one** model call, `firebaseParse`.
 
-**`firebaseParse(text)`** → one `StructuredImport` per recipe (a cocktail, a
-syrup or a cordial — each stands alone; the AI never nests one recipe inside
+**`firebaseParse(text)`** → one `StructuredImport` per recipe (a cocktail or a
+syrup — each stands alone; the AI never nests one recipe inside
 another). Beyond the recipe, the model returns two preview-only fields (siblings
 of `main` on `StructuredImport`, never persisted — `draftToRecipe` is
 explicit-field):

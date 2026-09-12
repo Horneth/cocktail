@@ -2,7 +2,7 @@ import type { Recipe } from '../db/schema'
 import { countUsage, deleteRecipe } from '../import/importRecipe'
 
 /**
- * Delete a recipe, confirming first if it's a syrup/cordial still used by
+ * Delete a recipe, confirming first if it's a syrup still used by
  * other recipes (which then keep it as a plain ingredient).
  */
 export async function deleteRecipeWithConfirm(r: Recipe): Promise<void> {

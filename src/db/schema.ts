@@ -1,9 +1,12 @@
-// Core domain types. A cocktail, a syrup and a cordial are the SAME entity
-// (`Recipe`), distinguished only by `kind`. Each is added/edited/imported the
-// same way; recipes reference other recipes through an ingredient's `recipeId`,
-// wired up by name-autocomplete in the editor rather than invented at import.
+// Core domain types. A cocktail and a syrup are the SAME entity (`Recipe`),
+// distinguished only by `kind`. Each is added/edited/imported the same way;
+// recipes reference other recipes through an ingredient's `recipeId`, wired up
+// by name-autocomplete in the editor rather than invented at import.
+//
+// `cordial` used to be a third kind; it folded into `syrup` (see
+// migrateLegacyRecipe and the v5 migration in db.ts).
 
-export type RecipeKind = 'cocktail' | 'syrup' | 'cordial'
+export type RecipeKind = 'cocktail' | 'syrup'
 
 export type Unit =
   // volume (convertible)
@@ -46,7 +49,7 @@ export interface Ingredient {
   unit: Unit
   optional?: boolean
   note?: string
-  /** cross-link: if this ingredient IS another recipe (a syrup/cordial), its Recipe.id */
+  /** cross-link: if this ingredient IS another recipe (a syrup), its Recipe.id */
   recipeId?: string
 }
 

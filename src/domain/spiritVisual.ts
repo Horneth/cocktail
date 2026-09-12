@@ -72,7 +72,7 @@ export const SHAPE_FOR: Record<string, BottleShape> = {
   wine: 'wine',
   tequila: 'squat', mezcal: 'squat',
   brandy: 'decanter', cognac: 'decanter',
-  liqueur: 'liqueur', aperitivo: 'liqueur', cordial: 'liqueur',
+  liqueur: 'liqueur', aperitivo: 'liqueur',
   syrup: 'jar',
   // 'other' and unknown custom spirits fall through to 'generic'
 }
@@ -96,7 +96,6 @@ const TINTS: Record<string, { tint: string; dot: string }> = {
   aperitivo: { tint: '#F6E9E0', dot: '#D06A3A' },
   mocktail: { tint: '#E9F0F1', dot: '#559196' },
   syrup: { tint: '#F5EEDF', dot: '#C0813E' },
-  cordial: { tint: '#F5E9F2', dot: '#9C4D90' },
   // special tiles
   all: { tint: '#F1ECE3', dot: '#8C857B' },
   favorites: { tint: '#F7E7E2', dot: '#E7623B' },

@@ -4,7 +4,7 @@
 
 A fast, offline, install-to-your-phone cocktail recipe book. Open it, pick a
 drink, and build it in seconds. Tweak measurements on the fly, keep personal
-notes, and link recipes together — a syrup or cordial you make once pours into
+notes, and link recipes together — a syrup you make once pours into
 every drink that calls for it.
 
 Built as a **PWA** — a web app you can "Add to Home Screen" that works fully
@@ -22,14 +22,15 @@ sign-in; everything else never does).
   driven by the URL (`scope` + `tags`): a spirit card scopes to that spirit, a
   tag pill filters across *all* spirits, and the tag picker is **multi-select**
   (AND) — e.g. all *refreshing + citrusy* drinks. "All", "Favorites" and
-  "Syrups & cordials" get their own entries. **Spirits are free-form** — type any
+  "Syrups" get their own entries. **Spirits are free-form** — type any
   base spirit (cachaça, pisco, sake…) in the editor or import preview and it
   gets its own generated art; the import keeps the specific spirit a recipe
   names rather than collapsing it.
 - **My Bar(s) & "what can I make"** — tell the app which bottles you actually
-  have (your shelf at `/bar`, grouped by spirit), then flip **Only what I can
-  make** on the Browse screen to see just the drinks you can build right now.
-  Home shows a live *"N you can make right now"* banner. Adding a bottle shows
+  have (your shelf at `/bar`, grouped by spirit; stocked syrups group under
+  **Syrups** with their drawn bottle and hop back to the recipe from the bottle
+  sheet), then flip **Only what I can make** on the Browse screen to see just
+  the drinks you can build right now. Adding a bottle shows
   what it unlocks before you commit, and **Worth buying next** names the one
   bottle standing between you and the most new drinks — all worked out on your
   device, no account needed. Keep **several bars** — "My Bar" plus a friend's
@@ -39,7 +40,7 @@ sign-in; everything else never does).
   hands you a list to confirm (opt-in, needs a Google sign-in).
   Matching is smart: an **Assume I have the basics** switch (on by default)
   covers water/ice/citrus/sugar/sodas/garnishes/egg so the bar only tracks
-  *bottles*; linked syrups/cordials recurse (a drink that needs Simple Syrup
+  *bottles*; linked syrups recurse (a drink that needs Simple Syrup
   counts if you can make the syrup); and a **generic bottle covers a specific
   call** — any rum
   satisfies a recipe that asks for "Jamaican rum", any whiskey covers "Woodford
@@ -52,10 +53,13 @@ sign-in; everything else never does).
   (¾ oz) with an oz ⇄ ml toggle.
 - **Non-destructive tweaks** — scaling and per-ingredient nudges never touch the
   stored recipe unless you tap *Save to recipe*.
-- **Cross-linked recipes** — a syrup or cordial is a first-class recipe. Tap
+- **Cross-linked recipes** — a syrup is a first-class recipe. Tap
   through from a cocktail to its Simple Syrup and back; each mixer shows a
   *Used in* list of every drink that references it. Link an ingredient to a
   recipe by name-autocomplete in the editor — nothing gets invented for you.
+  Syrups get their own drawn bottle — the liquid colour after what the syrup
+  actually is (grenadine red, orgeat cream, demerara amber) — instead of a
+  generated photo.
 - **Parts & volumes** — recipes can be absolute (2 oz, ¾ oz) or ratio-based
   (1 part : 1 part), with a per-part volume selector.
 - **Your data is yours, and portable** — everything lives in your browser, so
@@ -101,8 +105,8 @@ own temporary preview URL.
 
 ## Data model (one entity, cross-linked)
 
-A cocktail, a syrup and a cordial are the **same** `Recipe`, distinguished only
-by `kind: 'cocktail' | 'syrup' | 'cordial'`. An ingredient carries an optional
+A cocktail and a syrup are the **same** `Recipe`, distinguished only
+by `kind: 'cocktail' | 'syrup'`. An ingredient carries an optional
 `recipeId` that points at another recipe (a syrup, say); a denormalized
 `recipeLinks` table indexes that relationship both ways (for fast *Used in*
 back-links and duplicate-merge). See `src/db/schema.ts`.
@@ -110,7 +114,7 @@ back-links and duplicate-merge). See `src/db/schema.ts`.
 ## Import a recipe
 
 Tap **Import**, paste a recipe or a whole video description, and Gemini turns it
-into one recipe per cocktail, syrup or cordial it finds — each through the same
+into one recipe per cocktail or syrup it finds — each through the same
 `importRecipe(StructuredImport)` seam the seed data uses. A single description
 usually holds **several** recipes; you get all of them, each as a card you can
 review, edit and tick before anything is saved. Import never invents or links

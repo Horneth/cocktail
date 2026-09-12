@@ -7,17 +7,21 @@ import { isStaple, normIngredient, shelfKeys } from '../domain/availability'
 import type { NameIndexEntry } from '../domain/dupeMatch'
 import { useActiveBarId } from './useSettings'
 
-/** All cocktails, alphabetical. Mixers are excluded from the main list. */
+/** All cocktails, alphabetical — the base for availability, bar insights and
+ * the editor's linkable list. The Recipes screen itself shows everything. */
 export function useCocktails(): Recipe[] | undefined {
   return useLiveQuery(() => db.recipes.where('kind').equals('cocktail').sortBy('name'), [])
 }
 
-/** All syrups and cordials, alphabetical. */
+/** Every recipe — cocktails and syrups — alphabetical. The one list the
+ * Recipes screen shows; a syrup is a recipe too. */
+export function useAllRecipes(): Recipe[] | undefined {
+  return useLiveQuery(() => db.recipes.orderBy('name').toArray(), [])
+}
+
+/** All syrups (every mixer), alphabetical. */
 export function useMixers(): Recipe[] | undefined {
-  return useLiveQuery(
-    () => db.recipes.where('kind').anyOf(['syrup', 'cordial']).sortBy('name'),
-    [],
-  )
+  return useLiveQuery(() => db.recipes.where('kind').equals('syrup').sortBy('name'), [])
 }
 
 /** A single recipe by id (undefined while loading, null if not found). */

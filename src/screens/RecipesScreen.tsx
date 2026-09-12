@@ -9,7 +9,9 @@ import { matchesQuery } from '../domain/search'
 import { SPIRIT_ORDER, tileKeyForRecipe, tileMeta } from '../domain/spirits'
 import { spiritVisual } from '../domain/spiritVisual'
 import { libraryTags, matchesTags, tagEmoji } from '../domain/vocab'
-import { useCocktails, useBottleCounts } from '../hooks/useRecipes'
+import { displayImage } from '../domain/imagePool'
+import { SyrupBottle } from '../components/SyrupBottle'
+import { useAllRecipes, useBottleCounts } from '../hooks/useRecipes'
 import { useAvailability } from '../hooks/useAvailability'
 import { ManageBarsSheet } from './bar/ManageBarsSheet'
 import styles from './RecipesScreen.module.css'
@@ -17,7 +19,7 @@ import styles from './RecipesScreen.module.css'
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 export function RecipesScreen() {
-  const cocktails = useCocktails() ?? []
+  const recipes = useAllRecipes() ?? []
   const { byId, have, assumeStaples, barId, bars, setBarId } = useAvailability()
   const counts = useBottleCounts()
   const [params, setParams] = useSearchParams()
@@ -32,21 +34,30 @@ export function RecipesScreen() {
   )
   const barName = bars.find((b) => b.id === barId)?.name ?? 'Home bar'
 
+  // The whole library — cocktails AND syrups — so a syrup is never a dead end
+  // from a tag chip or a link. The Syrups chip joins the spirit row only when
+  // mixers exist, and sits after the spirits, before custom spirits.
   const scopes = useMemo(() => {
-    const keys = new Set(cocktails.map(tileKeyForRecipe))
-    return ['all', 'ready', ...SPIRIT_ORDER.filter((key) => keys.has(key)), ...[...keys].filter((key) => !SPIRIT_ORDER.includes(key))]
+    const keys = new Set(recipes.map(tileKeyForRecipe))
+    return [
+      'all',
+      'ready',
+      ...SPIRIT_ORDER.filter((key) => keys.has(key)),
+      ...(['syrup'] as const).filter((key) => keys.has(key)),
+      ...[...keys].filter((key) => !SPIRIT_ORDER.includes(key) && key !== 'syrup'),
+    ]
       .filter((key, i, list) => list.indexOf(key) === i)
       .map((key) => ({ key, label: key === 'all' ? 'All' : key === 'ready' ? 'Ready now' : tileMeta(key).label }))
-  }, [cocktails])
-  const tags = useMemo(() => libraryTags(cocktails), [cocktails])
+  }, [recipes])
+  const tags = useMemo(() => libraryTags(recipes), [recipes])
   const list = useMemo(() => {
-    let result = scope === 'all' || scope === 'ready' ? cocktails : cocktails.filter((r) => tileKeyForRecipe(r) === scope)
+    let result = scope === 'all' || scope === 'ready' ? recipes : recipes.filter((r) => tileKeyForRecipe(r) === scope)
     if (scope === 'ready') result = result.filter((r) => makeableIds([r], byId, have, assumeStaples).has(r.id))
     if (ingredient) result = recipesUsingBottle(ingredient, result, byId, family)
     if (selectedTags.length) result = result.filter((r) => matchesTags(r, selectedTags))
     if (q) result = result.filter((r) => matchesQuery(r, q))
     return result
-  }, [cocktails, scope, byId, have, assumeStaples, ingredient, family, selectedTags, q])
+  }, [recipes, scope, byId, have, assumeStaples, ingredient, family, selectedTags, q])
   const patch = (key: string, value: string | null) => {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value); else next.delete(key)
@@ -57,7 +68,14 @@ export function RecipesScreen() {
     const next = selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag]
     patch('tags', next.length ? next.join(',') : null)
   }
-  const showCardArt = (recipe: (typeof cocktails)[number]) => {
+  const showCardArt = (recipe: (typeof recipes)[number]) => {
+    if (recipe.kind === 'syrup') {
+      return (
+        <span className={styles.photoArt} style={{ background: spiritVisual('syrup').tint }}>
+          <SyrupBottle name={recipe.name} size={64} />
+        </span>
+      )
+    }
     const v = spiritVisual(tileKeyForRecipe(recipe))
     return (
       <span className={styles.photoArt} style={{ background: v.tint }}>
@@ -84,7 +102,7 @@ export function RecipesScreen() {
         </div>
       </div>
     )}
-    {list.length === 0 ? <div className={styles.empty}><h2>{cocktails.length === 0 ? 'No drinks yet' : 'Nothing matches'}</h2><p>{cocktails.length === 0 ? 'Tap Recipe to type your first one in.' : 'Try another spirit, or go back to All.'}</p></div> : <div className={styles.grid}>{list.map((recipe) => <Link key={recipe.id} className={styles.card} to={`/recipe/${recipe.id}`}><div className={styles.photo}><RecipeImage image={recipe.image} size="card" sizes="(max-width: 480px) 45vw, 200px" className={styles.photoImg} generating={recipe.imageStatus === 'pending'} fallback={showCardArt(recipe)} /></div><div className={styles.cardFoot}><h2>{recipe.name}</h2><span className={`${styles.status} ${have.size && makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? styles.ready : styles.missing}`}><i />{have.size ? (makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? 'Ready' : 'Missing') : 'Ready'}</span></div></Link>)}</div>}
+    {list.length === 0 ? <div className={styles.empty}><h2>{recipes.length === 0 ? 'No drinks yet' : 'Nothing matches'}</h2><p>{recipes.length === 0 ? 'Tap Recipe to type your first one in.' : 'Try another spirit, or go back to All.'}</p></div> : <div className={styles.grid}>{list.map((recipe) => <Link key={recipe.id} className={styles.card} to={`/recipe/${recipe.id}`}><div className={styles.photo}><RecipeImage image={displayImage(recipe)} size="card" sizes="(max-width: 480px) 45vw, 200px" className={styles.photoImg} generating={recipe.imageStatus === 'pending'} fallback={showCardArt(recipe)} /></div><div className={styles.cardFoot}><h2>{recipe.name}</h2><span className={`${styles.status} ${have.size && makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? styles.ready : styles.missing}`}><i />{have.size ? (makeableIds([recipe], byId, have, assumeStaples).has(recipe.id) ? 'Ready' : 'Missing') : 'Ready'}</span></div></Link>)}</div>}
     <ManageBarsSheet open={managingBars} onClose={() => setManagingBars(false)} bars={bars} activeId={barId} onSelect={setBarId} counts={counts} />
   </div>
 }

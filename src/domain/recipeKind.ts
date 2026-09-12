@@ -5,32 +5,30 @@ import type { Recipe, RecipeKind } from '../db/schema'
 // goes through here, so the vocabulary can't drift across files the way the old
 // tags/methods/glasses lists once did.
 
-export const RECIPE_KINDS: RecipeKind[] = ['cocktail', 'syrup', 'cordial']
+export const RECIPE_KINDS: RecipeKind[] = ['cocktail', 'syrup']
 
 export const KIND_LABELS: Record<RecipeKind, string> = {
   cocktail: 'Cocktail',
   syrup: 'Syrup',
-  cordial: 'Cordial',
 }
 
 export const KIND_EMOJI: Record<RecipeKind, string> = {
   cocktail: '🍸',
   syrup: '🍯',
-  cordial: '🍷',
 }
 
-// The pre-split schema had a single "component" kind and named the cross-link
-// field `subRecipeId`. Keep reading those blobs so an existing install (or a
-// backup exported before the change) comes across intact.
+// Older schemas this code keeps reading: the pre-split single "component" kind
+// (named with the `subRecipeId` cross-link field), and the "cordial" kind that
+// later folded into "syrup".
 type LegacyRecipe = {
   kind?: string
   ingredients?: Array<Record<string, unknown>>
 }
 
 /**
- * Normalize a recipe written by the old schema onto the current one: the single
- * "component" kind becomes "syrup", and `subRecipeId` becomes `recipeId`. Used
- * by the DB migration (db.ts) and by backup import (import/backup.ts). Returns
+ * Normalize a recipe written by an older schema onto the current one: "component"
+ * and "cordial" become "syrup", and `subRecipeId` becomes `recipeId`. Used by
+ * the DB migrations (db.ts) and by backup import (import/backup.ts). Returns
  * the input unchanged when there is nothing to rewrite.
  */
 export function migrateLegacyRecipe(recipe: Recipe): Recipe {
@@ -38,7 +36,7 @@ export function migrateLegacyRecipe(recipe: Recipe): Recipe {
   let changed = false
   const next: Recipe = { ...recipe }
 
-  if (legacy.kind === 'component') {
+  if (legacy.kind === 'component' || legacy.kind === 'cordial') {
     next.kind = 'syrup'
     changed = true
   }

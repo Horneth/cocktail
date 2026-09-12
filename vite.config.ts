@@ -89,8 +89,14 @@ export default defineConfig({
           // CacheFirst would pin a 404 for a year (and did). SWR serves the
           // cached copy when there is one and self-heals when there isn't.
           // Cache name is versioned: v1 held the poisoned 404s.
+          //
+          // The object path is percent-encoded in the download URL
+          // (`/o/generated%2Fv1%2F…`), so the pattern must anchor on `/o/`
+          // + the literal prefix — a regex wanting `/generated/` with real
+          // slashes never matches, and every photo load silently bypassed
+          // the worker and paid a network round trip before displaying.
           {
-            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*\/generated\/.*/i,
+            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*\/o\/generated(%2F|\/)/i,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'cocktail-images-pool-v2',

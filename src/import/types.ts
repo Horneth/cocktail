@@ -55,7 +55,7 @@ export const GUESSABLE_FIELDS: GuessedField[] = [
 ]
 
 export interface StructuredImport {
-  /** the recipe being imported (a cocktail, a syrup, or a cordial) */
+  /** the recipe being imported (a cocktail or a syrup) */
   main: RecipeDraft
   /**
    * Preview-only. Which of `main`'s fields the model inferred rather than read,

@@ -166,6 +166,33 @@ check(
   !!chipTag && page.url().includes(`tags=${chipTag}`),
 )
 
+// ── A syrup is a recipe too — the whole path, both directions ───────────────
+// The Syrups chip shows the mixers; a syrup's detail page carries a styled
+// "Used in" list (a redesign regression once stripped those styles); and its
+// tag chip lands on a filtered page that actually has content.
+await go('#/')
+await page.locator('button', { hasText: 'Syrups' }).first().click()
+await page.waitForTimeout(500)
+const syrupCards = await page.locator('a[href^="#/recipe/"]').count()
+check(
+  'the Syrups chip lists the mixers',
+  syrupCards === 2 && syrupCards < homeBefore,
+  `${syrupCards} mixers`,
+)
+await page.locator('a[href^="#/recipe/"]').first().click()
+await page.waitForTimeout(600)
+const usedInStyle = await page
+  .locator('a[href^="#/recipe/"]')
+  .first()
+  .evaluate((el) => getComputedStyle(el).borderRadius)
+check('a syrup’s Used in chips are styled', usedInStyle === '999px', usedInStyle)
+await page.locator('a[href*="tags="]').first().click()
+await page.waitForTimeout(500)
+check(
+  'a syrup tag filters to the syrups',
+  page.url().includes('tags=syrup') && (await page.locator('a[href^="#/recipe/"]').count()) === syrupCards,
+)
+
 // ── Pool references degrade to the spirit tile when the pool can't serve ────
 // The seed classics store `gen:<key>` refs. Whatever the pool answers (here:
 // nothing — the seeder hasn't run against this bucket), every reference must
@@ -177,6 +204,13 @@ check(
   'pool refs render or fall back cleanly',
   await page.evaluate(() => [...document.images].every((i) => i.complete && i.naturalWidth > 0)),
 )
+// The pool route must MATCH the storage download URLs (whose object path is
+// percent-encoded: /o/generated%2Fv1%2F…) so photos land in the SW's SWR cache
+// and repeat visits render instantly instead of revalidating over the network.
+const poolCacheHits = await page.evaluate(async () =>
+  (await (await caches.open('cocktail-images-pool-v2')).keys()).length,
+)
+check('pool photos are cached by the service worker', poolCacheHits > 0)
 
 // ── Cloud AI stays out of the way until you ask for it ──────────────────────
 // The whole point of the sign-in gate is that an offline user never pays for
@@ -234,6 +268,24 @@ check(
   'bottle rows carry a silhouette glyph',
   (await page.locator('button', { hasText: 'Smith & Cross' }).locator('svg').count()) > 0,
 )
+
+// A stocked syrup is the same recipe in another view: it groups under Syrups
+// with the drawn bottle, and its sheet links back to the recipe page.
+// (The previous add closed the sheet; open it again, like a person would.)
+await page.locator('button', { hasText: /^Bottle$/ }).click()
+await page.waitForTimeout(500)
+await page.locator('input[aria-label="Search or type a bottle"]').fill('Simple Syrup')
+await page.locator('button', { hasText: 'Simple Syrup' }).first().click()
+await page.locator('button', { hasText: /^Add 1 bottle/ }).click()
+await page.waitForTimeout(600)
+check('a stocked syrup groups under Syrups', (await page.locator('text=/^Syrups$/').count()) > 0)
+await page.locator('button', { hasText: 'Simple Syrup' }).first().click()
+await page.waitForTimeout(400)
+check(
+  'the syrup bottle links back to its recipe',
+  (await page.locator('a', { hasText: 'View recipe' }).count()) === 1,
+)
+await go('#/bar')
 await shot('12-bar-manual-add')
 
 // ── Bottles and recipes point at each other ─────────────────────────────────
@@ -277,7 +329,8 @@ if (dl) {
   const { readFileSync } = await import('node:fs')
   const backup = JSON.parse(readFileSync(path, 'utf8'))
   check('backup is a cocktail envelope', backup.app === 'cocktail' && backup.version === 1)
-  // More rows than the home list: components (syrups) are recipes too.
+  // The backup holds every recipe — home and backup agree now that syrups show
+  // on the Recipes screen too.
   check(
     'backup carries the library',
     backup.data.recipes.length >= homeBefore,

@@ -153,20 +153,6 @@ describe('mergeRecipes', () => {
     await expect(mergeRecipes(drinkId, syrupId)).rejects.toThrow()
   })
 
-  it('throws when the kinds differ', async () => {
-    const syrupId = await importRecipe(syrup('Simple Syrup'))
-    const cordialId = await importRecipe({
-      main: {
-        tempId: 'cordial',
-        kind: 'cordial',
-        name: 'Lime Cordial',
-        measureBasis: 'parts',
-        ingredients: [{ name: 'Lime', amount: 1, unit: 'part' }],
-      },
-    })
-    await expect(mergeRecipes(syrupId, cordialId)).rejects.toThrow()
-  })
-
   it('collapses a parent that references both into one survivor', async () => {
     const aId = await importRecipe(syrup('Simple Syrup'))
     const bId = await importRecipe(syrup('Rich Syrup', 'rich'))

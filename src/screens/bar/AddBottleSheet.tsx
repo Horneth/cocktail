@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BottomSheet } from '../../components/BottomSheet'
+import { BottleArt } from '../../components/BottleArt'
 import { BottleGlyph } from '../../components/BottleGlyph'
 import { CheckIcon, SearchIcon, SparkleIcon } from '../../components/icons'
 import type { PantryItem, Recipe } from '../../db/schema'
@@ -8,7 +9,7 @@ import { oneAwaySuggestions, unlocksFor } from '../../domain/barInsights'
 import { closeCandidates, resolveDetections, type ResolvedBottle } from '../../domain/bottleMatch'
 import type { BottleInput } from '../../domain/pantry'
 import { categoryForName } from '../../domain/spiritCategory'
-import { KNOWN_SPIRITS } from '../../domain/spirits'
+import { BOTTLE_TYPES, bottleTypeLabel } from '../../domain/spirits'
 import { spiritVisual } from '../../domain/spiritVisual'
 import { downscaleDataUrl } from '../../import/image'
 import { MAX_SCAN_IMAGES } from '../../import/limits'
@@ -244,7 +245,7 @@ export function AddBottleSheet({
 
   const categoryChips = (selected: string | undefined, onPick: (key: string) => void) => (
     <div className={styles.chips}>
-      {KNOWN_SPIRITS.map((key) => {
+      {BOTTLE_TYPES.map((key) => {
         const v = spiritVisual(key)
         return (
           <button
@@ -252,7 +253,7 @@ export function AddBottleSheet({
             className={`${styles.chip} ${selected === key ? styles.chipOn : ''}`}
             onClick={() => onPick(key)}
           >
-            <BottleGlyph shape={v.silhouette} size={13} color={v.dot} /> {v.label}
+            <BottleGlyph shape={v.silhouette} size={13} color={v.dot} /> {bottleTypeLabel(key)}
           </button>
         )
       })}
@@ -317,7 +318,7 @@ export function AddBottleSheet({
         <>
           <div className={`${styles.row} ${styles.rowTyped}`}>
             <span className={styles.glyph} style={{ background: typedVisual.tint }} aria-hidden>
-              <BottleGlyph shape={typedVisual.silhouette} size={20} color={typedVisual.dot} />
+              <BottleArt name={q} category={typedGuess ?? 'other'} size={20} />
             </span>
             <button className={styles.text} onClick={addTyped}>
               <span className={styles.label}>{q}</span>
@@ -351,7 +352,7 @@ export function AddBottleSheet({
           <div key={key}>
             <div className={`${styles.row} ${styles.rowOn}`}>
               <span className={styles.glyph} style={{ background: v.tint }} aria-hidden>
-                <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
+                <BottleArt name={bottle.label} category={bottle.category ?? 'other'} size={20} />
               </span>
             <span className={styles.text}>
               <span className={styles.label}>{bottle.label}</span>
@@ -395,7 +396,7 @@ export function AddBottleSheet({
                 onClick={() => toggle(s.name, { label: s.label })}
               >
                 <span className={styles.glyph} style={{ background: v.tint }} aria-hidden>
-                  <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
+                  <BottleArt name={s.label} category={categoryForName(s.label) ?? 'other'} size={20} />
                 </span>
                 <span className={styles.text}>
                   <span className={styles.label}>{s.label}</span>
@@ -429,7 +430,7 @@ export function AddBottleSheet({
                 onClick={() => toggleScan(r.canonicalName)}
               >
                 <span className={styles.glyph} style={{ background: v.tint }} aria-hidden>
-                  <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
+                  <BottleArt name={r.canonicalName} category={r.detected.category ?? 'other'} size={20} />
                 </span>
                 <span className={styles.text}>
                   <span className={styles.label}>{r.canonicalName}</span>

@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BottomSheet } from '../../components/BottomSheet'
+import { BottleArt } from '../../components/BottleArt'
 import { BottleGlyph } from '../../components/BottleGlyph'
 import { ChevronRightIcon } from '../../components/icons'
 import type { PantryItem, Recipe } from '../../db/schema'
 import { makeableIds } from '../../domain/availability'
-import { recipesUsingBottle } from '../../domain/barInsights'
+import { recipesUsingBottle, syrupRecipeFor } from '../../domain/barInsights'
 import { categoryForName } from '../../domain/spiritCategory'
-import { KNOWN_SPIRITS } from '../../domain/spirits'
+import { BOTTLE_TYPES, bottleTypeLabel } from '../../domain/spirits'
 import { spiritVisual } from '../../domain/spiritVisual'
 import sheet from './sheet.module.css'
 import styles from './BottleSheet.module.css'
@@ -57,6 +58,12 @@ export function BottleSheet({
 
   const category = bottle ? (bottle.category ?? categoryForName(bottle.label)) : undefined
   const visual = spiritVisual(category ?? 'other')
+  // A stocked syrup is also a recipe the user wrote — the bridge that makes the
+  // two views one entity: the bottle sheet points back at the recipe page.
+  const recipe = useMemo(
+    () => (bottle ? syrupRecipeFor(bottle.label, [...byId.values()]) : undefined),
+    [bottle, byId],
+  )
 
   return (
     <BottomSheet
@@ -71,7 +78,7 @@ export function BottleSheet({
         <>
           <div className={styles.head}>
             <span className={styles.glyph} style={{ background: visual.tint }} aria-hidden>
-              <BottleGlyph shape={visual.silhouette} size={30} color={visual.dot} />
+              <BottleArt name={bottle.label} category={category ?? 'other'} size={30} />
             </span>
             <span className={styles.headText}>
               <span className={sheet.title}>{bottle.label}</span>
@@ -87,12 +94,12 @@ export function BottleSheet({
             aria-label="Change spirit category"
           >
             <span className={styles.categoryDot} style={{ background: visual.dot }} aria-hidden />
-            {category ? visual.label : 'No type set'}
+            {category ? bottleTypeLabel(category) : 'No type set'}
             <ChevronRightIcon size={15} className={styles.categoryChevron} />
           </button>
           {editingCategory && (
             <div className={styles.chips}>
-              {KNOWN_SPIRITS.map((key) => {
+              {BOTTLE_TYPES.map((key) => {
                 const v = spiritVisual(key)
                 return (
                   <button
@@ -103,11 +110,17 @@ export function BottleSheet({
                       setEditingCategory(false)
                     }}
                   >
-                    <BottleGlyph shape={v.silhouette} size={13} color={v.dot} /> {v.label}
+                    <BottleGlyph shape={v.silhouette} size={13} color={v.dot} /> {bottleTypeLabel(key)}
                   </button>
                 )
               })}
             </div>
+          )}
+
+          {recipe && (
+            <Link className={styles.recipeLink} to={`/recipe/${recipe.id}`} onClick={onClose}>
+              View recipe
+            </Link>
           )}
 
           <div className={styles.sectionHead}>

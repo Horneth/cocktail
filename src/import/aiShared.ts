@@ -37,7 +37,7 @@ export const INGREDIENT_SCHEMA: OpenApiSchema = {
   required: ['name', 'unit'],
 }
 
-// One recipe: a cocktail, a syrup, or a cordial. Each stands alone.
+// One recipe: a cocktail or a syrup. Each stands alone.
 export const RECIPE_SCHEMA: OpenApiSchema = {
   type: 'object',
   properties: {
@@ -163,12 +163,12 @@ export function toJsonSchema(schema: OpenApiSchema): Record<string, unknown> {
 export const PROMPT = `You extract EVERY recipe from a pasted recipe or video description. A single description frequently contains SEVERAL recipes — return all of them.
 Return JSON matching the schema: a "recipes" array with one entry per recipe, in the order they appear. Each entry is a self-contained recipe. Rules per recipe:
 - "name": the recipe's name only (no channel or video title fluff).
-- "kind": "cocktail" for a drink someone sits down and pours, "syrup" for a sweetened mixer (simple syrup, orgeat, grenadine, honey syrup), or "cordial" for a spirit-based infusion or liqueur-style ingredient (limoncello, coffee liqueur, fruit cordial). A syrup or cordial is an INGREDIENT other drinks use, not a serve; when a description gives its own recipe, emit it as its own top-level entry with that kind. Never nest one recipe inside another.
+- "kind": "cocktail" for a drink someone sits down and pours, or "syrup" for anything that is an INGREDIENT in drinks rather than a drink itself — a sweetened mixer (simple syrup, orgeat, grenadine, honey syrup) as well as a spirit-based infusion or liqueur-style ingredient (limoncello, coffee liqueur, fruit cordial). When the description gives such a mixer its own recipe, emit it as its own top-level entry with kind "syrup". Never nest one recipe inside another.
 - "ingredients": each line of that recipe's build. Keep the amount as a number in the unit as written (oz, ml, cl, dash, barspoon, tsp, tbsp, part). Use amount null for "to taste", garnishes, or "top with" items. Strip any parenthetical unit conversion like "(30 ml)" from the name.
-- "spirit": the primary base spirit of a cocktail, as a short lowercase word. Use the SPECIFIC spirit the recipe names — e.g. gin, vodka, rum, cachaça, whiskey, tequila, mezcal, brandy, cognac, pisco, sake, wine, liqueur. Do NOT collapse a specific spirit into a broader one (a Caipirinha is "cachaça", not "rum"). Only normalize spelling/family: bourbon/rye/scotch/whisky -> whiskey. Use "mocktail" for any non-alcoholic / zero-proof / "virgin" drink. Omit spirit for a syrup or cordial.
-- "method": how a cocktail is built. Use exactly one of: ${METHODS.join(', ')}. Omit for a syrup or cordial.
-- "glassware": what a cocktail is served in. Use exactly one of: ${GLASSES.join(', ')} — unless the text names a different vessel, in which case use the text's. Omit for a syrup or cordial.
-- "garnish": the garnish, as short as possible ("Lime wheel", "Orange peel"). Omit for a syrup or cordial.
+- "spirit": the primary base spirit of a cocktail, as a short lowercase word. Use the SPECIFIC spirit the recipe names — e.g. gin, vodka, rum, cachaça, whiskey, tequila, mezcal, brandy, cognac, pisco, sake, wine, liqueur. Do NOT collapse a specific spirit into a broader one (a Caipirinha is "cachaça", not "rum"). Only normalize spelling/family: bourbon/rye/scotch/whisky -> whiskey. Use "mocktail" for any non-alcoholic / zero-proof / "virgin" drink. Omit spirit for a syrup.
+- "method": how a cocktail is built. Use exactly one of: ${METHODS.join(', ')}. Omit for a syrup.
+- "glassware": what a cocktail is served in. Use exactly one of: ${GLASSES.join(', ')} — unless the text names a different vessel, in which case use the text's. Omit for a syrup.
+- "garnish": the garnish, as short as possible ("Lime wheel", "Orange peel"). Omit for a syrup.
 - "tags": 2 to 4 tags describing style and flavour, taken from this list: ${TAG_KEYS.join(', ')}. Use "syrup" for a syrup. No "#".
 - "aka": 0 to 3 other names this exact recipe is commonly known by, PLUS the name of the classic it is a variation of when it clearly is one (a "Oaxacan Old Fashioned" gets ["Old Fashioned"]; a "Rum Sour" made with rum, lime and sugar gets ["Daiquiri"]). Leave empty for an original recipe with no ancestor.
 - "guessed": ALWAYS fill in "method", "glassware", "garnish" and "tags" — when the text does not state one, infer the standard serve for that drink from your own bartending knowledge, and list that field's name here. Also list "spirit" or "kind" if you inferred those. A field is "guessed" only when the text did not state it; do not list fields you read straight from the text. NEVER guess ingredients or amounts — those come from the text only, and a recipe with no ingredients in the text is not a recipe.
@@ -415,15 +415,14 @@ export function mapAiRecipe(r: AiRecipe, sourceUrl?: string, sourceText = ''): S
   const ingredients = (r.ingredients ?? []).map(toDraftIngredient).filter((i) => i.name)
 
   const videoId = sourceUrl?.match(/(?:v=|youtu\.be\/)([\w-]{11})/)?.[1]
-  // A model trained on older instructions may still say "component" — fold it
-  // into "syrup". Anything else unknown is treated as a cocktail.
+  // A model trained on the older kind lists may still say "component" or
+  // "cordial" — both fold into "syrup". Anything else unknown is treated as a
+  // cocktail.
   const kind: RecipeKind =
-    r.kind === 'cordial'
-      ? 'cordial'
-      : r.kind === 'syrup' || r.kind === 'component'
-        ? 'syrup'
-        : 'cocktail'
-  // A syrup/cordial is an ingredient, not a serve — a glass or garnish on one is
+    r.kind === 'syrup' || r.kind === 'component' || r.kind === 'cordial'
+      ? 'syrup'
+      : 'cocktail'
+  // A syrup is an ingredient, not a serve — a glass or garnish on one is
   // the model over-applying the "always fill these in" rule.
   const isCocktailKind = kind === 'cocktail'
   const method = isCocktailKind

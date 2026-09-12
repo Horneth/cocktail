@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Recipe } from '../db/schema'
 import { normIngredient } from './availability'
-import { oneAwaySuggestions, recipesUsingBottle, unlocksFor } from './barInsights'
+import { oneAwaySuggestions, recipesUsingBottle, syrupRecipeFor, unlocksFor } from './barInsights'
 
 let n = 0
 function recipe(partial: Partial<Recipe> & { name: string; ingredients: Recipe['ingredients'] }): Recipe {
@@ -158,5 +158,17 @@ describe('recipesUsingBottle', () => {
   it('lists nothing for a bottle no recipe calls for', () => {
     expect(recipesUsingBottle('Green Chartreuse', cocktails, byId)).toEqual([])
     expect(recipesUsingBottle('   ', cocktails, byId)).toEqual([])
+  })
+})
+
+describe('syrupRecipeFor', () => {
+  it('finds the syrup recipe behind a stocked bottle, loosely matched', () => {
+    expect(syrupRecipeFor('Simple Syrup', [syrup])?.id).toBe('syrup')
+    expect(syrupRecipeFor('Rich Simple Syrup (2:1)', [syrup])?.name).toBe('Simple Syrup')
+  })
+
+  it('refuses cocktails and unknown names', () => {
+    expect(syrupRecipeFor('Daiquiri', cocktails)).toBeUndefined()
+    expect(syrupRecipeFor('Grenadine', [syrup])).toBeUndefined()
   })
 })

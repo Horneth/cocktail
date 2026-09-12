@@ -1,4 +1,5 @@
 import { POOL_SIZES, poolPath, poolKeyForName, type PoolSizeName } from './poolKey.mjs'
+import type { Recipe } from '../db/schema'
 
 // The client-side contract around the shared pool rules (poolKey.mjs).
 //
@@ -28,6 +29,17 @@ export function isGenRef(image: string | undefined | null): boolean {
 export function genRefKey(image: string | undefined | null): string | null {
   if (!image || !isGenRef(image)) return null
   return image.slice(GEN_PREFIX.length) || null
+}
+
+/**
+ * What a recipe should actually render as its photo. Syrup art is drawn, not
+ * generated — a pool reference on a syrup would pin whatever the photo model
+ * produced (usually a served drink in a glass), so it never renders: the syrup
+ * draws its bottle instead. The user's own upload always wins.
+ */
+export function displayImage(recipe: Recipe): string | undefined {
+  if (recipe.kind === 'syrup' && isGenRef(recipe.image)) return undefined
+  return recipe.image
 }
 
 /** Storage URL for one size of a pool entry. '' when inputs are unusable. */

@@ -44,14 +44,22 @@ const HINTS: [RegExp, string][] = [
   // aromatized / fortified wines
   [/\b(wine|vermouth|sherry|port|prosecco|champagne|lillet|cocchi|dubonnet|madeira|marsala|sake)\b/i, 'wine'],
 
+  // mixers & syrups — a stocked syrup is its own thing on the shelf, not
+  // "Other" (checked before the broad liqueur net, which used to swallow
+  // "Lime Cordial"). Never matchable: a syrup bottle satisfies a call by its
+  // own name, never by family.
+  [/\b(syrup|grenadine|orgeat|gomme|cordial)\b/i, 'syrup'],
+
   // liqueurs & amari (broad keyword net, checked last)
-  [/\b(liqueur|cordial|amaro|amaretto|cointreau|grand marnier|cur[aç]ao|triple sec|chartreuse|st[.\- ]?germain|b[ée]n[ée]dictine|drambuie|midori|kahl[úu]a|baileys|frangelico|disaronno|chambord|galliano|fernet|averna|cynar|montenegro|campari|aperol|maraschino|falernum|ancho reyes|suze|aperitivo)\b/i, 'liqueur'],
+  [/\b(liqueur|amaro|amaretto|cointreau|grand marnier|cur[aç]ao|triple sec|chartreuse|st[.\- ]?germain|b[ée]n[ée]dictine|drambuie|midori|kahl[úu]a|baileys|frangelico|disaronno|chambord|galliano|fernet|averna|cynar|montenegro|campari|aperol|maraschino|falernum|ancho reyes|suze|aperitivo)\b/i, 'liqueur'],
 ]
 
 /**
  * The category ('rum','whiskey','gin',…) for a bottle/ingredient name, or
  * undefined when the name isn't a recognizable spirit/liqueur (e.g. "Lime
- * juice", "Egg white").
+ * juice", "Egg white"). Mixers resolve to 'syrup' so a stocked syrup groups
+ * with its kind on the Bar screen; 'syrup' is deliberately NOT in
+ * MATCHABLE_CATEGORIES.
  */
 export function categoryForName(name: string): string | undefined {
   const n = name.toLowerCase()
@@ -64,8 +72,9 @@ export function categoryForName(name: string): string | undefined {
 /**
  * Categories where a generic bottle genuinely substitutes for a specific call
  * (owning any "rum" covers "Jamaican rum"). Deliberately EXCLUDES liqueur/wine/
- * mocktail — a Campari must not satisfy a call for Chartreuse. Used by
- * availability matching (Phase 5); Bar grouping uses every category.
+ * mocktail — a Campari must not satisfy a call for Chartreuse — and 'syrup':
+ * a syrup bottle satisfies a call by its own name, never a family.
+ * Used by availability matching; Bar grouping uses every category.
  */
 export const MATCHABLE_CATEGORIES: ReadonlySet<string> = new Set([
   'rum', 'whiskey', 'gin', 'vodka', 'tequila', 'mezcal', 'brandy', 'cognac', 'cachaça', 'pisco', 'agave',

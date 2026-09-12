@@ -32,7 +32,6 @@ const KNOWN: Record<string, KnownMeta> = {
   aperitivo: { label: 'Aperitivo', emoji: '🍊', gradient: 'linear-gradient(145deg,#d4703f,#7a2e18)' },
   mocktail: { label: 'Mocktails', emoji: '🍹', gradient: 'linear-gradient(145deg,#3f9f6a,#175236)' },
   syrup: { label: 'Syrups', emoji: '🍯', gradient: 'linear-gradient(145deg,#c0813e,#5f3312)' },
-  cordial: { label: 'Cordials', emoji: '🍷', gradient: 'linear-gradient(145deg,#9c4d90,#48203f)' },
   other: { label: 'Other', emoji: '🍸', gradient: 'linear-gradient(145deg,#6b5f77,#332a3d)' },
 }
 
@@ -44,6 +43,15 @@ export const SPIRIT_ORDER = [
 
 /** Suggestions for the spirit input (users can still type anything else). */
 export const KNOWN_SPIRITS = SPIRIT_ORDER.filter((k) => k !== 'other')
+
+/** Bottle type options for the Bar's category pickers — the drink spirits plus
+ * the mixer family a stocked syrup belongs to. Deliberately NOT the recipe
+ * editor's base-spirit picker, which stays KNOWN_SPIRITS. */
+export const BOTTLE_TYPES = [...KNOWN_SPIRITS, 'syrup']
+
+/** Chip label for a bottle type — singular where the tile label is a group. */
+export const bottleTypeLabel = (key: string): string =>
+  key === 'syrup' ? 'Syrup' : tileMeta(key).label
 
 const SPECIAL: Record<string, TileMeta> = {
   all: { key: 'all', label: 'All cocktails', emoji: '🍸', gradient: 'linear-gradient(145deg,#5b4a6b,#2a2233)' },
@@ -70,7 +78,6 @@ function cap(s: string): string {
  * spirit is its tile. */
 export function tileKeyForRecipe(r: Recipe): string {
   if (r.kind === 'syrup') return 'syrup'
-  if (r.kind === 'cordial') return 'cordial'
   const s = r.spirit?.trim().toLowerCase()
   return s && s !== 'none' ? s : 'other'
 }

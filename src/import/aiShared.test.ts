@@ -121,6 +121,10 @@ describe('mapAiRecipe — standalone syrup', () => {
     expect(r.main.glassware).toBeUndefined()
     expect(r.main.method).toBeUndefined()
   })
+
+  it('folds the retired "cordial" kind into "syrup"', () => {
+    expect(mapAiRecipe({ ...syrup, kind: 'cordial' }).main.kind).toBe('syrup')
+  })
 })
 
 describe('dedupeBottles', () => {

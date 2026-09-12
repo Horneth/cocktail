@@ -2,6 +2,42 @@
 
 .heroImage { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 
+/* A mixer's drawn bottle takes the hero when there's no photo — big, centered,
+ * on the tint gradient. */
+.heroArt { position:absolute; inset:0; display:grid; place-items:center; padding-bottom:24px; }
+
 .tagChips { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 4px; }
 /* The one tappable expression of a tag: a chip that filters the library. */
 .tagChip { display:inline-flex; align-items:center; gap:6px; padding:9px 13px; border-radius:var(--radius-pill); background:var(--card); border:1px solid var(--line); color:var(--ink); font-size:13.5px; font-weight:700; text-transform:capitalize; text-decoration:none; }
+
+/* The rules below were lost in the redesign (every class below the ingredient
+   list went unstyled) — recovered from the pre-redesign stylesheet and re-set
+   on the Nightcap tokens. */
+.loading, .notFound { padding:80px 22px; text-align:center; color:var(--muted); }
+.favOn { color:var(--accent); }
+.stepperWrap { margin:18px 0 6px; }
+.partsControl { margin:18px 0 6px; padding:14px 16px; background:var(--card); border:1px solid var(--line); border-radius:18px; }
+.partsLabel { display:block; margin-bottom:10px; color:var(--faint); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+.presets { display:flex; flex-wrap:wrap; gap:8px; }
+.preset { padding:8px 14px; border-radius:var(--radius-pill); background:var(--paper); border:1px solid var(--line); color:var(--ink); font-size:13.5px; font-weight:700; }
+.presetActive { background:var(--accent); border-color:var(--accent); color:#fff; }
+.tweakBar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:14px; padding:12px 14px; background:var(--missing-bg); border-radius:18px; color:var(--missing-fg); font-size:13.5px; font-weight:700; }
+.tweakActions { display:flex; gap:8px; }
+.ghostBtn { padding:8px 13px; border-radius:var(--radius-pill); background:rgba(255,255,255,.6); color:var(--ink); font-size:13px; font-weight:700; }
+.solidBtn { padding:8px 14px; border-radius:var(--radius-pill); background:var(--accent); color:#fff; font-size:13px; font-weight:800; }
+.garnish { margin:16px 2px 0; color:var(--muted); font-size:14.5px; line-height:1.5; }
+.garnishLabel { margin-right:4px; color:var(--ink); font-weight:800; }
+.section { margin-top:4px; }
+.usedInList { display:flex; flex-wrap:wrap; gap:8px; }
+.usedInChip { padding:9px 13px; border-radius:var(--radius-pill); background:var(--card); border:1px solid var(--line); color:var(--ink); font-size:13.5px; font-weight:700; text-decoration:none; }
+.mergeHint { margin:0 0 12px; color:var(--muted); font-size:14px; line-height:1.5; }
+.mergeRow { display:flex; gap:8px; }
+.mergeSelect { flex:1; }
+.mergeBtn { flex:0 0 auto; padding:0 18px; border-radius:var(--radius-sm); background:var(--accent); color:#fff; font-weight:800; }
+.mergeBtn:disabled { background:var(--track); }
+.note { display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; padding:12px 14px; background:var(--card); border:1px solid var(--line); border-radius:var(--radius-xs); }
+.note p { margin:0; flex:1; font-size:14.5px; line-height:1.45; }
+.noteDel { flex:0 0 auto; color:var(--faint); font-size:20px; line-height:1; }
+.noteAdd { display:flex; gap:8px; margin-top:4px; }
+.noteAdd input { flex:1; }
+.noteAddBtn { flex:0 0 auto; display:grid; place-items:center; width:48px; border-radius:var(--radius-xs); background:var(--accent); color:#fff; }

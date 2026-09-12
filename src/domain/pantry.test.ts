@@ -29,12 +29,14 @@ describe('bottle records', () => {
     expect(row?.brand).toBe('Plantation')
   })
 
-  it('omits category and brand entirely when neither is known', async () => {
+  it('omits brand when unknown; mixers get their syrup category', async () => {
     await addToPantry(BAR, 'Orgeat')
     const row = await get('orgeat')
     expect(row).toBeDefined()
-    expect(row).not.toHaveProperty('category')
+    expect(row?.category).toBe('syrup')
     expect(row).not.toHaveProperty('brand')
+    await addToPantry(BAR, 'Lime juice')
+    expect(await get('lime juice')).not.toHaveProperty('category')
   })
 
   it('bulkAddPantry mixes bare labels and full records, dropping empties', async () => {

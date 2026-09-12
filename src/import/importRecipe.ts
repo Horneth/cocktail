@@ -202,7 +202,7 @@ async function isDescendant(rootId: string, candidateId: string): Promise<boolea
  * Merge recipe `fromId` into `toId`: every recipe that referenced `from` is
  * repointed to `to`, links are rebuilt, and `from` is deleted. Use to fold a
  * near-duplicate mixer ("Semi Rich Simple Syrup") into the one the user wants to
- * keep. Both must be mixers of the same kind. Runs in one transaction.
+ * keep. Both must be mixers. Runs in one transaction.
  */
 export async function mergeRecipes(fromId: string, toId: string): Promise<MergeResult> {
   if (fromId === toId) return { rewiredParents: 0 }
@@ -212,10 +212,7 @@ export async function mergeRecipes(fromId: string, toId: string): Promise<MergeR
     const to = await db.recipes.get(toId)
     if (!from || !to) throw new Error('Both recipes must exist to merge.')
     if (from.kind === 'cocktail' || to.kind === 'cocktail') {
-      throw new Error('Only syrups and cordials can be merged.')
-    }
-    if (from.kind !== to.kind) {
-      throw new Error('Only recipes of the same kind can be merged.')
+      throw new Error('Only syrups can be merged.')
     }
     // Guard against creating a cycle: if `to` already sits under `from`, merging
     // would make the survivor reference itself through the rewired parents.

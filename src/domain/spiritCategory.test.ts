@@ -27,15 +27,23 @@ describe('categoryForName', () => {
   it('returns undefined for non-spirit ingredients', () => {
     expect(categoryForName('Lime juice')).toBeUndefined()
     expect(categoryForName('Egg white')).toBeUndefined()
-    expect(categoryForName('Simple Syrup')).toBeUndefined()
   })
 
-  it('excludes liqueur/wine/mocktail from matchable categories', () => {
+  it('resolves mixers to their own syrup category', () => {
+    expect(categoryForName('Simple Syrup')).toBe('syrup')
+    expect(categoryForName('Grenadine')).toBe('syrup')
+    expect(categoryForName('Orgeat')).toBe('syrup')
+    expect(categoryForName('Lime Cordial')).toBe('syrup')
+    expect(categoryForName('Rich Simple Syrup (2:1)')).toBe('syrup')
+  })
+
+  it('excludes liqueur/wine/mocktail/syrup from matchable categories', () => {
     expect(MATCHABLE_CATEGORIES.has('rum')).toBe(true)
     expect(MATCHABLE_CATEGORIES.has('whiskey')).toBe(true)
     expect(MATCHABLE_CATEGORIES.has('liqueur')).toBe(false)
     expect(MATCHABLE_CATEGORIES.has('wine')).toBe(false)
     expect(MATCHABLE_CATEGORIES.has('mocktail')).toBe(false)
+    expect(MATCHABLE_CATEGORIES.has('syrup')).toBe(false)
   })
 })
 

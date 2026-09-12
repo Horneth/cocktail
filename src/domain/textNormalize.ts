@@ -1,6 +1,6 @@
 import type { Recipe } from '../db/schema'
 
-// Loose name key for matching *mixer* (syrup/cordial) names and for the
+// Loose name key for matching *mixer* (syrup) names and for the
 // merge-duplicates tool. It strips ratio parentheticals ("(1.5:1)") and the
 // "richness" adjectives that distinguish otherwise-identical syrups, so
 // "Semi-Rich Simple Syrup" and "Simple Syrup" collapse to the same key.

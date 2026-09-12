@@ -53,6 +53,16 @@ export class CocktailDB extends Dexie {
         .filter((r, i) => r !== recipes[i])
       if (rewrites.length) await tx.table('recipes').bulkPut(rewrites)
     })
+    // v5 retires the "cordial" kind — everything mixery is a syrup now. Same
+    // data-rewrite shape as v4: `kind` is indexed, but rewriting the stored
+    // objects re-indexes them automatically.
+    this.version(5).upgrade(async (tx) => {
+      const recipes = await tx.table('recipes').toArray()
+      const rewrites = recipes
+        .map((r) => migrateLegacyRecipe(r as Recipe))
+        .filter((r, i) => r !== recipes[i])
+      if (rewrites.length) await tx.table('recipes').bulkPut(rewrites)
+    })
   }
 }
 

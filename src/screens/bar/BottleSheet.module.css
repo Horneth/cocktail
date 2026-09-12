@@ -40,6 +40,21 @@
   color: var(--faint);
 }
 
+/* A stocked syrup is also a recipe — this is the hop back to it. */
+.recipeLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  padding: 11px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

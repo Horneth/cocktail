@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AccentButton } from '../../components/TabBar'
+import { BottleArt } from '../../components/BottleArt'
 import { BottleGlyph } from '../../components/BottleGlyph'
 import { ChevronDownIcon, ChevronRightIcon } from '../../components/icons'
 import type { PantryItem } from '../../db/schema'
@@ -110,11 +111,11 @@ export function BarScreen() {
                 </div>
                 <div className={styles.items}>
                     {g.items.map((item) => {
-                      const v = spiritVisual(item.category ?? categoryForName(item.label) ?? 'other')
+                      const category = item.category ?? categoryForName(item.label) ?? 'other'
                       return (
                         <button className={styles.item} onClick={() => setViewing(item)}>
                           <span className={styles.itemGlyph} style={{ background: v.tint }} aria-hidden>
-                            <BottleGlyph shape={v.silhouette} size={20} color={v.dot} />
+                            <BottleArt name={item.label} category={category} size={20} />
                           </span>
                           <span className={styles.itemText}>
                             <span className={styles.itemName}>{item.label}</span>

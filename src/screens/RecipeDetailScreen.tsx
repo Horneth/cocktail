@@ -12,7 +12,9 @@ import { newId } from '../domain/ids'
 import { KIND_LABELS } from '../domain/recipeKind'
 import { tileKeyForRecipe } from '../domain/spirits'
 import { tagEmoji } from '../domain/vocab'
+import { displayImage } from '../domain/imagePool'
 import { spiritVisual } from '../domain/spiritVisual'
+import { SyrupBottle } from '../components/SyrupBottle'
 import { mergeRecipes, saveRecipe, setFavorite } from '../import/importRecipe'
 import { useBacklinks, useMixers, useRecipe } from '../hooks/useRecipes'
 import { useVolumePreference } from '../hooks/useSettings'
@@ -137,6 +139,9 @@ export function RecipeDetailScreen() {
   const canMakeIt = !isMixer && missing.length === 0
   const spiritLabel = recipe.spirit && recipe.spirit !== 'none' ? cap(recipe.spirit) : isMixer ? KIND_LABELS[recipe.kind] : v.label
   const subBits = [spiritLabel, recipe.glassware].filter(Boolean)
+  // The eyebrow line: tags closed by the spirit/kind label. For a mixer the
+  // label is already "Syrup" — the 'syrup' tag would only repeat it.
+  const tagBits = isMixer ? recipe.tags.filter((t) => t.toLowerCase() !== 'syrup') : recipe.tags
 
   const metaCards = !isMixer
     ? [
@@ -167,9 +172,9 @@ export function RecipeDetailScreen() {
   return (
     <div className={styles.screen}>
       <div className={styles.hero} style={{ background: `linear-gradient(180deg, ${v.tint}, var(--paper))` }}>
-        {recipe.image || recipe.imageStatus === 'pending' ? (
+        {displayImage(recipe) || recipe.imageStatus === 'pending' ? (
           <RecipeImage
-            image={recipe.image}
+            image={displayImage(recipe)}
             size="full"
             sizes="(min-width: 440px) 440px, 100vw"
             className={styles.heroImage}
@@ -177,6 +182,10 @@ export function RecipeDetailScreen() {
             generating={recipe.imageStatus === 'pending'}
             fallback={null}
           />
+        ) : isMixer ? (
+          <div className={styles.heroArt} aria-hidden>
+            <SyrupBottle name={recipe.name} size={140} />
+          </div>
         ) : null}
         <div className={styles.heroTop}>
           <button className={styles.roundBtn} aria-label="Back" onClick={() => navigate(-1)}>
@@ -208,7 +217,7 @@ export function RecipeDetailScreen() {
       </div>
 
       <div className={styles.body}>
-        <div className={styles.tagLine}>{[...recipe.tags, spiritLabel].filter(Boolean).join(' · ')}</div>
+        <div className={styles.tagLine}>{[...tagBits, spiritLabel].filter(Boolean).join(' · ')}</div>
         <h1 className={styles.title}>{recipe.name}</h1>
         {/* One line, because the ingredient list below now says which ones —
             each missing line taps straight through to adding that bottle. */}
@@ -349,7 +358,7 @@ function UsedIn({ recipeId }: { recipeId: string }) {
 /**
  * Fold this mixer into another one (duplicate cleanup). Every recipe that
  * referenced this one gets repointed to the survivor, then this record is
- * deleted. Shown only for syrups and cordials.
+ * deleted. Shown only for syrups.
  */
 function MergeInto({ recipe }: { recipe: Recipe }) {
   const mixers = useMixers()

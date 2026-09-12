@@ -1,6 +1,7 @@
 import type { Recipe } from '../db/schema'
 import { bottleCovers, makeableIds, missingBottles, normIngredient } from './availability'
 import { categoryForName } from './spiritCategory'
+import { normalizeMixerName } from './textNormalize'
 
 // "What do I get for adding this bottle?" — the payoff signal the Bar screen
 // shows next to every add. Deliberately computed on-device from the user's own
@@ -136,4 +137,20 @@ export function oneAwaySuggestions(
     .filter((s) => s.unlocks > 0)
     .sort((a, b) => b.unlocks - a.unlocks || a.label.localeCompare(b.label))
     .slice(0, limit)
+}
+
+/**
+ * The syrup recipe a stocked bottle corresponds to, if the user has written
+ * one — matched through the loose mixer key, so "Semi Rich Simple Syrup" in
+ * the bar finds the "Simple Syrup" recipe. This is the My Bar ↔ recipe bridge:
+ * a syrup is one entity the app shows as a bottle (you stock it) and a recipe
+ * (you can make it).
+ */
+export function syrupRecipeFor(
+  bottleLabel: string,
+  recipes: Recipe[],
+): Recipe | undefined {
+  const label = normalizeMixerName(bottleLabel)
+  if (!label) return undefined
+  return recipes.find((r) => r.kind === 'syrup' && normalizeMixerName(r.name) === label)
 }

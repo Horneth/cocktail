@@ -156,11 +156,12 @@ const onSave = async () => {
   /**
    * Auto-attach a pool photo at save: any image-less cocktail the user saves
    * signs in and online gets one generated for it — or, for a drink the pool
-   * already has (every classic is seeded), an instant free hit. Fire-and-forget:
-   * the recipe is saved before this runs, and the photo lands (or the spirit
-   * tile stays) whenever it resolves. The `pending` status — written on the
-   * record itself in the same save — is the guard that keeps a second save
-   * from spending two generations on the same recipe.
+   * already has (every classic is seeded), an instant free hit. Syrups never
+   * spend a generation — their art is drawn (see domain/syrupArt.ts).
+   * Fire-and-forget: the recipe is saved before this runs, and the photo lands
+   * (or the spirit tile stays) whenever it resolves. The `pending` status —
+   * written on the record itself in the same save — is the guard that keeps a
+   * second save from spending two generations on the same recipe.
    */
   const maybeGenerateImage = async (recipe: Recipe) => {
     if (recipe.imageStatus !== 'pending') return
@@ -186,7 +187,8 @@ const onSave = async () => {
     }
   }
 
-  /** Should this save carry the auto-generation `pending` guard? */
+  /** Should this save carry the auto-generation `pending` guard? Cocktails only —
+   * syrups draw their bottle instead (domain/syrupArt.ts). */
   const wantsGeneratedImage = (recipe: Recipe): boolean => {
     if (!FEATURES.cloudAI || !isCloudAIConfigured()) return false
     if (recipe.kind !== 'cocktail' || recipe.image) return false
@@ -369,7 +371,7 @@ const onSave = async () => {
               key={k}
               className={`${styles.segBtn} ${form.kind === k ? styles.segActive : ''}`}
               onClick={() => {
-                // A syrup/cordial is an ingredient, not a serve — switching to
+                // A syrup is an ingredient, not a serve — switching to
                 // one drops the fields that only make sense for a drink.
                 update(
                   k === 'cocktail'
@@ -796,7 +798,8 @@ interface PhotoPickerProps {
  * The one place a recipe photo is managed: the current photo (pool shot or
  * your own upload), swap it, or remove it. Image-less cocktails can also
  * generate their pool shot right here — that's the same engine the save path
- * uses, offered explicitly for recipes that predate it.
+ * uses, offered explicitly for recipes that predate it. Syrups draw their
+ * bottle instead of generating.
  */
 function PhotoPicker({ open, onClose, form, imageBusy, imageError, auth, onGenerate, onPickFile, onRemove }: PhotoPickerProps) {
   const canOfferGenerate =
@@ -859,7 +862,7 @@ function PhotoPicker({ open, onClose, form, imageBusy, imageError, auth, onGener
 
 interface IngEditorProps {
   ingredient: Ingredient
-  /** existing recipes this ingredient can link to (syrups & cordials) */
+  /** existing recipes this ingredient can link to (syrups) */
   linkable: Recipe[]
   knownNames: string[]
   currentRecipeId: string
