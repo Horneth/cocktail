@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useNavigationType, useParams } from 'react-router-dom'
 import { BottomSheet } from '../components/BottomSheet'
 import { ChevronLeftIcon, FlaskIcon, PlusIcon, SparkleIcon, TrashIcon, UploadIcon } from '../components/icons'
 import { FEATURES, isCloudAIConfigured } from '../config'
@@ -99,6 +99,20 @@ export function EditRecipeScreen() {
       setTagInput(existing.tags.join(', '))
     }
   }, [existing, isNew, form])
+
+  // A pushed arrival must land at the top and stay there. The router scrolls
+  // before the editor's data loads — the null-form skeleton then swaps for the
+  // tall form — and a mobile browser can drift the view afterwards (a restored
+  // field focus, scroll anchoring on the swap, the keyboard). One correction
+  // once the form exists; never on Back (POP restores the previous position),
+  // and one-shot so later edits never re-scroll.
+  const scrolledToTop = useRef(false)
+  const navigationType = useNavigationType()
+  useLayoutEffect(() => {
+    if (scrolledToTop.current || !form || navigationType === 'POP') return
+    scrolledToTop.current = true
+    window.scrollTo(0, 0)
+  }, [form, navigationType])
 
   // The Android share target (main.tsx stashes the text before React mounts and
   // the shell routes here). Prefill the paste box, and for a YouTube link go
@@ -372,7 +386,6 @@ const onSave = async () => {
             value={form.name}
             onChange={(e) => update({ name: e.target.value })}
             placeholder={!isCocktailKind ? 'e.g. Rich Simple Syrup' : 'e.g. Midnight Sour'}
-            autoFocus={isNew && !pasteOpen}
           />
         </div>
 
