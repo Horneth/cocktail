@@ -249,4 +249,20 @@ describe('attachGeneratedImage / markImageFailed', () => {
     expect(saved!.imageStatus).toBe('failed')
     expect(saved!.image).toBeUndefined()
   })
+
+  it('records the daily-limit reason and clears it when the photo lands', async () => {
+    const id = await importRecipe(cocktail('Paper Plane', 'syrup'))
+    await saveRecipe({ ...(await db.recipes.get(id))!, imageStatus: 'pending' })
+
+    await markImageFailed(id, 'daily-limit')
+    expect((await db.recipes.get(id))!.imageError).toBe('daily-limit')
+
+    // The retry: the next save re-arms the pending guard, and success clears
+    // the reason so the detail screen stops offering it.
+    await saveRecipe({ ...(await db.recipes.get(id))!, imageStatus: 'pending' })
+    await attachGeneratedImage(id, 'gen:paper-plane')
+    const saved = await db.recipes.get(id)
+    expect(saved!.imageStatus).toBe('done')
+    expect(saved!.imageError).toBeUndefined()
+  })
 })

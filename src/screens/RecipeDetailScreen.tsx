@@ -219,6 +219,13 @@ export function RecipeDetailScreen() {
       <div className={styles.body}>
         <div className={styles.tagLine}>{[...tagBits, spiritLabel].filter(Boolean).join(' · ')}</div>
         <h1 className={styles.title}>{recipe.name}</h1>
+        {recipe.imageStatus === 'failed' && (
+          <p className={styles.imageNote}>
+            {recipe.imageError === 'daily-limit'
+              ? 'Daily image limit reached — it’ll try again on your next save.'
+              : 'No photo yet — it’ll try again on your next save.'}
+          </p>
+        )}
         {/* One line, because the ingredient list below now says which ones —
             each missing line taps straight through to adding that bottle. */}
         {!isMixer && (

@@ -100,23 +100,43 @@ async function fileExists(bucket, path) {
 }
 
 /**
+ * Per-user override of DAILY_LIMIT, written by hand for now (Firestore doc
+ * `imageGenLimits/<uid>` = `{ daily: number }`) and, later, by whatever grants
+ * entitlements (a "pro" plan webhook needs only to write this same doc — the
+ * client and the callable never change). Absent → the global default; 0 blocks
+ * the user outright. Clamped so a fat-fingered console edit can't turn a typo
+ * into unmetered spend.
+ */
+async function userDailyLimit(uid) {
+  const snap = await getFirestore().collection('imageGenLimits').doc(uid).get()
+  if (!snap.exists) return DAILY_LIMIT
+  const daily = Number(snap.data()?.daily)
+  if (!Number.isFinite(daily) || daily < 0) return DAILY_LIMIT
+  return Math.min(Math.floor(daily), 1000)
+}
+
+/**
  * Per-user, per-UTC-day counter in Firestore. Fails closed: any error reading
  * or writing the counter denies generation — an outage must never become an
  * unmetered spend. Pool hits skip this entirely, which is why seeding the
- * classics keeps them free at any volume.
+ * classics keeps them free at any volume. The rejection carries a machine-
+ * readable `{ kind: 'daily-limit' }` in its details so the client can tell
+ * this — the one failure the user can act on — apart from every other error.
  */
 async function enforceRateLimit(uid) {
   const db = getFirestore()
   const day = new Date().toISOString().slice(0, 10)
   const ref = db.collection('imageGenUsage').doc(`${uid}:${day}`)
   try {
+    const limit = await userDailyLimit(uid)
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref)
       const count = snap.exists && snap.data()?.day === day ? (snap.data()?.count ?? 0) : 0
-      if (count >= DAILY_LIMIT) {
+      if (count >= limit) {
         throw new HttpsError(
           'resource-exhausted',
           'Daily image limit reached — try again tomorrow.',
+          { kind: 'daily-limit' },
         )
       }
       tx.set(ref, { day, count: count + 1 })

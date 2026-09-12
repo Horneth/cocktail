@@ -1,8 +1,25 @@
-.shimmer {
+/* Generation in flight, nothing to show yet. Two layers: the sweep says
+ * "something is happening" forever (the model can take 15-20s), the bar is the
+ * fake progress — an ease-out fill to ~90% over ~6s that then holds. It never
+ * reaches 100% until the real image lands and unmounts both. */
+.generating {
+  position: relative;
   display: block;
+  overflow: hidden;
   background: linear-gradient(100deg, var(--photo-empty) 40%, var(--card) 50%, var(--photo-empty) 60%);
   background-size: 200% 100%;
   animation: sweep 1.6s ease-in-out infinite;
+}
+
+.generatingBar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+  animation: fill 6s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
 }
 
 @keyframes sweep {
@@ -10,9 +27,17 @@
   100% { background-position: -80% 0; }
 }
 
+@keyframes fill {
+  0% { width: 0; }
+  100% { width: 92%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .shimmer {
+  .generating {
     animation: none;
     background: var(--photo-empty);
+  }
+  .generatingBar {
+    display: none;
   }
 }

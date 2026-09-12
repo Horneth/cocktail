@@ -53,10 +53,15 @@ export function RecipeImage({ image, size, sizes, className, alt = '', fallback,
     )
   }
 
-  // Generation in flight and nothing to show yet: a shimmer in the image's
-  // place, not the tile — the tile says "no photo", the shimmer says "coming".
+  // Generation in flight and nothing to show yet: shimmer + a fake progress
+  // bar in the image's place, not the tile — the tile says "no photo", this
+  // says "coming, and roughly how far along".
   if (generating && !image) {
-    return <span className={`${styles.shimmer} ${className ?? ''}`} aria-hidden="true" />
+    return (
+      <span className={`${styles.generating} ${className ?? ''}`} aria-hidden="true">
+        <span className={styles.generatingBar} />
+      </span>
+    )
   }
 
   // Direct sources (uploads, legacy URLs) render as-is; pool refs without a

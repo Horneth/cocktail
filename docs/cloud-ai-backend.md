@@ -207,9 +207,11 @@ enforces, in order:
    `POOL_V` in `src/domain/poolKey.mjs` (+ the `functions/shared` copy) so
    cached clients pick up the new file.
 5. **Per-user daily rate limit** in **Firestore** (`imageGenUsage/<uid>:<day>`,
-   `IMAGE_GEN_DAILY_LIMIT`, default 10), evaluated *before* generation and
-   **failing closed** — a quota-check outage disables generation, never the
-   limit. Pool hits never touch the counter.
+   `IMAGE_GEN_DAILY_LIMIT`, default 10 — a repo Variable, see the knobs below),
+   evaluated *before* generation and **failing closed** — a quota-check outage
+   disables generation, never the limit. Pool hits never touch the counter.
+   The rejection carries `{ kind: 'daily-limit' }` in its details, which is how
+   the app tells this — the one failure a user can act on — from every other.
 6. **Vertex AI with the function's service account (ADC)** — no API key exists
    anywhere; the project's template-only mode for AI Logic doesn't apply to
    server-side Vertex calls.
@@ -274,8 +276,9 @@ below is in the Google Cloud console for that project unless it says Firebase.
 5. **Create the Firestore database.** Firebase console → Firestore Database →
    Create → **Native mode**, location `us-central1` (same region as the
    function), **locked mode** (the client never touches it — only the admin
-   SDK reads/writes `imageGenUsage/<uid>:<day>`). Miss this and generation
-   fails closed: users get "try again", never unmetered spend.
+   SDK reads/writes `imageGenUsage/<uid>:<day>` and `imageGenLimits/<uid>`).
+   Miss this and generation fails closed: users get "try again", never
+   unmetered spend.
 
 6. **Turn on Cloud Functions App Check enforcement** (App Check → Cloud
    Functions → Enforce). The callable also declares `enforceAppCheck: true`,
@@ -301,6 +304,31 @@ the same one via `VITE_FIREBASE_FUNCTIONS_REGION`), `VERTEX_REGION` (default
 `IMAGE_GEN_MODEL`), `IMAGE_GEN_DAILY_LIMIT`
 (default 10 generations/user/day; pool hits never count),
 `IMAGE_GEN_SA` (least-privilege runtime account, see step 3).
+
+### Per-user limit overrides
+
+The global limit is a ceiling, not a sentence: any user can get their own.
+Firestore collection **`imageGenLimits`**, one doc per user, **doc id = the
+user's uid**, single field **`daily`** (a number, clamped to 0–1000 by the
+function):
+
+| doc | effect |
+| --- | --- |
+| none | global `IMAGE_GEN_DAILY_LIMIT` applies |
+| `{ daily: 25 }` | 25 generations/day for that user |
+| `{ daily: 0 }` | user is blocked outright |
+
+Manual today: Firebase console → Firestore → start a collection called
+`imageGenLimits` → document ID = the uid (Authentication → Users → copy) →
+field `daily` (number). No deploy, no client change — the next call picks it
+up.
+
+This doc is also the automation surface, on purpose: when "pro" accounts
+arrive, whatever grants them (a Stripe webhook, an admin Cloud Function, a
+scheduled sync) writes exactly this document and everything downstream —
+enforcement, the error the app shows — already knows how to read it. No client
+or function change is needed. One extra Firestore read per generate call pays
+for the lookup; that's it.
 
 **Keeping it in Europe.** Nothing forces US regions: create
 `functions/.env` with `IMAGE_FN_REGION=europe-west1` and

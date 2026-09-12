@@ -99,13 +99,20 @@ export async function attachGeneratedImage(recipeId: string, ref: string): Promi
     // the pending request entirely. Attaching is sanctioned only by the
     // `pending` guard the save wrote; anything else means don't.
     if (!recipe || recipe.image || recipe.imageStatus !== 'pending') return
-    await db.recipes.update(recipeId, { image: ref, imageStatus: 'done' })
+    await db.recipes.update(recipeId, { image: ref, imageStatus: 'done', imageError: undefined })
   })
 }
 
-/** Record that auto-generation failed (spirit tile renders until retried). */
-export async function markImageFailed(recipeId: string): Promise<void> {
-  await db.recipes.update(recipeId, { imageStatus: 'failed' })
+/**
+ * Record that auto-generation failed (spirit tile renders until retried).
+ * `reason` — when the failure is one the user can act on, the detail screen
+ * names it; undefined keeps the failure generic.
+ */
+export async function markImageFailed(
+  recipeId: string,
+  reason?: 'daily-limit',
+): Promise<void> {
+  await db.recipes.update(recipeId, { imageStatus: 'failed', imageError: reason })
 }
 
 /**

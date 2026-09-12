@@ -100,6 +100,12 @@ export interface Recipe {
    * single import from spending two generations on the same recipe.
    */
   imageStatus?: 'none' | 'pending' | 'done' | 'failed'
+  /**
+   * Why the last auto-generation failed, when it did. `daily-limit` is the one
+   * reason the user can act on — the detail screen can name it; every other
+   * failure stays generic. Cleared when a photo (generated or uploaded) lands.
+   */
+  imageError?: 'daily-limit'
 
   notes: Note[]
 

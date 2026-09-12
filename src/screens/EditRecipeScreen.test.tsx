@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { db } from '../db/db'
 import { stashSharedImport } from '../import/shared'
+import { ImageLimitError } from '../import/imageLimit'
 import { EditRecipeScreen } from './EditRecipeScreen'
 import type { StructuredImport } from '../import/types'
 
@@ -137,6 +138,17 @@ describe('generate a photo (photo sheet)', () => {
     await user.click(removeButtons()[0])
     await waitFor(() => expect(removeButtons()).toHaveLength(0))
     expect(screen.getByRole('button', { name: /generate a photo/i })).toBeInTheDocument()
+  })
+
+  it('names the daily limit when generation is refused, and stops offering Generate', async () => {
+    firebaseGenerateImage.mockImplementation(async () => {
+      throw new ImageLimitError()
+    })
+    const user = await openPhotoSheet()
+
+    await user.click(screen.getByRole('button', { name: /generate a photo/i }))
+    expect(await screen.findByText(/daily image limit reached/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /generate a photo/i })).not.toBeInTheDocument()
   })
 })
 

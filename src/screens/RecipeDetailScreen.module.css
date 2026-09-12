@@ -2,6 +2,10 @@
 
 .heroImage { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 
+/* One quiet line when auto-generation failed — the limit is the only reason
+ * worth naming; everything else stays generic. */
+.imageNote { margin:-8px 0 14px; color:var(--muted); font-size:12.5px; font-weight:500; line-height:1.45; }
+
 /* A mixer's drawn bottle takes the hero when there's no photo — big, centered,
  * on the tint gradient. */
 .heroArt { position:absolute; inset:0; display:grid; place-items:center; padding-bottom:24px; }

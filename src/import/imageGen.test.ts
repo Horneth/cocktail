@@ -16,6 +16,7 @@ vi.mock('../config', () => ({
 import { logAiCall } from '../auth/analytics'
 import { ensureFirebaseApp } from '../auth/firebase'
 import { CloudAIError } from './firebaseAI'
+import { ImageLimitError } from './imageLimit'
 import { firebaseGenerateImage, type GenerateImageSpec } from './imageGen'
 
 type Callable = (spec: GenerateImageSpec) => Promise<{ data: { key?: string; cached?: boolean } }>
@@ -83,6 +84,35 @@ describe('firebaseGenerateImage', () => {
     })
     await expect(firebaseGenerateImage({ name: 'Daiquiri' })).rejects.toThrow(/rate-limited/)
     expect(logAiCall).toHaveBeenCalledWith('image', 'error')
+  })
+
+  it('maps the daily-limit rejection to ImageLimitError via the details marker', async () => {
+    callable.mockImplementation(async () => {
+      throw Object.assign(new Error('Daily image limit reached — try again tomorrow.'), {
+        code: 'functions/resource-exhausted',
+        details: { kind: 'daily-limit' },
+      })
+    })
+    await expect(firebaseGenerateImage({ name: 'Daiquiri' })).rejects.toBeInstanceOf(ImageLimitError)
+    expect(logAiCall).toHaveBeenCalledWith('image', 'error')
+  })
+
+  it('recognizes a pre-marker deploy by the message alone', async () => {
+    callable.mockImplementation(async () => {
+      throw new Error('Daily image limit reached — try again tomorrow.')
+    })
+    await expect(firebaseGenerateImage({ name: 'Daiquiri' })).rejects.toBeInstanceOf(ImageLimitError)
+  })
+
+  it('keeps other resource-exhausted failures generic', async () => {
+    callable.mockImplementation(async () => {
+      throw Object.assign(new Error('[429] quota exhausted'), {
+        code: 'functions/resource-exhausted',
+        details: { kind: 'something-else' },
+      })
+    })
+    await expect(firebaseGenerateImage({ name: 'Daiquiri' })).rejects.toThrow(/rate-limited/)
+    await expect(firebaseGenerateImage({ name: 'Daiquiri' })).rejects.not.toBeInstanceOf(ImageLimitError)
   })
 })
 

@@ -3,6 +3,7 @@ import { ensureFirebaseApp } from '../auth/firebase'
 import { logAiCall } from '../auth/analytics'
 import { MAX_INGREDIENTS, MAX_NAME, poolKeyForName, sanitizeDrinkName } from '../domain/poolKey.mjs'
 import { CloudAIError, friendlyError } from './firebaseAI'
+import { ImageLimitError } from './imageLimit'
 
 // Client transport for the image pool's Cloud Function (`generateImage`).
 //
@@ -31,6 +32,24 @@ export interface GenerateImageResult {
   key: string
   /** true = the pool already had this drink; no generation was spent. */
   cached: boolean
+}
+
+/**
+ * The function marks the daily-limit rejection `{ kind: 'daily-limit' }` in its
+ * details — prose matching is only the fallback for a deploy that predates the
+ * marker. The error itself lives in imageLimit.ts (dependency-free).
+ */
+function asImageError(err: unknown): CloudAIError | ImageLimitError {
+  const code = (err as { code?: unknown } | null)?.code
+  const details = (err as { details?: { kind?: unknown } | null } | null)?.details
+  const msg = err instanceof Error ? err.message : String(err)
+  if (
+    (code === 'functions/resource-exhausted' && details?.kind === 'daily-limit') ||
+    /daily image limit/i.test(msg)
+  ) {
+    return new ImageLimitError()
+  }
+  return new CloudAIError(friendlyError(err))
 }
 
 /** Ask the pool for an image, generating one only if nobody ever has. */
@@ -73,7 +92,7 @@ export async function firebaseGenerateImage(spec: GenerateImageSpec): Promise<Ge
     data = res.data
   } catch (err) {
     logAiCall('image', 'error')
-    throw new CloudAIError(friendlyError(err))
+    throw asImageError(err)
   }
 
   if (typeof data?.key !== 'string' || !data.key) {

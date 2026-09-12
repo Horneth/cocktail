@@ -14,6 +14,7 @@ import { UNIT_ORDER, UNITS } from '../domain/units'
 import { GLASSES, METHODS } from '../domain/vocab'
 import { attachGeneratedImage, deleteRecipe, markImageFailed, saveRecipe } from '../import/importRecipe'
 import { downscaleDataUrl } from '../import/image'
+import { ImageLimitError } from '../import/imageLimit'
 import { RecipeImage } from '../components/RecipeImage'
 import type { GuessedField, StructuredImport } from '../import/types'
 import { consumeSharedImport } from '../import/shared'
@@ -89,6 +90,7 @@ export function EditRecipeScreen() {
   // ── Image state (pick / remove) ──
   const [imageBusy, setImageBusy] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
+  const [imageLimit, setImageLimit] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
 
   useEffect(() => {
@@ -180,10 +182,13 @@ const onSave = async () => {
           .slice(0, 8),
       })
       await attachGeneratedImage(recipe.id, `${GEN_PREFIX}${key}`)
-    } catch {
-      // Silent: a failed generation costs the user nothing but the tile
-      // they'd see anyway. Retrying is implicit — the next save tries again.
-      await markImageFailed(recipe.id).catch(() => {})
+    } catch (err) {
+      // A limit rejection is worth naming (the sheet offers it back); every
+      // other failure costs the user nothing but the tile they'd see anyway.
+      // Retrying is implicit — the next save tries again.
+      const hitLimit = err instanceof ImageLimitError
+      if (hitLimit) setImageLimit(true)
+      await markImageFailed(recipe.id, hitLimit ? 'daily-limit' : undefined).catch(() => {})
     }
   }
 
@@ -207,6 +212,8 @@ const onSave = async () => {
   const generateImageNow = async () => {
     if (!form || form.image || form.imageStatus === 'pending') return
     if (!form.name.trim() || form.kind !== 'cocktail') return
+    setImageError(null)
+    setImageLimit(false)
     update({ image: undefined, imageStatus: 'pending' })
     try {
       const { firebaseGenerateImage } = await import('../import/imageGen')
@@ -225,7 +232,10 @@ const onSave = async () => {
           ? { ...f, image: `${GEN_PREFIX}${key}`, imageStatus: 'done' }
           : f,
       )
-    } catch {
+    } catch (err) {
+      if (err instanceof ImageLimitError) {
+        setImageLimit(true)
+      }
       setForm((f) => (f && f.imageStatus === 'pending' ? { ...f, imageStatus: 'failed' } : f))
     }
   }
@@ -241,6 +251,7 @@ const onSave = async () => {
     if (!file || imageBusy) return
     setImageBusy(true)
     setImageError(null)
+    setImageLimit(false)
     try {
       const url = await downscaleDataUrl(file)
       update({ image: url, imageStatus: 'done' })
@@ -633,14 +644,15 @@ const onSave = async () => {
 
       <PhotoPicker
         open={photoOpen}
-        onClose={() => setPhotoOpen(false)}
+        onClose={() => { setPhotoOpen(false); setImageLimit(false) }}
         form={form}
         imageBusy={imageBusy}
         imageError={imageError}
+        imageLimit={imageLimit}
         auth={auth}
         onGenerate={() => void generateImageNow()}
         onPickFile={(file) => void onPickImage(file)}
-        onRemove={() => update({ image: undefined, imageStatus: undefined })}
+        onRemove={() => { setImageLimit(false); update({ image: undefined, imageStatus: undefined }) }}
       />
     </div>
   )
@@ -788,6 +800,8 @@ interface PhotoPickerProps {
   form: Recipe
   imageBusy: boolean
   imageError: string | null
+  /** The per-user daily generation limit is spent — the offer is out until tomorrow. */
+  imageLimit: boolean
   auth: ReturnType<typeof useAuth>
   onGenerate: () => void
   onPickFile: (file: File | undefined) => void
@@ -801,7 +815,7 @@ interface PhotoPickerProps {
  * uses, offered explicitly for recipes that predate it. Syrups draw their
  * bottle instead of generating.
  */
-function PhotoPicker({ open, onClose, form, imageBusy, imageError, auth, onGenerate, onPickFile, onRemove }: PhotoPickerProps) {
+function PhotoPicker({ open, onClose, form, imageBusy, imageError, imageLimit, auth, onGenerate, onPickFile, onRemove }: PhotoPickerProps) {
   const canOfferGenerate =
     form.kind === 'cocktail' && !form.image && FEATURES.cloudAI && isCloudAIConfigured() && !!form.name.trim()
   const generating = form.imageStatus === 'pending'
@@ -835,10 +849,14 @@ function PhotoPicker({ open, onClose, form, imageBusy, imageError, auth, onGener
         </button>
       )}
       {canOfferGenerate && auth.aiAvailable && (
-        <button className={styles.photoGenerate} disabled={generating} onClick={onGenerate}>
-          <SparkleIcon size={16} />
-          {generating ? 'Generating…' : 'Generate a photo'}
-        </button>
+        imageLimit ? (
+          <p className={`${styles.imageError} ${styles.photoLimit}`}><SparkleIcon size={16} /> Daily image limit reached — try again tomorrow</p>
+        ) : (
+          <button className={styles.photoGenerate} disabled={generating} onClick={onGenerate}>
+            <SparkleIcon size={16} />
+            {generating ? 'Generating…' : 'Generate a photo'}
+          </button>
+        )
       )}
 
       <label className={styles.photoUpload}>
