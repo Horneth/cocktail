@@ -288,7 +288,12 @@ below is in the Google Cloud console for that project unless it says Firebase.
    channel only (never PR previews, so unreviewed code can't replace the prod
    callable).
 
-Knobs (all env vars on the function, all optional):
+Knobs (all env vars on the function, all optional). The region/SA/limit ones
+are also **repo Variables** (GitHub → Settings → Secrets and variables →
+Actions) — the deploy workflow copies them into `functions/.env` before
+deploying (`IMAGE_FN_REGION`, `VERTEX_REGION`, `IMAGE_GEN_SA`,
+`IMAGE_GEN_DAILY_LIMIT`), so changing one takes effect on the next deploy, not
+instantly:
 `IMAGE_GEN_MODEL` (default `gemini-2.5-flash-image`), `IMAGE_FN_REGION`
 (default `us-central1` — where the callable deploys; the client must point at
 the same one via `VITE_FIREBASE_FUNCTIONS_REGION`), `VERTEX_REGION` (default

@@ -79,11 +79,14 @@ jobs:
             [ -n "$IMAGE_FN_REGION" ] && echo "IMAGE_FN_REGION=$IMAGE_FN_REGION"
             [ -n "$VERTEX_REGION" ] && echo "VERTEX_REGION=$VERTEX_REGION"
             [ -n "$IMAGE_GEN_SA" ] && echo "IMAGE_GEN_SA=$IMAGE_GEN_SA"
+            [ -n "$IMAGE_GEN_DAILY_LIMIT" ] && echo "IMAGE_GEN_DAILY_LIMIT=$IMAGE_GEN_DAILY_LIMIT"
+            true
           } > functions/.env
         env:
           IMAGE_FN_REGION: ${{ vars.IMAGE_FN_REGION }}
           VERTEX_REGION: ${{ vars.VERTEX_REGION }}
           IMAGE_GEN_SA: ${{ vars.IMAGE_GEN_SA }}
+          IMAGE_GEN_DAILY_LIMIT: ${{ vars.IMAGE_GEN_DAILY_LIMIT }}
 
       # Functions + storage rules deploy from the same service account the
       # hosting action uses (it is a JSON key). Live channel only: a PR preview
