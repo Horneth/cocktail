@@ -58,6 +58,11 @@ export function isStaple(normName: string): boolean {
   return GARNISH_RE.test(normName)
 }
 
+/** Whether a line reads as a garnish (peel, twist, sprig…) regardless of amount. */
+export function isGarnishLine(normName: string): boolean {
+  return GARNISH_RE.test(normName)
+}
+
 interface Ctx {
   have: Set<string>
   /** matchable spirit categories the user stocks (derived from `have`) */
@@ -211,6 +216,16 @@ export function missingBottles(
     missing.push(ing.name)
   }
   return missing
+}
+
+/**
+ * Whether a shelf covers this ingredient call — by its own name or by a
+ * stocked family. What the "you'll need" manifest filters through: a line the
+ * shelf already answers is not something the host can shop for.
+ */
+export function isStocked(name: string, have: Set<string>): boolean {
+  if (have.has(normIngredient(name))) return true
+  return coveredByCategory(name, categoriesOf(have))
 }
 
 export interface Substitution {

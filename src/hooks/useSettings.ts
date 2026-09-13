@@ -1,9 +1,10 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { VolumePreference } from '../domain/units'
 
 const KEY = 'cocktail.volumePref'
 const ASSUME_STAPLES = 'cocktail.assumeStaples'
 const ACTIVE_BAR = 'cocktail.activeBarId'
+const SERVE_MENU = 'cocktail.serveMenu'
 
 // A localStorage-backed value shared by EVERY hook instance (and browser tab).
 // The naive `useState(() => localStorage.getItem(...))` pattern keeps a separate
@@ -72,4 +73,22 @@ export function useActiveBarId(): [string | undefined, (id: string) => void] {
   const id = useSyncExternalStore(subscribe, () => localStorage.getItem(ACTIVE_BAR) ?? undefined)
   const set = useCallback((v: string) => writeLocal(ACTIVE_BAR, v), [])
   return [id, set]
+}
+
+/**
+ * The curated menu for "Pour a round": recipe ids in add order. A curation,
+ * not inventory — it survives navigation and bar switches (badges recompute
+ * against whichever bar you pour from) until the host clears it.
+ */
+export function useServeMenuIds(): [string[], (id: string, on: boolean) => void, () => void] {
+  const raw = useSyncExternalStore(subscribe, () => localStorage.getItem(SERVE_MENU) ?? '')
+  const ids = useMemo(() => (raw ? (JSON.parse(raw) as string[]) : []), [raw])
+  const toggle = useCallback((id: string, on: boolean) => {
+    const cur = new Set(JSON.parse(localStorage.getItem(SERVE_MENU) ?? '[]') as string[])
+    if (on) cur.add(id)
+    else cur.delete(id)
+    writeLocal(SERVE_MENU, JSON.stringify([...cur]))
+  }, [])
+  const clear = useCallback(() => writeLocal(SERVE_MENU, null), [])
+  return [ids, toggle, clear]
 }

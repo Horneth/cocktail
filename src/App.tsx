@@ -9,6 +9,7 @@ import { hasSharedImport } from './import/shared'
 // hides the tab bar, carrying its own back arrow and bottom CTA instead.
 function tabForPath(pathname: string): Tab | null {
   if (pathname === '/' || pathname === '') return 'recipes'
+  if (pathname.startsWith('/serve')) return 'serve'
   if (pathname.startsWith('/bar')) return 'bar'
   if (pathname.startsWith('/settings')) return 'settings'
   return null

@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom'
-import { BottleIcon, GearIcon, PlusIcon } from './icons'
+import { BottleIcon, FlaskIcon, GearIcon, PlusIcon } from './icons'
 import styles from './TabBar.module.css'
 
-export type Tab = 'recipes' | 'bar' | 'settings'
+export type Tab = 'recipes' | 'serve' | 'bar' | 'settings'
 
 interface Props {
   active: Tab
@@ -21,6 +21,7 @@ export function TabBar({ active }: Props) {
   )
   return <div className={styles.wrap}><div className={styles.bar}>
     {tab('recipes', 'Recipes', '/', <RecipesIcon />)}
+    {tab('serve', 'Pour', '/serve', <FlaskIcon size={21} />)}
     {tab('bar', 'My Bar', '/bar', <BottleIcon size={21} />)}
     {tab('settings', 'Settings', '/settings', <GearIcon size={21} />)}
   </div></div>

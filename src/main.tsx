@@ -10,6 +10,8 @@ import { RecipeDetailScreen } from './screens/RecipeDetailScreen'
 import { EditRecipeScreen } from './screens/EditRecipeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { BarScreen } from './screens/bar/BarScreen'
+import { ServeScreen } from './screens/serve/ServeScreen'
+import { ShoppingListScreen } from './screens/serve/ShoppingListScreen'
 import { stashSharedImport } from './import/shared'
 
 // Hash routing: deep links and refreshes never 404 without a server-side SPA
@@ -26,6 +28,8 @@ const router = createHashRouter([
       { path: 'recipe/:id/edit', element: <EditRecipeScreen /> },
       { path: 'new', element: <EditRecipeScreen /> },
       { path: 'bar', element: <BarScreen /> },
+      { path: 'serve', element: <ServeScreen /> },
+      { path: 'serve/list', element: <ShoppingListScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
     ],
   },

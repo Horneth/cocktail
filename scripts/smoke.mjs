@@ -345,6 +345,113 @@ check(
   (await page.locator('button', { hasText: 'Start making' }).count()) === 0,
 )
 
+// ── Pour a round: a view over the bar, plus a menu the host curates ─────────
+// Pour reads the ACTIVE bar — here My Bar, already holding the Smith & Cross
+// and Simple Syrup added above, so the catalog is live with zero setup.
+// "Pour elsewhere" mints a session bar for a borrowed shelf; chips and
+// shopping-list pills write real bottles into whichever bar is active.
+await go('#/serve')
+await shot('14-serve')
+check('pour tab is on the recipes screen', await page.locator('button[aria-label="Pour"]').isVisible())
+check(
+  'pour uses the bar add flow instead of ingredient chips',
+  (await page.locator('button', { hasText: 'Add a bottle' }).count()) === 1 &&
+    (await page.locator('text=/Assume common ingredients/i').count()) === 0,
+)
+check(
+  'pour opens on the active bar',
+  (await page.locator('button', { hasText: 'My Bar · 2 bottles' }).count()) === 1,
+)
+check(
+  'pour: the seeded shelf already pours the Daiquiri',
+  (await page.locator('button', { hasText: /^Ready 1$/ }).count()) === 1 &&
+    (await page.locator('a[href^="#/recipe/"]', { hasText: 'Daiquiri' }).count()) === 1,
+)
+await page.locator('input[aria-label="Search drinks or ingredients"]').fill('daiquiri')
+await page.waitForTimeout(300)
+check('pour: catalog search filters drinks', (await page.locator('a[href^="#/recipe/"]', { hasText: 'Daiquiri' }).count()) === 1)
+await page.locator('input[aria-label="Search drinks or ingredients"]').fill('')
+
+// Curation: a short drink joins the menu straight from the catalog.
+await page.locator('button', { hasText: /^All \d+$/ }).click()
+await page.locator('button[aria-label="Add Negroni to the menu"]').click()
+await page.waitForTimeout(400)
+check(
+  'pour: adding a short drink lands it on the menu with its gap',
+  (await page.locator('text=/0 of 1 ready now/').count()) === 1 &&
+    (await page.locator('text=/3 missing/').count()) > 0,
+)
+await shot('15-serve-menu')
+
+// Borrowed place: a fresh bar to pour from, and the menu travels with badges
+// recomputed against it.
+await page.locator('button', { hasText: 'Pour elsewhere' }).click()
+await page.waitForTimeout(500)
+check(
+  'pour elsewhere mints a session bar',
+  (await page.locator('button', { hasText: 'Session · 0 bottles' }).count()) === 1,
+)
+await page.locator('button', { hasText: 'Add a bottle' }).click()
+await page.locator('input[aria-label="Search or type a bottle"]').fill('Smith & Cross')
+await page.locator('button[aria-label="Add Smith & Cross"]').click()
+await page.locator('button', { hasText: /^Add 1 bottle/ }).click()
+await page.waitForTimeout(400)
+check(
+  'pour: the bottle sheet fills the session bar',
+  (await page.locator('button', { hasText: 'Session · 1 bottle' }).count()) === 1,
+)
+await page.locator('button[aria-label="Add Daiquiri to the menu"]').click()
+await page.locator('button[aria-label="Add Gin & Tonic to the menu"]').click()
+await page.waitForTimeout(400)
+check(
+  'pour: the menu counts what is pourable',
+  (await page.locator('text=/1 of 3 ready now/').count()) === 1,
+)
+
+// The shopping list is a separate full-height view. Its pills write real
+// bottles into the active bar; returning to Pour shows the updated badges.
+await page.locator('a', { hasText: 'Shopping list' }).click()
+await page.waitForTimeout(400)
+check(
+  'pour: shopping list opens as a secondary view',
+  (await page.locator('h1', { hasText: 'Shopping list' }).count()) === 1 &&
+    (await page.locator('button[aria-label="Add Campari"]').count()) === 1 &&
+    (await page.locator('text=/^Alcohol$/').count()) > 0 &&
+    (await page.locator('text=/^Juices & syrups$/').count()) > 0,
+)
+await page.locator('button[aria-label="Add Campari"]').click()
+await page.locator('button[aria-label="Add Gin"]').click()
+await page.waitForTimeout(500)
+await page.locator('a', { hasText: 'Pour a round' }).click()
+await page.waitForTimeout(500)
+check(
+  'pour: shopping list additions update the bar',
+  (await page.locator('button', { hasText: /Session · 3 bottles/ }).count()) === 1 &&
+    (await page.locator('text=/Needs Sweet vermouth/i').count()) > 0,
+)
+await shot('16-serve-menu')
+await page.locator('a[href^="#/recipe/"]', { hasText: 'Daiquiri' }).first().click()
+await page.waitForTimeout(500)
+check('pour: a menu tap opens the drink', (await page.locator('text=/oz|ml/').count()) > 0)
+
+// Back at My Bar the same menu reads differently — badges recompute per bar:
+// the rum covers the Daiquiri again, the gins don't travel.
+await go('#/serve')
+await page.locator('button', { hasText: /^Session · 3 bottles/ }).click()
+await page.waitForTimeout(500)
+// The sheet's My Bar row is the first text match; the tab bar's own "My Bar"
+// button renders after it and sits behind the overlay anyway.
+await page.locator('button', { hasText: 'My Bar' }).first().click()
+await page.waitForTimeout(500)
+check(
+  'pour: switching bars recomputes the menu',
+  (await page.locator('button', { hasText: 'My Bar · 2 bottles' }).count()) === 1 &&
+    (await page.locator('text=/1 of 3 ready now/').count()) === 1,
+)
+await page.locator('button', { hasText: 'Clear' }).click()
+await page.waitForTimeout(400)
+check('pour: Clear empties the menu', (await page.locator('text=/Your menu/').count()) === 0)
+
 // ── Backup round trip ───────────────────────────────────────────────────────
 // The reason this feature exists is the origin move, so a green unit test isn't
 // enough — the file has to actually leave the browser and come back.

@@ -99,6 +99,8 @@ src/
     search.ts     Recipe text search
     barInsights.ts   unlocksFor() / oneAwaySuggestions() / recipesUsingBottle() — "what does this
                   bottle unlock?" and "what does it pour into?", on-device
+    lineup.ts    pickLineup() / catalog() / needsFor() — the Pour tab's starter suggestion,
+                  drink catalog with status tiers, and menu shopping list, over the availability engine
     bottleMatch.ts   Local near-duplicate detection for the shelf scan (candidates, verdicts)
     pantry.ts     Bar-scoped bottle add/remove/patch helpers (take a barId)
     bars.ts       Bar CRUD + ensureDefaultBar()
@@ -134,13 +136,16 @@ src/
   hooks/
     useRecipes.ts   useLiveQuery reads (useCocktails, useRecipe, useBacklinks, usePantry(barId), useBars, useBottleCounts, useActiveBar, …)
     useAvailability.ts  Active bar's `have` set + the makeable check, for the screens
-    useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId)
+    useServe.ts     The Pour tab's state over the active bar: chips + shopping
+                    pills write the shelf; the curated menu
+    useSettings.ts  localStorage-backed prefs (oz/ml, assumeStaples, activeBarId, serveMenu)
     useAuth.ts      Optional Google sign-in; `aiAvailable` is the single gate for AI features
     useWakeLock.ts  Holds the screen awake while a screen is mounted (recipe detail)
 
   screens/        One component per route (+ co-located *.module.css)
     RecipesScreen, RecipeDetailScreen,
     EditRecipeScreen, SettingsScreen
+    serve/        The Pour tab: chips → live lineup (ServeScreen)
     bar/          My Bar is the one screen with a folder — it owns three sheets:
                   BarScreen + ManageBarsSheet / AddBottleSheet / BottleSheet,
                   plus sheet.module.css for their shared chrome
@@ -158,7 +163,7 @@ functions/        The generateImage callable (Node 22, plain JS ESM — no build
 
 **Routes** (hash-based, see `main.tsx`): `/` (recipes), `/recipe/:id`,
 `/recipe/:id/edit`, `/new` (the one recipe editor, add & edit), `/bar`,
-`/settings`.
+`/serve` (Pour a round), `/serve/list` (the full-height shopping list), `/settings`.
 
 Query params carry the links *between* screens, so every one of them is a URL
 someone can land on cold: `/bar?add=1` (open the bottle picker), `/?makeable=1`
@@ -168,7 +173,8 @@ recipe *filters* live on the one recipes screen (`?makeable`, `?ingredient`,
 `?q`, `?scope`, `?tags`); `BarScreen` consumes its `/bar?add`/`?bottle` params in
 an effect and strips them, so Back doesn't reopen a sheet.
 
-Navigation is the persistent **`TabBar`** (Recipes · My Bar · Settings). There
+Navigation is the persistent **`TabBar`** (Recipes · Pour · My Bar · Settings).
+There
 is no FAB or `AddSheet`: each primary screen owns one labelled contextual add
 button — **Recipe** on Recipes and **Bottle** on My Bar. AI remains an
 augmentation inside each entity's manual form (paste-to-fill on the recipe
@@ -290,6 +296,46 @@ carries the stored category into matching. Without it, `categoriesOf` re-guessed
 the family from the name alone, so correcting a bottle's type in the bottle sheet
 changed a label and nothing else, and a "Smith & Cross" (which normalizes to
 "smith cross") stocked no rum at all.
+
+### Pour a round — a view over a bar, plus a menu the host curates
+The fourth tab is for the moment the rest of the app isn't built for: standing
+somewhere with a limited shelf, about to make drinks now. It is deliberately
+NOT a parallel state machine: Pour reads the active bar, the menu is the host's
+own curation, and everything shown runs through the same availability engine.
+
+- **The bar line is the context.** "My Bar · 14 bottles" opens the bar switcher
+  (ManageBarsSheet, the same one Recipes uses) — at home Pour is instantly
+  meaningful with zero setup. "Pour elsewhere" mints a fresh "Session" bar and
+  makes it active for a borrowed shelf; switching back is just the bar line
+  again. Pour never auto-creates or hijacks bars, and there is no End session.
+- **The bar is edited through the bar flow, not ingredient chips.** Pour reuses
+  `AddBottleSheet` for explicit bottle entry, and the active-bar line reuses
+  `ManageBarsSheet` for switching, creating and naming shelves. There is no
+  catch-all "Basics" assumption control in Pour and no horizontal ingredient rail.
+  The catalog and the menu's shopping list are the only task-specific surfaces.
+  Shopping-list items are grouped as Alcohol, Juices & syrups, and Garnishes;
+  modifiers are folded into Alcohol or Juices & syrups rather than becoming a
+  fourth vocabulary users have to understand.
+  - **The catalog** (`catalog()` in `domain/lineup.ts`) presents every drink as a
+  decision input: tiered ready → one bottle away → short, easy-first, behind
+  segment filters (Ready / One away / All). Status is a badge on a row, never a
+  place of its own — the old "Ready now" vs "one swap away" split read like the
+  machine had picked for you. The catalog has a normal search field matching
+  drink names and ingredients. A `+` toggles a drink onto the menu; the row
+  stays put for comparison and undo. `pickLineup()` — method-diverse,
+  spirit-diverse, easy-first, deterministic — feeds only the optional
+  starter-three row while the menu is empty, never a section of its own, and is
+  the natural hook for a future gated "help me choose".
+  - **Your menu is the output**, with per-drink status ("Ready" / "Needs Campari")
+  and a dedicated full-height `/serve/list` shopping view (`needsFor()`): every
+  non-optional line the menu calls for, alcohols included, deduped by key;
+  garnish-word lines excluded, "to top" sodas kept. Unstocked items sort first,
+  and tapping one writes the real bottle into the active bar — the same write
+  the bottle sheet makes — so returning to Pour shows the updated badge. The
+  shelf is the single source of truth and the list is a shelf editor, not
+  bookkeeping; nothing can disagree with what's actually stocked. Menu ids live
+  in localStorage (`useServeMenuIds`), survive navigation and bar switches
+  (badges recompute against the active bar), and clear only when the host says so.
 
 ### Bottles and recipes point at each other
 Availability is symmetric, and the UI has to be too — a recipe that says "any
@@ -585,6 +631,16 @@ library in one transaction. Two invariants worth keeping:
 - **Bump `BACKUP_VERSION` and keep reading v1** if the envelope changes.
   `parseBackup()` rejects anything newer than it knows, so a file exported today
   has to stay loadable — this is the only copy some libraries have.
+
+## UI design process
+
+Before changing a user-facing flow:
+- Identify the primary task and any distinct secondary tasks.
+- Consider established patterns first: list-detail, tabs, search, bottom sheets, drawers, and dedicated secondary screens.
+- Do not default to putting every related surface on one screen.
+- For exploratory UI work, research at least two established UX patterns and present alternatives before coding.
+- Prefer familiar controls over invented chip/toggle systems.
+- Explain why the chosen pattern fits the user's physical context and task sequence.
 
 ## Conventions & gotchas
 
