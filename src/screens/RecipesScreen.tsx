@@ -59,9 +59,11 @@ export function RecipesScreen() {
     return result
   }, [recipes, scope, byId, have, assumeStaples, ingredient, family, selectedTags, q])
   // Favorites float to the top in their own section — in every scope, so a
-  // filtered view never buries them either. No favorites: exactly one grid, as before.
+  // filtered view never buries them either.
   const favorites = list.filter((r) => r.favorite)
   const rest = list.filter((r) => !r.favorite)
+  const cocktails = rest.filter((r) => r.kind !== 'syrup')
+  const syrups = rest.filter((r) => r.kind === 'syrup')
   const patch = (key: string, value: string | null) => {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value); else next.delete(key)
@@ -125,10 +127,20 @@ export function RecipesScreen() {
           <>
             <h2 className={styles.sectionTitle}><HeartIcon size={13} filled />Favorites</h2>
             <div className={styles.grid}>{favorites.map(card)}</div>
-            {rest.length > 0 && <h2 className={`${styles.sectionTitle} ${styles.sectionGap}`}>All recipes</h2>}
           </>
         )}
-        {rest.length > 0 && <div className={styles.grid}>{rest.map(card)}</div>}
+        {cocktails.length > 0 && (
+          <>
+            {favorites.length > 0 && <h2 className={`${styles.sectionTitle} ${styles.sectionGap}`}>All recipes</h2>}
+            <div className={styles.grid}>{cocktails.map(card)}</div>
+          </>
+        )}
+        {syrups.length > 0 && (
+          <>
+            <h2 className={`${styles.sectionTitle} ${styles.sectionGap}`}>Syrups</h2>
+            <div className={styles.grid}>{syrups.map(card)}</div>
+          </>
+        )}
       </>
     )}
     <ManageBarsSheet open={managingBars} onClose={() => setManagingBars(false)} bars={bars} activeId={barId} onSelect={setBarId} counts={counts} />
