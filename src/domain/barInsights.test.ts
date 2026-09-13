@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Recipe } from '../db/schema'
 import { normIngredient } from './availability'
-import { oneAwaySuggestions, recipesUsingBottle, syrupRecipeFor, unlocksFor } from './barInsights'
+import { oneAwaySuggestions, recipesUsingBottle, starterShelf, syrupRecipeFor, unlocksFor } from './barInsights'
 
 let n = 0
 function recipe(partial: Partial<Recipe> & { name: string; ingredients: Recipe['ingredients'] }): Recipe {
@@ -158,6 +158,40 @@ describe('recipesUsingBottle', () => {
   it('lists nothing for a bottle no recipe calls for', () => {
     expect(recipesUsingBottle('Green Chartreuse', cocktails, byId)).toEqual([])
     expect(recipesUsingBottle('   ', cocktails, byId)).toEqual([])
+  })
+})
+
+describe('starterShelf', () => {
+  it('ranks bottles by how many recipes call for them', () => {
+    // Gin appears in two recipes; rum in one; vermouths and Campari in one each.
+    const starters = starterShelf(cocktails, 6)
+    expect(starters[0].name).toBe('gin')
+    expect(starters[0].recipes).toBe(2)
+    expect(starters.map((s) => s.name)).toContain('white rum')
+  })
+
+  it('excludes assumed staples', () => {
+    // The syrup recipe's sugar/water lines are basics, not bottles to buy.
+    expect(starterShelf([syrup]).map((s) => s.name)).toEqual([])
+  })
+
+  it('counts a bottle once per recipe, however many lines mention it', () => {
+    const twice = recipe({
+      name: 'Double Gin',
+      ingredients: [
+        { id: 'g1', name: 'Gin', amount: 1, unit: 'oz' },
+        { id: 'g2', name: 'Gin', amount: 1, unit: 'oz' },
+      ],
+    })
+    expect(starterShelf([twice]).find((s) => s.name === 'gin')?.recipes).toBe(1)
+  })
+
+  it('respects the limit', () => {
+    expect(starterShelf(cocktails, 2)).toHaveLength(2)
+  })
+
+  it('returns nothing for an empty library', () => {
+    expect(starterShelf([])).toEqual([])
   })
 })
 

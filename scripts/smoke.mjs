@@ -295,11 +295,11 @@ check(
 // The bottle is a rum, so it must land under the Rum group rather than "Other" —
 // that is the stored category doing its job.
 check('the new bottle is categorized', (await page.locator('text=/^Rum$/').count()) > 0)
-// Each row's whole visual is the category silhouette: a bottle shape in the
-// category colour on the tinted chip — not a bare square.
+// Each card carries a bottle visual: the category's photo portrait, or the
+// silhouette glyph when that family has no photo — never a bare square.
 check(
-  'bottle rows carry a silhouette glyph',
-  (await page.locator('button', { hasText: 'Smith & Cross' }).locator('svg').count()) > 0,
+  'bottle cards carry a bottle visual',
+  (await page.locator('button', { hasText: 'Smith & Cross' }).locator('svg, img').count()) > 0,
 )
 
 // A stocked syrup is the same recipe in another view: it groups under Syrups

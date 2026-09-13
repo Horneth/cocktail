@@ -1,5 +1,5 @@
 import type { Recipe } from '../db/schema'
-import { bottleCovers, makeableIds, missingBottles, normIngredient } from './availability'
+import { bottleCovers, isStaple, makeableIds, missingBottles, normIngredient } from './availability'
 import { categoryForName } from './spiritCategory'
 import { normalizeMixerName } from './textNormalize'
 
@@ -153,4 +153,41 @@ export function syrupRecipeFor(
   const label = normalizeMixerName(bottleLabel)
   if (!label) return undefined
   return recipes.find((r) => r.kind === 'syrup' && normalizeMixerName(r.name) === label)
+}
+
+export interface StarterSuggestion {
+  /** normalized match key */
+  name: string
+  /** display spelling, as the recipes wrote it */
+  label: string
+  /** how many recipes in the library call for it */
+  recipes: number
+}
+
+/**
+ * The bottles most worth stocking first — the empty-shelf answer to "where do
+ * I even start". Ranked by how many library recipes call for each ingredient;
+ * staples (citrus, soda, garnish…) are excluded because the assume-basics
+ * switch already covers them. Deliberately NOT `oneAwaySuggestions`: with an
+ * empty shelf every recipe is missing many bottles, so the one-away tally has
+ * nothing to say — mention count is the honest signal until the user has a
+ * shelf at all. A bottle counts once per recipe, however many lines mention it.
+ */
+export function starterShelf(recipes: Recipe[], limit = 6): StarterSuggestion[] {
+  const tally = new Map<string, { label: string; count: number }>()
+  for (const recipe of recipes) {
+    const seen = new Set<string>()
+    for (const ing of recipe.ingredients ?? []) {
+      const key = normIngredient(ing.name)
+      if (!key || isStaple(key) || seen.has(key)) continue
+      seen.add(key)
+      const entry = tally.get(key)
+      if (entry) entry.count += 1
+      else tally.set(key, { label: ing.name.trim(), count: 1 })
+    }
+  }
+  return [...tally.entries()]
+    .map(([name, { label, count }]) => ({ name, label, recipes: count }))
+    .sort((a, b) => b.recipes - a.recipes || a.label.localeCompare(b.label))
+    .slice(0, limit)
 }

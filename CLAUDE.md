@@ -66,6 +66,7 @@ Run them before committing — they are the fast feedback loop. There is **no
 linter/formatter** configured; match the surrounding code style.
 
 Regenerate PWA icons from the SVG source: `node scripts/make-icons.mjs`.
+Regenerate bottle portraits (real bottles / category fallbacks): `node scripts/make-bottle-images.mjs --bottles` (needs `GOOGLE_API_KEY`; see "A bottle wears its own portrait" below).
 
 ## Architecture & directory map
 
@@ -96,6 +97,7 @@ src/
     recipeKind.ts RECIPE_KINDS / KIND_LABELS / isCocktail() + migrateLegacyRecipe() (the kind vocabulary)
     spirits.ts    Spirit tile metadata, known-spirit order, generated art for custom spirits
     spiritVisual.ts  spiritVisual() — resolves a spirit to the redesign's tile colours/glyph
+    bottleVisual.ts  bottlePortraitFor() / categoryPortraitFor() — the bottle-portrait URL chain
     search.ts     Recipe text search
     barInsights.ts   unlocksFor() / oneAwaySuggestions() / recipesUsingBottle() — "what does this
                   bottle unlock?" and "what does it pour into?", on-device
@@ -364,6 +366,22 @@ Bar groups it under "Syrups" with the drawn bottle art (`BottleArt` uses
 `syrupArt`'s liquid colour, same as the recipe card). `syrupRecipeFor()`
 (barInsights) matches the loose mixer key, and the bottle sheet shows a
 "View recipe" hop back to the syrup's page when the user has written one.
+
+**A bottle wears its own portrait, not its family's.** Every bottle visual on
+My Bar (`BottleArt`, `BottleCard`) walks a three-step fallback chain:
+`bottles/b/<slug>.webp` — a real-bottle portrait content-addressed by the
+bottle's NAME through the same `poolKey.mjs` slug rules as the drink pool
+(so the seeder script and the app can never disagree on the file name) — then
+the generic per-category studio portrait `bottles/<category>.webp`, then the
+drawn family glyph. The portraits are static assets, pre-generated once by
+`scripts/make-bottle-images.mjs` (real bottles: `--bottles` / `--bottle "Name"`,
+list in `scripts/bottles.json`; category fallbacks: no flags), committed to the
+repo, and precached by the service worker — so the shelf stays photo'd
+signed-out and offline, and the only cost is the one-time generation. Adding a
+bottle's portrait is one JSON entry plus a rerun; spelling variants map to a
+canonical file via the small `ALIASES` table in `domain/bottleVisual.ts`.
+Syrups are never photographed, at either level — their identity is the liquid
+colour (`syrupArt`), which a generic syrup photo would erase.
 
 ### Photo → bar (Gemini vision), in two passes
 "Scan my shelf" downscales photos client-side (`import/image.ts`, max 4) and runs

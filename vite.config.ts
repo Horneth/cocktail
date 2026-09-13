@@ -60,7 +60,10 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // webp is the bottle portraits (public/bottles/) — the only local webps;
+        // the cocktail pool lives in Firebase Storage and is runtime-cached
+        // below. ~14 small files, and the shelf keeps its photos offline.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webp}'],
         // The Firebase SDK is large and only needed for the optional AI
         // features — fetch it on demand at runtime instead of bloating the
         // first-install precache.

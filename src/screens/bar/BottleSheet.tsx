@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 import { BottomSheet } from '../../components/BottomSheet'
 import { BottleArt } from '../../components/BottleArt'
 import { BottleGlyph } from '../../components/BottleGlyph'
-import { ChevronRightIcon } from '../../components/icons'
+import { CheckIcon, ChevronRightIcon } from '../../components/icons'
+import { RecipeImage } from '../../components/RecipeImage'
 import type { PantryItem, Recipe } from '../../db/schema'
 import { makeableIds } from '../../domain/availability'
 import { recipesUsingBottle, syrupRecipeFor } from '../../domain/barInsights'
+import { displayImage } from '../../domain/imagePool'
 import { categoryForName } from '../../domain/spiritCategory'
-import { BOTTLE_TYPES, bottleTypeLabel } from '../../domain/spirits'
+import { BOTTLE_TYPES, bottleTypeLabel, tileKeyForRecipe } from '../../domain/spirits'
 import { spiritVisual } from '../../domain/spiritVisual'
 import sheet from './sheet.module.css'
 import styles from './BottleSheet.module.css'
@@ -78,7 +80,7 @@ export function BottleSheet({
         <>
           <div className={styles.head}>
             <span className={styles.glyph} style={{ background: visual.tint }} aria-hidden>
-              <BottleArt name={bottle.label} category={category ?? 'other'} size={30} />
+              <BottleArt name={bottle.label} category={category ?? 'other'} size={44} />
             </span>
             <span className={styles.headText}>
               <span className={sheet.title}>{bottle.label}</span>
@@ -143,16 +145,31 @@ export function BottleSheet({
             <p className={styles.none}>No recipe calls for this yet.</p>
           ) : (
             <div className={styles.drinks}>
-              {uses.slice(0, MAX_DRINKS).map(({ recipe, ready }) => (
-                <Link
-                  key={recipe.id}
-                  to={`/recipe/${recipe.id}`}
-                  className={`${styles.drink} ${ready ? styles.drinkReady : ''}`}
-                  onClick={onClose}
-                >
-                  {recipe.name}
-                </Link>
-              ))}
+              {uses.slice(0, MAX_DRINKS).map(({ recipe, ready }) => {
+                const v = spiritVisual(tileKeyForRecipe(recipe))
+                return (
+                  <Link
+                    key={recipe.id}
+                    to={`/recipe/${recipe.id}`}
+                    className={`${styles.drink} ${ready ? styles.drinkReady : ''}`}
+                    onClick={onClose}
+                  >
+                    <RecipeImage
+                      image={displayImage(recipe)}
+                      size="thumb"
+                      sizes="44px"
+                      className={styles.drinkThumb}
+                      fallback={
+                        <span className={styles.drinkThumb} style={{ background: v.tint }}>
+                          {v.emoji}
+                        </span>
+                      }
+                    />
+                    <span className={styles.drinkName}>{recipe.name}</span>
+                    {ready && <CheckIcon size={16} className={styles.drinkCheck} />}
+                  </Link>
+                )
+              })}
             </div>
           )}
 
