@@ -30,7 +30,6 @@ import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { GoogleAuth } from 'google-auth-library'
-import sharp from 'sharp'
 import { MAX_INGREDIENTS, MAX_NAME, poolKeyForName, poolPath, sanitizeDrinkName } from '../shared/poolKey.mjs'
 import { buildImagePrompt } from '../shared/poolPrompt.mjs'
 import { CURATED_KEYS } from '../shared/curatedKeys.mjs'
@@ -180,6 +179,10 @@ async function generateImageBytes(prompt) {
 // Same derivative rules as the seeder script: square centre-crops for the 1:1
 // containers, full keeps the generated 3:4 hero frame.
 async function deriveSizes(raw) {
+  // Load sharp only inside the function runtime. Firebase's local source
+  // analyzer runs on a different Node binary than the deployed Node 22 runtime,
+  // and sharp's native module is not needed to discover the callables.
+  const { default: sharp } = await import('sharp')
   return {
     full: await sharp(raw).resize(896, 1200, { fit: 'cover' }).webp({ quality: 78 }).toBuffer(),
     card: await sharp(raw).resize(512, 512, { fit: 'cover' }).webp({ quality: 80 }).toBuffer(),
@@ -273,6 +276,7 @@ export const generateBottleImage = onCall(
     if (await fileExists(bucket, path)) return { key, cached: true }
     await enforceRateLimit(req.auth.uid)
     const raw = await generateImageBytes(buildBottlePrompt(spec))
+    const { default: sharp } = await import('sharp')
     const image = await sharp(raw).resize(640, 640, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()
     await bucket.file(path).save(image, UPLOAD_OPTS)
     return { key, cached: false }
