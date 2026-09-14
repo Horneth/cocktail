@@ -107,6 +107,15 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*\/o\/bottles(%2F|\/)/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'bottle-images-pool-v1',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       devOptions: {

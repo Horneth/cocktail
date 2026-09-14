@@ -12,7 +12,7 @@ import { poolKeyForName } from './poolKey.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
-const COPIES = ['poolKey.mjs', 'poolPrompt.mjs']
+const COPIES = ['poolKey.mjs', 'poolPrompt.mjs', 'bottlePool.mjs']
 
 describe('functions/shared mirrors src/domain', () => {
   for (const file of COPIES) {

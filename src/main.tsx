@@ -28,6 +28,7 @@ const router = createHashRouter([
       { path: 'recipe/:id/edit', element: <EditRecipeScreen /> },
       { path: 'new', element: <EditRecipeScreen /> },
       { path: 'bar', element: <BarScreen /> },
+      { path: 'bar/bottle/:name', element: <BarScreen /> },
       { path: 'serve', element: <ServeScreen /> },
       { path: 'serve/list', element: <ShoppingListScreen /> },
       { path: 'settings', element: <SettingsScreen /> },

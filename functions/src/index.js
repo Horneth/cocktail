@@ -34,6 +34,8 @@ import sharp from 'sharp'
 import { MAX_INGREDIENTS, MAX_NAME, poolKeyForName, poolPath, sanitizeDrinkName } from '../shared/poolKey.mjs'
 import { buildImagePrompt } from '../shared/poolPrompt.mjs'
 import { CURATED_KEYS } from '../shared/curatedKeys.mjs'
+import { bottlePoolKeyFor, bottlePoolPath, sanitizeBottleName } from '../shared/bottlePool.mjs'
+import { buildBottlePrompt } from './bottle.js'
 
 initializeApp()
 
@@ -236,6 +238,43 @@ export const generateImage = onCall(
     await bucket.file(paths.thumb).save(sizes.thumb, UPLOAD_OPTS)
     await bucket.file(paths.card).save(sizes.card, UPLOAD_OPTS)
     await bucket.file(paths.full).save(sizes.full, UPLOAD_OPTS)
+    return { key, cached: false }
+  },
+)
+
+function validateBottleInput(data) {
+  const str = (v, label) => {
+    if (v === undefined || v === null) return undefined
+    if (typeof v !== 'string' || v.length > 80) throw new HttpsError('invalid-argument', `Bad ${label}.`)
+    const clean = sanitizeBottleName(v)
+    return clean || undefined
+  }
+  const name = str(data?.name, 'bottle name')
+  if (!name) throw new HttpsError('invalid-argument', 'Missing bottle name.')
+  return { name, category: str(data?.category, 'category'), brand: str(data?.brand, 'brand') }
+}
+
+export const generateBottleImage = onCall(
+  {
+    enforceAppCheck: true,
+    region: FUNCTION_REGION,
+    maxInstances: 5,
+    timeoutSeconds: 120,
+    memory: '1GiB',
+    serviceAccount: SERVICE_ACCOUNT,
+  },
+  async (req) => {
+    if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to generate images.')
+    const spec = validateBottleInput(req.data)
+    const key = bottlePoolKeyFor(spec.name, spec.category)
+    if (!key) throw new HttpsError('invalid-argument', 'That bottle name is unusable.')
+    const bucket = getStorage().bucket()
+    const path = bottlePoolPath(key)
+    if (await fileExists(bucket, path)) return { key, cached: true }
+    await enforceRateLimit(req.auth.uid)
+    const raw = await generateImageBytes(buildBottlePrompt(spec))
+    const image = await sharp(raw).resize(640, 640, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()
+    await bucket.file(path).save(image, UPLOAD_OPTS)
     return { key, cached: false }
   },
 )

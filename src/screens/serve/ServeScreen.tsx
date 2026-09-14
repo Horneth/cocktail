@@ -12,6 +12,7 @@ import { spiritVisual } from '../../domain/spiritVisual'
 import { useBottleCounts, useIngredientCatalog } from '../../hooks/useRecipes'
 import { useServe } from '../../hooks/useServe'
 import { bulkAddPantry, type BottleInput } from '../../domain/pantry'
+import { queueBottleImageGeneration } from '../../import/bottleImageQueue'
 import { AddBottleSheet } from '../bar/AddBottleSheet'
 import { ManageBarsSheet } from '../bar/ManageBarsSheet'
 import styles from './ServeScreen.module.css'
@@ -253,7 +254,7 @@ export function ServeScreen() {
         open={adding}
         onClose={() => setAdding(false)}
         onAdd={(bottles: BottleInput[]) => {
-          if (serve.barId) void bulkAddPantry(serve.barId, bottles)
+          if (serve.barId) void bulkAddPantry(serve.barId, bottles).then(queueBottleImageGeneration)
           setAdding(false)
         }}
         catalog={ingredientCatalog}

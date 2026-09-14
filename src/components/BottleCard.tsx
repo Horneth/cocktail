@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BottleGlyph } from './BottleGlyph'
 import { SyrupBottle } from './SyrupBottle'
 import { bottlePortraitFor, categoryPortraitFor } from '../domain/bottleVisual'
+import { bottlePoolUrl } from '../domain/bottleImage'
 import { spiritVisual } from '../domain/spiritVisual'
 import styles from './BottleCard.module.css'
 
@@ -9,6 +10,8 @@ interface Props {
   label: string
   brand?: string
   category: string
+  image?: string
+  imageStatus?: 'none' | 'pending' | 'done' | 'failed'
   /** how many library drinks this bottle pours into (hidden when 0) */
   pours?: number
   onClick: () => void
@@ -20,12 +23,20 @@ interface Props {
  * is the bottle's own name-keyed portrait when one exists, stepping down to
  * the generic category portrait, then the family glyph on its tint.
  */
-export function BottleCard({ label, brand, category, pours = 0, onClick }: Props) {
+export function BottleCard({ label, brand, category, image, imageStatus, pours = 0, onClick }: Props) {
   const [stage, setStage] = useState(0)
-  useEffect(() => setStage(0), [label, category])
+  // Retry the pool image when generation changes from pending to done. The
+  // status is part of the URL cache key so an earlier 404 cannot stick.
+  useEffect(() => setStage(0), [label, category, image, imageStatus])
 
-  const src =
-    stage === 0 ? bottlePortraitFor(label) : stage === 1 ? categoryPortraitFor(category) : undefined
+  const remote = image ? bottlePoolUrl(image, imageStatus) : undefined
+  const src = remote && stage === 0
+    ? remote
+    : stage === (remote ? 1 : 0)
+      ? bottlePortraitFor(label)
+      : stage === (remote ? 2 : 1)
+        ? categoryPortraitFor(category)
+        : undefined
   const v = spiritVisual(category)
 
   return (
@@ -56,6 +67,8 @@ export function BottleCard({ label, brand, category, pours = 0, onClick }: Props
           <span className={styles.pours}>
             <i aria-hidden /> {pours} drink{pours > 1 ? 's' : ''}
           </span>
+        ) : imageStatus === 'pending' ? (
+          <span className={styles.brand}>Creating portrait…</span>
         ) : brand && brand !== label ? (
           <span className={styles.brand}>{brand}</span>
         ) : null}

@@ -162,7 +162,7 @@ export function RecipeDetailScreen() {
     const match = bottleFor(ing.name, items)
     if (match) {
       return {
-        to: `/bar?bottle=${encodeURIComponent(match.bottle.name)}`,
+        to: `/bar/bottle/${encodeURIComponent(match.bottle.name)}`,
         ...(match.via === 'category' ? { hint: `your ${match.bottle.label}` } : {}),
       }
     }

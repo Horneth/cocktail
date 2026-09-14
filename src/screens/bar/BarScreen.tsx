@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AccentButton } from '../../components/TabBar'
 import { BottleArt } from '../../components/BottleArt'
 import { BottleCard } from '../../components/BottleCard'
 import { ChevronDownIcon } from '../../components/icons'
 import type { PantryItem } from '../../db/schema'
 import { bulkAddPantry, removeFromPantry, updateBottle, type BottleInput } from '../../domain/pantry'
+import { queueBottleImageGeneration } from '../../import/bottleImageQueue'
 import { categoryForName } from '../../domain/spiritCategory'
 import { oneAwaySuggestions, recipesUsingBottle, starterShelf } from '../../domain/barInsights'
 import { spiritSortIndex } from '../../domain/spirits'
@@ -32,6 +33,8 @@ export function BarScreen() {
   const [assumeStaples] = useAssumeStaples()
 
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { name: bottleRouteName } = useParams()
   const [managingBars, setManagingBars] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addQuery, setAddQuery] = useState('')
@@ -84,8 +87,13 @@ export function BarScreen() {
   useEffect(() => {
     const wantAdd = params.get('add')
     const wantBottle = params.get('bottle')
+    if (bottleRouteName) {
+      if (loaded) setViewing(items.find((i) => i.name === bottleRouteName) ?? null)
+      return
+    }
+    setViewing(null)
     if (!wantAdd && !wantBottle) return
-    if (wantBottle && !loaded) return // the shelf hasn't arrived yet
+    if (wantBottle && !loaded) return
 
     if (wantAdd) {
       setAddQuery(wantAdd === '1' ? '' : wantAdd)
@@ -93,18 +101,26 @@ export function BarScreen() {
     }
     if (wantBottle) setViewing(items.find((i) => i.name === wantBottle) ?? null)
     setParams(new URLSearchParams(), { replace: true })
-  }, [params, items, loaded, setParams])
+  }, [params, items, loaded, setParams, bottleRouteName])
 
   const add = (bottles: BottleInput[]) => {
-    if (barId && bottles.length) void bulkAddPantry(barId, bottles)
+    if (barId && bottles.length) {
+      void bulkAddPantry(barId, bottles).then(queueBottleImageGeneration)
+    }
     setAdding(false)
   }
 
   const addStarters = (labels: string[]) => {
-    if (barId && labels.length) void bulkAddPantry(barId, labels.map((label) => ({ label })))
+    if (barId && labels.length) {
+      void bulkAddPantry(barId, labels.map((label) => ({ label }))).then(queueBottleImageGeneration)
+    }
   }
 
   const empty = items.length === 0
+  const closeBottle = () => {
+    setViewing(null)
+    if (bottleRouteName) navigate('/bar', { replace: true })
+  }
 
   return (
     <div className={styles.screen}>
@@ -183,9 +199,11 @@ export function BarScreen() {
                       key={item.name}
                       label={item.label}
                       brand={item.brand}
-                      category={item.category ?? categoryForName(item.label) ?? 'other'}
-                      pours={pours.get(item.name) ?? 0}
-                      onClick={() => setViewing(item)}
+                       category={item.category ?? categoryForName(item.label) ?? 'other'}
+                       image={item.image}
+                       imageStatus={item.imageStatus}
+                       pours={pours.get(item.name) ?? 0}
+                       onClick={() => navigate(`/bar/bottle/${encodeURIComponent(item.name)}`)}
                     />
                   ))}
                 </div>
@@ -224,16 +242,22 @@ export function BarScreen() {
 
       <BottleSheet
         bottle={viewing}
-        onClose={() => setViewing(null)}
-        onRemove={(item) => {
-          if (barId) void removeFromPantry(barId, item.name)
-          setViewing(null)
-        }}
-        onSetCategory={(item, category) => {
-          if (barId) void updateBottle(barId, item.name, { category })
-          setViewing({ ...item, category })
-        }}
-        barName={barName}
+         onClose={closeBottle}
+         onRemove={(item) => {
+           if (barId) void removeFromPantry(barId, item.name)
+           closeBottle()
+         }}
+         onSetCategory={(item, category) => {
+           const next = { ...item, category, image: undefined, imageStatus: 'none' as const, imageError: undefined }
+           if (barId) void updateBottle(barId, item.name, { category, image: undefined, imageStatus: 'none', imageError: undefined })
+           setViewing(next)
+           queueBottleImageGeneration([next])
+         }}
+         onRetryImage={(item) => {
+           queueBottleImageGeneration([item])
+           setViewing({ ...item, imageStatus: 'pending', imageError: undefined })
+         }}
+         barName={barName}
         cocktails={drinks}
         byId={byId}
         have={have}

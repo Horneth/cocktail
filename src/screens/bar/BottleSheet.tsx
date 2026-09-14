@@ -20,6 +20,7 @@ interface Props {
   onClose: () => void
   onRemove: (bottle: PantryItem) => void
   onSetCategory: (bottle: PantryItem, category: string) => void
+  onRetryImage: (bottle: PantryItem) => void
   barName: string
   cocktails: Recipe[]
   byId: Map<string, Recipe>
@@ -35,6 +36,7 @@ export function BottleSheet({
   onClose,
   onRemove,
   onSetCategory,
+  onRetryImage,
   barName,
   cocktails,
   byId,
@@ -78,17 +80,32 @@ export function BottleSheet({
     >
       {bottle && (
         <>
+          <div className={styles.hero} style={{ background: `linear-gradient(180deg, ${visual.tint}, var(--paper))` }}>
+            <div className={styles.heroArt} aria-hidden>
+              <BottleArt
+                name={bottle.label}
+                category={category ?? 'other'}
+                image={bottle.image}
+                imageStatus={bottle.imageStatus}
+                size={190}
+              />
+            </div>
+          </div>
           <div className={styles.head}>
-            <span className={styles.glyph} style={{ background: visual.tint }} aria-hidden>
-              <BottleArt name={bottle.label} category={category ?? 'other'} size={44} />
-            </span>
-            <span className={styles.headText}>
+            <div className={styles.headText}>
               <span className={sheet.title}>{bottle.label}</span>
               {bottle.brand && bottle.brand !== bottle.label && (
                 <span className={sheet.subtitle}>{bottle.brand}</span>
               )}
-            </span>
+            </div>
           </div>
+          {bottle.imageStatus === 'pending' && <p className={styles.imageNote}>Creating portrait…</p>}
+          {bottle.imageStatus === 'failed' && (
+            <div className={styles.imageNote}>
+              {bottle.imageError === 'daily-limit' ? 'Daily image limit reached. Try again tomorrow.' : 'Portrait unavailable.'}
+              <button className={styles.retry} onClick={() => onRetryImage(bottle)}>Try again</button>
+            </div>
+          )}
 
           <button
             className={styles.categoryBtn}

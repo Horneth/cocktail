@@ -145,6 +145,10 @@ export interface PantryItem {
   category?: string
   /** producer alone ("Plantation"), when a scan or the user supplied one */
   brand?: string
+  /** shared bottle portrait reference, when a pool image is available */
+  image?: string
+  imageStatus?: 'none' | 'pending' | 'done' | 'failed'
+  imageError?: 'daily-limit'
 }
 
 /**

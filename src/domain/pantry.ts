@@ -38,7 +38,9 @@ function toRow(barId: string, input: BottleLike, addedAt: number): PantryItem | 
 export async function addToPantry(barId: string, input: BottleLike): Promise<void> {
   if (!barId) return
   const row = toRow(barId, input, Date.now())
-  if (row) await db.bottles.put(row)
+  if (!row) return
+  const existing = await db.bottles.get([barId, row.name])
+  await db.bottles.put(existing ? { ...row, image: existing.image, imageStatus: existing.imageStatus, imageError: existing.imageError } : row)
 }
 
 export async function removeFromPantry(barId: string, labelOrName: string): Promise<void> {
@@ -51,11 +53,49 @@ export async function setInPantry(barId: string, input: BottleLike, on: boolean)
   return removeFromPantry(barId, typeof input === 'string' ? input : input.label)
 }
 
-export async function bulkAddPantry(barId: string, inputs: BottleLike[]): Promise<void> {
-  if (!barId) return
+export async function bulkAddPantry(barId: string, inputs: BottleLike[]): Promise<PantryItem[]> {
+  if (!barId) return []
   const now = Date.now()
   const rows = inputs.map((i) => toRow(barId, i, now)).filter((r): r is PantryItem => r !== null)
-  if (rows.length) await db.bottles.bulkPut(rows)
+  if (rows.length) {
+    const existing = await db.bottles.bulkGet(rows.map((row) => [barId, row.name] as [string, string]))
+    await db.bottles.bulkPut(
+      rows.map((row, index) => {
+        const previous = existing[index]
+        return previous
+          ? { ...row, image: previous.image, imageStatus: previous.imageStatus, imageError: previous.imageError }
+          : row
+      }),
+    )
+  }
+  return rows
+}
+
+export async function markBottleImagePending(
+  barId: string,
+  name: string,
+  image: string,
+): Promise<void> {
+  const existing = await db.bottles.get([barId, name])
+  if (!existing) return
+  await db.bottles.put({ ...existing, image, imageStatus: 'pending', imageError: undefined })
+}
+
+export async function attachBottleImage(barId: string, name: string, image: string): Promise<void> {
+  const existing = await db.bottles.get([barId, name])
+  if (!existing || existing.imageStatus !== 'pending' || existing.image !== image) return
+  await db.bottles.put({ ...existing, imageStatus: 'done', imageError: undefined })
+}
+
+export async function markBottleImageFailed(
+  barId: string,
+  name: string,
+  image: string,
+  error?: 'daily-limit',
+): Promise<void> {
+  const existing = await db.bottles.get([barId, name])
+  if (!existing || existing.imageStatus !== 'pending' || existing.image !== image) return
+  await db.bottles.put({ ...existing, imageStatus: 'failed', ...(error ? { imageError: error } : {}) })
 }
 
 /**
@@ -65,7 +105,7 @@ export async function bulkAddPantry(barId: string, inputs: BottleLike[]): Promis
 export async function updateBottle(
   barId: string,
   name: string,
-  patch: Partial<Pick<PantryItem, 'category' | 'brand'>>,
+  patch: Partial<Pick<PantryItem, 'category' | 'brand' | 'image' | 'imageStatus' | 'imageError'>>,
 ): Promise<void> {
   if (!barId || !name) return
   const existing = await db.bottles.get([barId, name])
