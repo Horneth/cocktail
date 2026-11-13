@@ -37,6 +37,9 @@ it is.
   origin as long as the domain is on the **Authorized domains** list. Since this memo was
   written the app moved to **Firebase Hosting in the same project** (`cocktails-c2705`), so
   `cocktails-c2705.web.app` and `.firebaseapp.com` are authorized automatically.
+  `src/auth/firebase.ts` picks the flow: **popup on desktop, redirect on mobile and in an
+  installed PWA**, where a popup can't return its result (`needsRedirectSignIn`; the redirect
+  is completed by `consumeRedirectResult` on the page the browser returns to).
 - **Firebase App Check** (reCAPTCHA v3, free) — **mandatory for AI Logic as of July 2026**.
   It attests that requests come from the real app; App Check tokens are single-use (replay
   protection, May 2026).

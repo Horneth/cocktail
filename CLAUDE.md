@@ -484,7 +484,11 @@ Three gates, in order — all three must hold before an AI call happens:
 Firebase on mount: `BarScreen`'s add sheet and the recipe editor call it, and
 booting means the SDK chunk plus App Check's reCAPTCHA handshake. It arms only
 for someone who has signed in on this browser before (`cocktail.signedIn`) or
-who just clicked sign in. `scripts/smoke.mjs` asserts the chunk is never
+who just clicked sign in. On mobile and in an installed PWA the sign-in is a
+full-page **redirect** rather than a popup (a popup can't hand its result back
+there — see `needsRedirectSignIn`), so `signIn` writes that hint *before*
+navigating and `consumeRedirectResult` finishes the flow on the page it returns
+to. `scripts/smoke.mjs` asserts the chunk is never
 fetched for a signed-out user — if you change this hook, that check is what will
 catch you.
 

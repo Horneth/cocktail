@@ -10,12 +10,20 @@ vi.mock('../config', () => ({
 }))
 vi.mock('../auth/firebase', () => ({
   subscribeAuth: vi.fn(() => () => {}),
-  signInWithGoogle: vi.fn(async () => ({}) as User),
+  signInWithGoogle: vi.fn(async () => 'signed-in'),
   signOutUser: vi.fn(async () => {}),
+  consumeRedirectResult: vi.fn(async () => null),
+  needsRedirectSignIn: vi.fn(() => false),
 }))
 
 import { isCloudAIConfigured } from '../config'
-import { signInWithGoogle, signOutUser, subscribeAuth } from '../auth/firebase'
+import {
+  consumeRedirectResult,
+  needsRedirectSignIn,
+  signInWithGoogle,
+  signOutUser,
+  subscribeAuth,
+} from '../auth/firebase'
 import { useAuth } from './useAuth'
 
 const HINT = 'cocktail.signedIn'
@@ -29,6 +37,7 @@ function emitAuth(user: User | null) {
 
 beforeEach(() => {
   vi.mocked(isCloudAIConfigured).mockReturnValue(true)
+  vi.mocked(needsRedirectSignIn).mockReturnValue(false)
 })
 
 afterEach(() => {
@@ -88,6 +97,28 @@ describe('useAuth — sign in / out', () => {
     emitAuth(USER)
     expect(result.current.aiAvailable).toBe(true)
     expect(localStorage.getItem(HINT)).toBe('1')
+  })
+
+  // A redirect leaves the page before it can observe anything, so the hint has
+  // to be written up front or the page we return to never arms.
+  it('arms the next boot before a redirect sign-in navigates away', async () => {
+    vi.mocked(needsRedirectSignIn).mockReturnValue(true)
+    vi.mocked(signInWithGoogle).mockResolvedValue('redirecting')
+    const { result } = renderHook(() => useAuth())
+
+    await act(async () => {
+      await result.current.signIn()
+    })
+
+    expect(signInWithGoogle).toHaveBeenCalled()
+    expect(localStorage.getItem(HINT)).toBe('1')
+  })
+
+  it('consumes a returning redirect result when armed', () => {
+    localStorage.setItem(HINT, '1')
+    renderHook(() => useAuth())
+
+    expect(consumeRedirectResult).toHaveBeenCalledTimes(1)
   })
 
   it('clears the hint on sign-out so the next cold start skips the SDK', async () => {

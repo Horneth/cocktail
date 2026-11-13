@@ -85,12 +85,77 @@ export function subscribeAuth(cb: (user: User | null) => void): () => void {
   }
 }
 
-/** Open the Google sign-in popup and resolve with the signed-in user. */
-export async function signInWithGoogle(): Promise<User> {
+/**
+ * Whether sign-in must use a full-page redirect rather than a popup.
+ *
+ * A popup hands the credential back to the page that opened it through
+ * `window.opener`/`postMessage`, and that link is exactly what breaks on
+ * phones: mobile Safari (WebKit/ITP) severs it, so the popup finishes Google's
+ * flow in a separate browsing context and the tab you came from never hears
+ * about it — the user lands back on Settings still signed out, with no error.
+ * An installed PWA is worse: `display: standalone` has no opener at all, so a
+ * popup can never report the result. Desktop Chrome keeps the link and is fine.
+ * Redirect is the flow Firebase recommends here (see docs/cloud-ai-backend.md).
+ */
+export function needsRedirectSignIn(): boolean {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') return false
+  const ua = navigator.userAgent
+  // iPadOS 13+ masquerades as "Macintosh", so the UA alone misses it;
+  // maxTouchPoints is what separates a real iPad from a desktop Mac.
+  const iPadOS = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1
+  const mobile = /Android|iPhone|iPad|iPod|IEMobile|Opera Mini|Mobile/i.test(ua) || iPadOS
+  // Any standalone (installed) PWA, including desktop, lacks an opener.
+  const standalone =
+    window.matchMedia?.('(display-mode: standalone)').matches === true ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  return mobile || standalone
+}
+
+/**
+ * Result of a sign-in attempt. `redirecting` means the page is about to navigate
+ * away and the credential will arrive on the page we come back to — see
+ * `consumeRedirectResult`.
+ */
+export type SignInOutcome = 'signed-in' | 'redirecting'
+
+/**
+ * Start a Google sign-in: a popup on desktop, a full-page redirect on mobile or
+ * in an installed PWA (where a popup can't return its result). Both paths are
+ * observed through the auth subscription; the redirect one additionally needs
+ * `consumeRedirectResult` once the browser returns.
+ */
+export async function signInWithGoogle(): Promise<SignInOutcome> {
   const { auth } = await ensureFirebase()
-  const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth')
-  const result = await signInWithPopup(auth, new GoogleAuthProvider())
-  return result.user
+  const { GoogleAuthProvider } = await import('firebase/auth')
+
+  if (needsRedirectSignIn()) {
+    const { signInWithRedirect } = await import('firebase/auth')
+    await signInWithRedirect(auth, new GoogleAuthProvider())
+    return 'redirecting'
+  }
+
+  const { signInWithPopup } = await import('firebase/auth')
+  await signInWithPopup(auth, new GoogleAuthProvider())
+  return 'signed-in'
+}
+
+/**
+ * Complete a redirect sign-in, on the page the browser sent us back to. Safe to
+ * call on every boot: it resolves to `null` when no redirect was pending.
+ *
+ * Failures (user denied, redirect cancelled, expired state) are folded into
+ * `null` rather than thrown: sign-in is optional, and the auth subscription
+ * reports the resulting signed-out state on its own.
+ */
+export async function consumeRedirectResult(): Promise<User | null> {
+  const { auth } = await ensureFirebase()
+  const { getRedirectResult } = await import('firebase/auth')
+  try {
+    const result = await getRedirectResult(auth)
+    return result?.user ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function signOutUser(): Promise<void> {

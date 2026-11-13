@@ -42,7 +42,11 @@ const router = createHashRouter([
 // there's a real recipes entry behind it and Back works after a cold-start share.
 function handleShareTarget() {
   if (!location.search) return
-  stashSharedImport(location.search)
+  // Only touch the URL when this really was a share. A returning OAuth redirect
+  // can also arrive with query params, and stripping them here (before the
+  // Firebase SDK reads the result) could break sign-in — so leave any URL we
+  // didn't recognise exactly as we found it.
+  if (!stashSharedImport(location.search)) return
   history.replaceState(null, '', location.pathname + (location.hash || ''))
 }
 

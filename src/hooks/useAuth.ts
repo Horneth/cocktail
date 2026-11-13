@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { FEATURES, isCloudAIConfigured } from '../config'
-import { signInWithGoogle, signOutUser, subscribeAuth } from '../auth/firebase'
+import {
+  consumeRedirectResult,
+  needsRedirectSignIn,
+  signInWithGoogle,
+  signOutUser,
+  subscribeAuth,
+} from '../auth/firebase'
 
 export interface AuthState {
   /** The signed-in Google user, or null when logged out. */
@@ -44,6 +50,10 @@ export function useAuth(): AuthState {
 
   useEffect(() => {
     if (!armed) return
+    // If we're arriving back from a redirect sign-in, its result has to be
+    // consumed before the SDK will report the user. Harmless on an ordinary
+    // boot: with no redirect pending it resolves to null immediately.
+    void consumeRedirectResult()
     return subscribeAuth((u) => {
       setUser(u)
       setReady(true)
@@ -59,6 +69,10 @@ export function useAuth(): AuthState {
     // Arm first: on a screen that never subscribed, nothing would observe the
     // resulting user and the button would appear to do nothing.
     setArmed(true)
+    // A redirect sign-in navigates away before it resolves, so arm this browser
+    // for the *next* boot too — otherwise the page we come back to has no hint,
+    // never subscribes, and the restored session goes unobserved.
+    if (needsRedirectSignIn()) localStorage.setItem(SIGNED_IN_HINT, '1')
     await signInWithGoogle()
   }, [])
   const signOut = useCallback(async () => {
