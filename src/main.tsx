@@ -4,6 +4,7 @@ import { createHashRouter, RouterProvider } from 'react-router-dom'
 import './theme.css'
 import { seedClassics } from './db/seed'
 import { ensureDefaultBar } from './domain/bars'
+import { debugLog, installDebugCapture } from './debugLog'
 import { App } from './App'
 import { RecipesScreen } from './screens/RecipesScreen'
 import { RecipeDetailScreen } from './screens/RecipeDetailScreen'
@@ -61,6 +62,8 @@ function forgetRetiredApiKey() {
 }
 
 async function bootstrap() {
+  installDebugCapture()
+  debugLog('app', 'boot', { href: location.href, online: navigator.onLine })
   handleShareTarget()
   forgetRetiredApiKey()
   try {

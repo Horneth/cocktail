@@ -6,6 +6,8 @@ import {
 } from '../components/icons'
 import { backupFilename, exportBackup, importBackup, parseBackup } from '../import/backup'
 import { useAuth } from '../hooks/useAuth'
+import { describeError } from '../debugLog'
+import { DiagnosticsPanel } from '../components/DiagnosticsPanel'
 import { APP_VERSION } from '../version'
 import styles from './SettingsScreen.module.css'
 
@@ -19,10 +21,12 @@ export function SettingsScreen() {
     setAuthError(null)
     try {
       await auth.signIn()
-    } catch {
+    } catch (err) {
       // Closing the Google popup rejects; that's a cancel, not a failure worth
       // shouting about — but it must not surface as an unhandled rejection.
-      setAuthError('Sign-in didn’t complete.')
+      // Include the real code (e.g. auth/popup-blocked): it's the whole clue,
+      // and it's also recorded in the Diagnostics panel below.
+      setAuthError(`Sign-in didn’t complete — ${describeError(err)}`)
     }
   }
 
@@ -133,6 +137,8 @@ export function SettingsScreen() {
           <p className={styles.hint}>Importing replaces your library — it doesn’t merge.</p>
         </section>
       </div>
+
+      <DiagnosticsPanel />
 
       <p className={styles.footer}>Cocktails v{APP_VERSION}</p>
     </div>

@@ -499,6 +499,15 @@ to. `scripts/smoke.mjs` asserts the chunk is never
 fetched for a signed-out user — if you change this hook, that check is what will
 catch you.
 
+**The auth path is instrumented for on-device debugging.** `src/debugLog.ts` is a
+tiny ring buffer (sessionStorage, so it survives the redirect reload) that also
+mirrors to the console; every step of sign-in/redirect/`onAuthStateChanged` logs
+through it, and it captures uncaught errors. `components/DiagnosticsPanel.tsx`
+renders it (collapsed) at the bottom of Settings, with the environment
+(`wouldRedirect`, `displayModeStandalone`, `authDomain`) and a Copy button — the
+only practical way to read this without a console on a phone. Prefer adding a
+`debugLog` line over guessing; delete both when sign-in is settled.
+
 `vite.config.ts` keeps `firebase-*.js` in its own chunk and out of the SW
 precache, for the same reason. Setup, console steps and the preview-channel
 caveat are in **`docs/cloud-ai-backend.md`**.

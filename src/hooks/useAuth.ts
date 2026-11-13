@@ -8,6 +8,7 @@ import {
   signOutUser,
   subscribeAuth,
 } from '../auth/firebase'
+import { debugLog, describeError } from '../debugLog'
 
 export interface AuthState {
   /** The signed-in Google user, or null when logged out. */
@@ -48,6 +49,17 @@ export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(!armed)
 
+  // One line per mount so the Diagnostics panel shows which screens were live
+  // and whether the hook was armed at the time. Cheap, and it dates the run.
+  useEffect(() => {
+    debugLog('auth', 'useAuth mounted', {
+      configured,
+      armed,
+      hint: localStorage.getItem(SIGNED_IN_HINT),
+      href: typeof location !== 'undefined' ? location.href : undefined,
+    })
+  }, [configured, armed])
+
   useEffect(() => {
     if (!armed) return
     // If we're arriving back from a redirect sign-in, its result has to be
@@ -55,6 +67,7 @@ export function useAuth(): AuthState {
     // boot: with no redirect pending it resolves to null immediately.
     void consumeRedirectResult()
     return subscribeAuth((u) => {
+      debugLog('auth', 'onAuthStateChanged', u ? { email: u.email, uid: u.uid } : 'null')
       setUser(u)
       setReady(true)
       // Keep the hint honest. A session that was revoked or expired resolves to
@@ -66,16 +79,25 @@ export function useAuth(): AuthState {
   }, [armed])
 
   const signIn = useCallback(async () => {
+    debugLog('auth', 'signIn() called from the UI')
     // Arm first: on a screen that never subscribed, nothing would observe the
     // resulting user and the button would appear to do nothing.
     setArmed(true)
     // A redirect sign-in navigates away before it resolves, so arm this browser
     // for the *next* boot too — otherwise the page we come back to has no hint,
     // never subscribes, and the restored session goes unobserved.
-    if (needsRedirectSignIn()) localStorage.setItem(SIGNED_IN_HINT, '1')
-    await signInWithGoogle()
+    const redirect = needsRedirectSignIn()
+    if (redirect) localStorage.setItem(SIGNED_IN_HINT, '1')
+    debugLog('auth', `signIn(): ${redirect ? 'redirect' : 'popup'} flow, hint armed`)
+    try {
+      await signInWithGoogle()
+    } catch (err) {
+      debugLog('auth', 'signIn() rejected', describeError(err))
+      throw err
+    }
   }, [])
   const signOut = useCallback(async () => {
+    debugLog('auth', 'signOut() called from the UI')
     localStorage.removeItem(SIGNED_IN_HINT)
     await signOutUser()
   }, [])

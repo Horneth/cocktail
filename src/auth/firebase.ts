@@ -2,6 +2,7 @@ import type { Auth, User } from 'firebase/auth'
 import type { AI, TemplateGenerativeModel } from 'firebase/ai'
 import type { FirebaseApp } from 'firebase/app'
 import { firebaseConfig, isCloudAIConfigured, recaptchaSiteKey } from '../config'
+import { debugLog, describeError } from '../debugLog'
 
 // Firebase bootstrap for the optional cloud-AI features. Everything here is
 // lazy: the (large) Firebase SDK is only imported when this runs, so browsing
@@ -22,45 +23,58 @@ function ensureFirebase(): Promise<FirebaseHandles> {
     return Promise.reject(new Error('Cloud AI is not configured for this deployment.'))
   }
   if (!handles) {
+    debugLog('auth', 'initializing Firebase SDK', {
+      projectId: firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain,
+    })
     handles = (async () => {
-      const [{ initializeApp }, { getAuth }, { getAI, GoogleAIBackend }] = await Promise.all([
-        import('firebase/app'),
-        import('firebase/auth'),
-        import('firebase/ai'),
-      ])
-      const app = initializeApp(firebaseConfig)
+      try {
+        const [{ initializeApp }, { getAuth }, { getAI, GoogleAIBackend }] = await Promise.all([
+          import('firebase/app'),
+          import('firebase/auth'),
+          import('firebase/ai'),
+        ])
+        const app = initializeApp(firebaseConfig)
 
-      // App Check attests calls come from the real app; it's required to call
-      // AI Logic. localhost has no registered reCAPTCHA domain, so we hand the
-      // SDK a debug token instead.
-      //
-      // `true` makes it mint one and log it for you to register. That is fine
-      // until you clear site data and have to re-register — so setting
-      // VITE_APPCHECK_DEBUG_TOKEN to an already-registered token pins it.
-      //
-      // Not gated on DEV alone: `npm run preview` serves a production build,
-      // which is exactly where you want to check the real bundle before
-      // deploying, and DEV is false there. The var is only ever set in
-      // .env.local (gitignored) and is deliberately absent from deploy.yml, so
-      // a deployed build cannot carry one.
-      if (recaptchaSiteKey) {
-        const debugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN
-        if (debugToken || import.meta.env.DEV) {
-          ;(
-            globalThis as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }
-          ).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true
+        // App Check attests calls come from the real app; it's required to call
+        // AI Logic. localhost has no registered reCAPTCHA domain, so we hand the
+        // SDK a debug token instead.
+        //
+        // `true` makes it mint one and log it for you to register. That is fine
+        // until you clear site data and have to re-register — so setting
+        // VITE_APPCHECK_DEBUG_TOKEN to an already-registered token pins it.
+        //
+        // Not gated on DEV alone: `npm run preview` serves a production build,
+        // which is exactly where you want to check the real bundle before
+        // deploying, and DEV is false there. The var is only ever set in
+        // .env.local (gitignored) and is deliberately absent from deploy.yml, so
+        // a deployed build cannot carry one.
+        if (recaptchaSiteKey) {
+          const debugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN
+          if (debugToken || import.meta.env.DEV) {
+            ;(
+              globalThis as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }
+            ).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true
+          }
+          const { initializeAppCheck, ReCaptchaV3Provider } = await import('firebase/app-check')
+          initializeAppCheck(app, {
+            provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+            isTokenAutoRefreshEnabled: true,
+          })
+          debugLog('auth', 'App Check initialized', { debugToken: Boolean(debugToken) })
+        } else {
+          debugLog('auth', 'App Check SKIPPED (no reCAPTCHA site key)')
         }
-        const { initializeAppCheck, ReCaptchaV3Provider } = await import('firebase/app-check')
-        initializeAppCheck(app, {
-          provider: new ReCaptchaV3Provider(recaptchaSiteKey),
-          isTokenAutoRefreshEnabled: true,
-        })
-      }
 
-      const auth = getAuth(app)
-      // Gemini Developer API provider — works on the free Spark plan.
-      const ai = getAI(app, { backend: new GoogleAIBackend() })
-      return { app, auth, ai }
+        const auth = getAuth(app)
+        // Gemini Developer API provider — works on the free Spark plan.
+        const ai = getAI(app, { backend: new GoogleAIBackend() })
+        debugLog('auth', 'Firebase SDK ready')
+        return { app, auth, ai }
+      } catch (err) {
+        debugLog('auth', 'Firebase SDK init FAILED', describeError(err))
+        throw err
+      }
     })()
   }
   return handles
@@ -70,13 +84,16 @@ function ensureFirebase(): Promise<FirebaseHandles> {
 export function subscribeAuth(cb: (user: User | null) => void): () => void {
   let cancelled = false
   let unsub = () => {}
+  debugLog('auth', 'subscribeAuth: booting SDK and subscribing')
   ensureFirebase()
     .then(async ({ auth }) => {
       if (cancelled) return
       const { onAuthStateChanged } = await import('firebase/auth')
       unsub = onAuthStateChanged(auth, cb)
+      debugLog('auth', 'subscribeAuth: listening for auth changes')
     })
-    .catch(() => {
+    .catch((err) => {
+      debugLog('auth', 'subscribeAuth: SDK boot FAILED', describeError(err))
       if (!cancelled) cb(null)
     })
   return () => {
@@ -127,16 +144,41 @@ export type SignInOutcome = 'signed-in' | 'redirecting'
 export async function signInWithGoogle(): Promise<SignInOutcome> {
   const { auth } = await ensureFirebase()
   const { GoogleAuthProvider } = await import('firebase/auth')
+  const redirect = needsRedirectSignIn()
+  debugLog('auth', `signIn: using ${redirect ? 'redirect' : 'popup'} flow`, {
+    redirect,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '(none)',
+    displayModeStandalone:
+      typeof window !== 'undefined'
+        ? window.matchMedia?.('(display-mode: standalone)').matches === true
+        : undefined,
+    authDomain: firebaseConfig.authDomain,
+    href: typeof location !== 'undefined' ? location.href : undefined,
+  })
 
-  if (needsRedirectSignIn()) {
+  if (redirect) {
     const { signInWithRedirect } = await import('firebase/auth')
-    await signInWithRedirect(auth, new GoogleAuthProvider())
-    return 'redirecting'
+    debugLog('auth', 'signIn: calling signInWithRedirect')
+    try {
+      await signInWithRedirect(auth, new GoogleAuthProvider())
+      debugLog('auth', 'signIn: signInWithRedirect returned (awaiting navigation)')
+      return 'redirecting'
+    } catch (err) {
+      debugLog('auth', 'signIn: signInWithRedirect FAILED', describeError(err))
+      throw err
+    }
   }
 
   const { signInWithPopup } = await import('firebase/auth')
-  await signInWithPopup(auth, new GoogleAuthProvider())
-  return 'signed-in'
+  debugLog('auth', 'signIn: calling signInWithPopup')
+  try {
+    const result = await signInWithPopup(auth, new GoogleAuthProvider())
+    debugLog('auth', 'signIn: popup resolved', { email: result.user.email })
+    return 'signed-in'
+  } catch (err) {
+    debugLog('auth', 'signIn: signInWithPopup FAILED', describeError(err))
+    throw err
+  }
 }
 
 /**
@@ -150,10 +192,19 @@ export async function signInWithGoogle(): Promise<SignInOutcome> {
 export async function consumeRedirectResult(): Promise<User | null> {
   const { auth } = await ensureFirebase()
   const { getRedirectResult } = await import('firebase/auth')
+  debugLog('auth', 'consumeRedirectResult: checking for a pending redirect')
   try {
     const result = await getRedirectResult(auth)
+    debugLog('auth', 'consumeRedirectResult: done', {
+      user: result?.user.email ?? null,
+      providerId: result?.user.providerData?.[0]?.providerId ?? null,
+    })
     return result?.user ?? null
-  } catch {
+  } catch (err) {
+    // This used to vanish into a bare `catch {}` — which is precisely why a
+    // failed redirect looked like "nothing happened". Keep it non-fatal, but
+    // record the real code so the Diagnostics panel can show it.
+    debugLog('auth', 'consumeRedirectResult: getRedirectResult FAILED', describeError(err))
     return null
   }
 }
@@ -161,7 +212,9 @@ export async function consumeRedirectResult(): Promise<User | null> {
 export async function signOutUser(): Promise<void> {
   const { auth } = await ensureFirebase()
   const { signOut } = await import('firebase/auth')
+  debugLog('auth', 'signOut: signing out')
   await signOut(auth)
+  debugLog('auth', 'signOut: done')
 }
 
 /**
