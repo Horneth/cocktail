@@ -176,9 +176,36 @@ export function clearRedirectPending(): void {
  * observed through the auth subscription; the redirect one additionally needs
  * `consumeRedirectResult` once the browser returns.
  */
+/**
+ * Fetch the Auth helper on the resolved authDomain and record what comes back,
+ * so a single run says whether that origin really serves it. A correctly
+ * proxied/hosted helper returns Firebase's own page; if the origin does NOT
+ * serve it, the SPA catch-all hands back our index.html and `served` is false —
+ * which is exactly the state that makes `getRedirectResult()` return null.
+ */
+async function probeAuthHelper(host: string): Promise<void> {
+  if (!host || typeof location === 'undefined') return
+  try {
+    const res = await fetch(`https://${host}/__/auth/iframe`, { redirect: 'follow' })
+    const body = await res.text()
+    // Our index.html is the giveaway: it mounts #root and a hashed bundle.
+    const looksLikeSpa = body.includes('id="root"') || /assets\/index-[\w-]+\.js/.test(body)
+    debugLog('auth', 'auth helper probe', {
+      host,
+      status: res.status,
+      served: res.ok && !looksLikeSpa,
+      bodyStart: body.slice(0, 80),
+    })
+  } catch (err) {
+    debugLog('auth', 'auth helper probe FAILED', describeError(err))
+  }
+}
+
 export async function signInWithGoogle(): Promise<SignInOutcome> {
   const { auth } = await ensureFirebase()
   const { GoogleAuthProvider } = await import('firebase/auth')
+  debugLog('auth', 'signIn: resolved auth config', { authDomain: auth.config.authDomain })
+  void probeAuthHelper(auth.config.authDomain ?? '')
   const redirect = needsRedirectSignIn()
   debugLog('auth', `signIn: using ${redirect ? 'redirect' : 'popup'} flow`, {
     redirect,
