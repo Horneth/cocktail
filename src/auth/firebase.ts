@@ -136,6 +136,41 @@ export function needsRedirectSignIn(): boolean {
 export type SignInOutcome = 'signed-in' | 'redirecting'
 
 /**
+ * Marks a redirect sign-in that is currently in flight. Written immediately
+ * before `signInWithRedirect` navigates away, read on the page it returns to so
+ * that page arms the auth subscription and consumes the result.
+ *
+ * This has to be separate from the caller's "signed in before" hint. Arming the
+ * subscription fires `onAuthStateChanged` with `null` right away (we are not
+ * signed in *yet*), and the caller, seeing `null`, would clear its hint before
+ * we have even left — so the page that comes back finds no reason to arm and
+ * the Google credential is never read. "A redirect is in flight" and "this
+ * browser signed in before" are different facts and need different flags.
+ *
+ * localStorage rather than sessionStorage: it must survive the trip out to
+ * `*.firebaseapp.com` and back. Cleared as soon as the redirect settles.
+ */
+const REDIRECT_PENDING = 'cocktail.authRedirectPending'
+
+/** Whether a redirect sign-in is in flight (set on the outgoing page). */
+export function isRedirectPending(): boolean {
+  try {
+    return localStorage.getItem(REDIRECT_PENDING) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Clear the in-flight marker once a redirect has settled (or was abandoned). */
+export function clearRedirectPending(): void {
+  try {
+    localStorage.removeItem(REDIRECT_PENDING)
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Start a Google sign-in: a popup on desktop, a full-page redirect on mobile or
  * in an installed PWA (where a popup can't return its result). Both paths are
  * observed through the auth subscription; the redirect one additionally needs
@@ -158,7 +193,13 @@ export async function signInWithGoogle(): Promise<SignInOutcome> {
 
   if (redirect) {
     const { signInWithRedirect } = await import('firebase/auth')
-    debugLog('auth', 'signIn: calling signInWithRedirect')
+    // Mark BEFORE navigating: the return page reads this to know to arm.
+    try {
+      localStorage.setItem(REDIRECT_PENDING, '1')
+    } catch {
+      // Private mode — the sign-in just won't survive the round-trip.
+    }
+    debugLog('auth', 'signIn: marked a redirect as pending; calling signInWithRedirect')
     try {
       await signInWithRedirect(auth, new GoogleAuthProvider())
       debugLog('auth', 'signIn: signInWithRedirect returned (awaiting navigation)')

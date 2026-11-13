@@ -14,11 +14,15 @@ vi.mock('../auth/firebase', () => ({
   signOutUser: vi.fn(async () => {}),
   consumeRedirectResult: vi.fn(async () => null),
   needsRedirectSignIn: vi.fn(() => false),
+  isRedirectPending: vi.fn(() => false),
+  clearRedirectPending: vi.fn(() => {}),
 }))
 
 import { isCloudAIConfigured } from '../config'
 import {
+  clearRedirectPending,
   consumeRedirectResult,
+  isRedirectPending,
   needsRedirectSignIn,
   signInWithGoogle,
   signOutUser,
@@ -38,6 +42,7 @@ function emitAuth(user: User | null) {
 beforeEach(() => {
   vi.mocked(isCloudAIConfigured).mockReturnValue(true)
   vi.mocked(needsRedirectSignIn).mockReturnValue(false)
+  vi.mocked(isRedirectPending).mockReturnValue(false)
 })
 
 afterEach(() => {
@@ -119,6 +124,47 @@ describe('useAuth — sign in / out', () => {
     renderHook(() => useAuth())
 
     expect(consumeRedirectResult).toHaveBeenCalledTimes(1)
+  })
+
+  // The regression behind the mobile sign-in failure: arming the subscription
+  // fires onAuthStateChanged(null) right away ("not signed in yet"), and that
+  // used to clear the hint before the redirect had even left — so the page that
+  // returned from Google found nothing to arm with and never read the result.
+  it('does not clear the hint when null arrives while a redirect is in flight', async () => {
+    vi.mocked(needsRedirectSignIn).mockReturnValue(true)
+    vi.mocked(signInWithGoogle).mockResolvedValue('redirecting')
+    const { result } = renderHook(() => useAuth())
+
+    await act(async () => {
+      await result.current.signIn()
+    })
+    emitAuth(null)
+
+    expect(localStorage.getItem(HINT)).toBe('1')
+    expect(clearRedirectPending).not.toHaveBeenCalled()
+  })
+
+  // The page that comes back from Google has no session hint, only the marker
+  // the outgoing page left. It must arm on that alone, or the credential the
+  // browser carried back is never consumed.
+  it('arms on a return page flagged by a pending redirect', () => {
+    vi.mocked(isRedirectPending).mockReturnValue(true)
+    const { result } = renderHook(() => useAuth())
+
+    expect(subscribeAuth).toHaveBeenCalledTimes(1)
+    expect(consumeRedirectResult).toHaveBeenCalledTimes(1)
+    expect(result.current.ready).toBe(false)
+  })
+
+  it('clears both flags once a return-page redirect settles signed out', () => {
+    vi.mocked(isRedirectPending).mockReturnValue(true)
+    localStorage.setItem(HINT, '1')
+    renderHook(() => useAuth())
+
+    emitAuth(null)
+
+    expect(localStorage.getItem(HINT)).toBeNull()
+    expect(clearRedirectPending).toHaveBeenCalled()
   })
 
   it('clears the hint on sign-out so the next cold start skips the SDK', async () => {

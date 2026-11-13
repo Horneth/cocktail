@@ -493,9 +493,14 @@ booting means the SDK chunk plus App Check's reCAPTCHA handshake. It arms only
 for someone who has signed in on this browser before (`cocktail.signedIn`) or
 who just clicked sign in. On mobile and in an installed PWA the sign-in is a
 full-page **redirect** rather than a popup (a popup can't hand its result back
-there — see `needsRedirectSignIn`), so `signIn` writes that hint *before*
-navigating and `consumeRedirectResult` finishes the flow on the page it returns
-to. `scripts/smoke.mjs` asserts the chunk is never
+there — see `needsRedirectSignIn`). The return page has no session hint and must
+arm on a *separate* `cocktail.authRedirectPending` marker — kept apart from
+the hint because arming fires `onAuthStateChanged(null)` immediately, and a
+single shared flag gets cleared by that event before the redirect even leaves
+(the page then returns, sees nothing to arm with, and never reads the Google
+credential). `redirectInFlight` (a per-load ref) is what stops the outgoing
+page's null from being read as a settled failure; `consumeRedirectResult`
+finishes the flow on the page that returns. `scripts/smoke.mjs` asserts the chunk is never
 fetched for a signed-out user — if you change this hook, that check is what will
 catch you.
 

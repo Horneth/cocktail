@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { FEATURES, isCloudAIConfigured } from '../config'
 import {
+  clearRedirectPending,
   consumeRedirectResult,
+  isRedirectPending,
   needsRedirectSignIn,
   signInWithGoogle,
   signOutUser,
@@ -37,14 +39,23 @@ const SIGNED_IN_HINT = 'cocktail.signedIn'
 export function useAuth(): AuthState {
   const configured = FEATURES.cloudAI && isCloudAIConfigured()
 
+  // True on the page that *started* a redirect, for this page load only. A
+  // fresh load (the return page) starts false. It is what stops the outgoing
+  // page's inevitable `onAuthStateChanged(null)` from being mistaken for a
+  // settled failure and wiping the state the return page needs.
+  const redirectInFlight = useRef(false)
+
   // Subscribing boots Firebase: a few hundred KB of SDK plus App Check's
   // reCAPTCHA handshake. `BarScreen` calls this hook on a primary tab, so
   // subscribing on mount would charge that to every user of an offline-first
   // app — including the majority who never touch AI. So we only arm the
-  // subscription for someone who has signed in before (restore their session)
-  // or who just clicked sign in.
+  // subscription for someone who has signed in before (restore their session),
+  // someone returning from a redirect sign-in, or someone who just clicked
+  // sign in.
   const [armed, setArmed] = useState(
-    () => configured && localStorage.getItem(SIGNED_IN_HINT) === '1',
+    () =>
+      configured &&
+      (localStorage.getItem(SIGNED_IN_HINT) === '1' || isRedirectPending()),
   )
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(!armed)
@@ -62,19 +73,35 @@ export function useAuth(): AuthState {
 
   useEffect(() => {
     if (!armed) return
+    let cancelled = false
     // If we're arriving back from a redirect sign-in, its result has to be
     // consumed before the SDK will report the user. Harmless on an ordinary
     // boot: with no redirect pending it resolves to null immediately.
-    void consumeRedirectResult()
+    //
+    // Guarded by `redirectInFlight`: on the *outgoing* page this also runs and
+    // resolves to null (nothing has happened yet), which must not be treated as
+    // a settled failure.
+    void consumeRedirectResult().then((u) => {
+      if (cancelled || redirectInFlight.current) return
+      if (u) localStorage.setItem(SIGNED_IN_HINT, '1')
+      else localStorage.removeItem(SIGNED_IN_HINT)
+      clearRedirectPending()
+    })
     return subscribeAuth((u) => {
       debugLog('auth', 'onAuthStateChanged', u ? { email: u.email, uid: u.uid } : 'null')
       setUser(u)
       setReady(true)
-      // Keep the hint honest. A session that was revoked or expired resolves to
-      // null here, which clears it — so the next cold start is back to not
-      // loading the SDK at all.
-      if (u) localStorage.setItem(SIGNED_IN_HINT, '1')
-      else localStorage.removeItem(SIGNED_IN_HINT)
+      if (u) {
+        localStorage.setItem(SIGNED_IN_HINT, '1')
+        clearRedirectPending()
+      } else if (!redirectInFlight.current) {
+        // Keep the hint honest: a session that was revoked or expired resolves
+        // to null here, so the next cold start is back to not loading the SDK.
+        // But NOT while a redirect is in flight — that null is just "not signed
+        // in yet", and clearing here is the bug that broke mobile sign-in.
+        localStorage.removeItem(SIGNED_IN_HINT)
+        clearRedirectPending()
+      }
     })
   }, [armed])
 
@@ -87,11 +114,21 @@ export function useAuth(): AuthState {
     // for the *next* boot too — otherwise the page we come back to has no hint,
     // never subscribes, and the restored session goes unobserved.
     const redirect = needsRedirectSignIn()
-    if (redirect) localStorage.setItem(SIGNED_IN_HINT, '1')
-    debugLog('auth', `signIn(): ${redirect ? 'redirect' : 'popup'} flow, hint armed`)
+    if (redirect) {
+      // Belt and braces: the flag that actually matters is set inside
+      // signInWithGoogle just before it navigates (see `isRedirectPending`), so
+      // the return page arms even though the outgoing page's null auth event no
+      // longer clears anything.
+      redirectInFlight.current = true
+      localStorage.setItem(SIGNED_IN_HINT, '1')
+    }
+    debugLog('auth', `signIn(): ${redirect ? 'redirect' : 'popup'} flow, redirect armed`)
     try {
       await signInWithGoogle()
     } catch (err) {
+      // Never navigated, so nothing is pending after all.
+      redirectInFlight.current = false
+      clearRedirectPending()
       debugLog('auth', 'signIn() rejected', describeError(err))
       throw err
     }
