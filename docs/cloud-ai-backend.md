@@ -39,12 +39,7 @@ it is.
   `cocktails-c2705.web.app` and `.firebaseapp.com` are authorized automatically.
   `src/auth/firebase.ts` picks the flow: **popup on desktop, redirect on mobile and in an
   installed PWA**, where a popup can't return its result (`needsRedirectSignIn`; the redirect
-  is completed by `consumeRedirectResult` on the page the browser returns to). Either flow
-  needs the app and the **`authDomain` to be the same site**: the hand-off reads the
-  authDomain's storage, which browsers block across sites, so `config.ts` names the Hosting
-  origin we're served from (`*.web.app`) instead of the default `*.firebaseapp.com` — Firebase
-  Hosting serves the `/__/auth/*` helper on its own domains. The `available` domain list only
-  governs *which origins may begin* the flow.
+  is completed by `consumeRedirectResult` on the page the browser returns to).
 - **Firebase App Check** (reCAPTCHA v3, free) — **mandatory for AI Logic as of July 2026**.
   It attests that requests come from the real app; App Check tokens are single-use (replay
   protection, May 2026).

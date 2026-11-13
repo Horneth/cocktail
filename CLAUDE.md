@@ -500,17 +500,7 @@ single shared flag gets cleared by that event before the redirect even leaves
 (the page then returns, sees nothing to arm with, and never reads the Google
 credential). `redirectInFlight` (a per-load ref) is what stops the outgoing
 page's null from being read as a settled failure; `consumeRedirectResult`
-finishes the flow on the page that returns.
-
-**`authDomain` must be same-site as the app** — `config.ts` resolves it to the
-origin we're served from on a `*.web.app`/`*.firebaseapp.com` host. The default
-`*.firebaseapp.com` is a *different site* from `*.web.app`, and the redirect
-hand-off reads the authDomain's storage, which browsers now block cross-site: the
-sign-in completes, `getRedirectResult()` returns null, and nothing is logged
-(firebase/firebase-js-sdk#7824). Firebase Hosting serves the `/__/auth/*` helper
-on its own domains, so naming our origin keeps the whole flow same-origin.
-`signInWithGoogle` probes `/__/auth/iframe` and logs whether the helper is really
-served there — if a future host stops serving it, the Diagnostics panel says so. `scripts/smoke.mjs` asserts the chunk is never
+finishes the flow on the page that returns. `scripts/smoke.mjs` asserts the chunk is never
 fetched for a signed-out user — if you change this hook, that check is what will
 catch you.
 

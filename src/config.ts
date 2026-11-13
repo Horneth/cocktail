@@ -25,34 +25,9 @@ export const FEATURES = {
 // See docs/cloud-ai-backend.md for the one-time Firebase console setup.
 const env = import.meta.env;
 
-/**
- * Where the Auth helper (`/__/auth/handler`, `/__/auth/iframe`) is served from.
- *
- * This is the crux of the mobile sign-in fix. `signInWithRedirect` completes by
- * sending the browser back to the app, where the SDK reads the *authDomain's*
- * storage to recover the credential. When the authDomain is a different site
- * from the app, browsers now block that read (third-party storage
- * partitioning), so the redirect silently finishes with no user —
- * `getRedirectResult()` returns null and nothing is logged
- * (firebase/firebase-js-sdk#7824).
- *
- * The default `*.firebaseapp.com` is a different site from our `*.web.app`
- * hosting domain, so we name the origin we are actually served from: Firebase
- * Hosting serves the helper on its own domains, making the whole flow
- * same-origin. Non-Hosting origins (localhost, tests) keep the configured value.
- */
-function resolveAuthDomain(configured: string): string {
-  if (typeof location === "undefined") return configured;
-  const host = location.hostname;
-  if (location.protocol === "https:" && /\.(web\.app|firebaseapp\.com)$/.test(host)) {
-    return host;
-  }
-  return configured;
-}
-
 export const firebaseConfig = {
   apiKey: env.VITE_FIREBASE_API_KEY ?? "",
-  authDomain: resolveAuthDomain(env.VITE_FIREBASE_AUTH_DOMAIN ?? ""),
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN ?? "",
   projectId: env.VITE_FIREBASE_PROJECT_ID ?? "",
   appId: env.VITE_FIREBASE_APP_ID ?? "",
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET ?? "",
