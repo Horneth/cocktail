@@ -1,7 +1,16 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// Single source of truth for the version shown on the Settings screen: the
+// `version` field in package.json. Bump it (semantic versioning) on every
+// change, so the build you're testing names itself. Read here rather than
+// imported into the bundle, so only the string ships — not the whole manifest.
+const { version: appVersion } = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
+) as { version: string }
 
 // Firebase Hosting serves the app at the site root, so the base path is a
 // constant. (It used to be CI-injected: GitHub Pages served project sites under
@@ -12,6 +21,9 @@ const base = '/'
 // https://vite.dev/config/
 export default defineConfig({
   base,
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   build: {
     rollupOptions: {
       output: {

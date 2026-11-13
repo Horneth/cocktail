@@ -84,6 +84,10 @@ npm test           # vitest — units, scaling, import/link dedup, backup
 npm run typecheck
 ```
 
+The app version lives in `package.json`'s `version` and is shown on the Settings
+screen (`Cocktails v0.2.0`). Bump it in the same commit as any change, following
+semantic versioning — that's how a build names itself on a device.
+
 Regenerate PWA icons from the SVG source: `node scripts/make-icons.mjs`.
 
 End-to-end smoke check against a preview build (needs `npm i -D playwright`

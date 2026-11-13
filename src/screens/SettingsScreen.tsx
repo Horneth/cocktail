@@ -6,6 +6,7 @@ import {
 } from '../components/icons'
 import { backupFilename, exportBackup, importBackup, parseBackup } from '../import/backup'
 import { useAuth } from '../hooks/useAuth'
+import { APP_VERSION } from '../version'
 import styles from './SettingsScreen.module.css'
 
 export function SettingsScreen() {
@@ -133,6 +134,7 @@ export function SettingsScreen() {
         </section>
       </div>
 
+      <p className={styles.footer}>Cocktails v{APP_VERSION}</p>
     </div>
   )
 }

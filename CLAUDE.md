@@ -61,9 +61,16 @@ npm run test:watch # vitest in watch mode
 npm run typecheck  # tsc -b --noEmit
 ```
 
-Both `npm run typecheck` and `npm test` are green on the current tree (222 tests).
+Both `npm run typecheck` and `npm test` are green on the current tree (374 tests).
 Run them before committing — they are the fast feedback loop. There is **no
 linter/formatter** configured; match the surrounding code style.
+
+**Bump the version on every change.** `package.json`'s `version` is the single
+source of truth (semantic versioning). Vite injects it as `__APP_VERSION__`
+(`vite.config.ts`), `src/version.ts` exposes it, and the Settings screen prints
+it as `Cocktails v<version>` — so any build names itself while you're checking
+which one a device is running. Increment it in the same commit as the change,
+never in a separate one.
 
 Regenerate PWA icons from the SVG source: `node scripts/make-icons.mjs`.
 Regenerate bottle portraits (real bottles / category fallbacks): `node scripts/make-bottle-images.mjs --bottles` (needs `GOOGLE_API_KEY`; see "A bottle wears its own portrait" below).
